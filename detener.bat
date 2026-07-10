@@ -1,1 +1,2 @@
-@echo off call "%~dp0bin\detener.bat" %*
+@echo off
+call "%~dp0bin\detener.bat" %*
