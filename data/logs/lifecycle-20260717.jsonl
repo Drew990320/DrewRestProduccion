@@ -173,3 +173,35 @@
 {"ts":"2026-07-17T19:00:14.3472087Z","phase":"Update","level":"info","message":"Hay una version mas reciente en DrewRestProduccion (v2026.7.17.1350 / build eb7a4e3) [git-tip]."}
 {"ts":"2026-07-17T19:00:14.3518005Z","phase":"Update","level":"info","message":""}
 {"ts":"2026-07-17T19:00:14.3537885Z","phase":"Update","level":"info","message":"Descargando paquete desde GitHub..."}
+{"ts":"2026-07-17T19:02:09.6816450Z","phase":"Update","level":"info","message":"Metodo: git"}
+{"ts":"2026-07-17T19:02:09.6846579Z","phase":"Update","level":"info","message":"Aplicando archivos (conservando configuracion local)..."}
+{"ts":"2026-07-17T19:02:22.9194193Z","phase":"Update","level":"warn","message":"Copy-Item : El proceso no puede obtener acceso al archivo \u0027C:\\Users\\nioan\\Desktop\\DrewTech\\Productos\\Codigo "}
+{"ts":"2026-07-17T19:02:22.9218667Z","phase":"Update","level":"warn","message":"Fuente\\App\\DrewRest\\api\\node_modules\\.prisma\\client\\query_engine-windows.dll.node\u0027 porque est\u00A0 siendo utilizado en "}
+{"ts":"2026-07-17T19:02:22.9249182Z","phase":"Update","level":"warn","message":"otro proceso."}
+{"ts":"2026-07-17T19:02:22.9256270Z","phase":"Update","level":"warn","message":"En C:\\Users\\nioan\\Desktop\\DrewTech\\Productos\\Codigo Fuente\\App\\DrewRest\\scripts\\drewrest-produccion-helpers.ps1: 544 "}
+{"ts":"2026-07-17T19:02:22.9263529Z","phase":"Update","level":"warn","message":"Car\u00A0cter: 9"}
+{"ts":"2026-07-17T19:02:22.9269219Z","phase":"Update","level":"warn","message":"\u002B         Copy-Item -Path (Join-Path $_.FullName \u0022*\u0022) -Destination $tar ..."}
+{"ts":"2026-07-17T19:02:22.9275585Z","phase":"Update","level":"warn","message":"\u002B         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"}
+{"ts":"2026-07-17T19:02:22.9282674Z","phase":"Update","level":"warn","message":"    \u002B CategoryInfo          : WriteError: (query_engine-windows.dll.node:FileInfo) [Copy-Item], IOException"}
+{"ts":"2026-07-17T19:02:22.9293776Z","phase":"Update","level":"warn","message":"    \u002B FullyQualifiedErrorId : CopyDirectoryInfoItemIOError,Microsoft.PowerShell.Commands.CopyItemCommand"}
+{"ts":"2026-07-17T19:02:22.9304512Z","phase":"Update","level":"warn","message":" "}
+{"ts":"2026-07-17T19:02:22.9704713Z","phase":"Update","level":"error","message":"Fallo update: actualizar-drewrest.ps1 fall\u00F3 (c\u00F3digo 1)"}
+{"ts":"2026-07-17T19:02:22.9740427Z","phase":"Recovery","level":"warn","message":"Restaurando backup 20260717-140009\u2026"}
+{"ts":"2026-07-17T19:02:23.8330495Z","phase":"Recovery","level":"info","message":"\u00C1rbol app-prev restaurado"}
+{"ts":"2026-07-17T19:02:25.9556168Z","phase":"Recovery","level":"info","message":"Base de datos restaurada desde dump"}
+{"ts":"2026-07-17T19:02:25.9640912Z","phase":"Recovery","level":"info","message":"Rollback completado","data":{"BackupId":"20260717-140009"}}
+{"ts":"2026-07-17T19:02:25.9732967Z","phase":"Update","level":"error","message":"Actualizaci\u00F3n fallida; se intent\u00F3 restaurar el snapshot anterior. actualizar-drewrest.ps1 fall\u00F3 (c\u00F3digo 1)"}
+{"ts":"2026-07-17T19:22:00.8635709Z","phase":"Backup","level":"info","message":"Snapshot OK: 20260717-142159","data":{"TotalBytes":10690428,"HasAppPrev":true}}
+{"ts":"2026-07-17T19:22:00.8664223Z","phase":"Update","level":"info","message":"Script: -Apply -Force"}
+{"ts":"2026-07-17T19:22:01.5337607Z","phase":"Update","level":"info","message":""}
+{"ts":"2026-07-17T19:22:01.5384660Z","phase":"Update","level":"info","message":"=== DrewRest - actualizaciones ==="}
+{"ts":"2026-07-17T19:22:01.5392362Z","phase":"Update","level":"info","message":"Carpeta: C:\\Users\\nioan\\Desktop\\DrewTech\\Productos\\Codigo Fuente\\App\\DrewRest"}
+{"ts":"2026-07-17T19:22:02.8057756Z","phase":"Update","level":"info","message":"Canal:   main"}
+{"ts":"2026-07-17T19:22:02.8094637Z","phase":"Update","level":"info","message":"Repo:    https://github.com/Drew990320/DrewRestProduccion.git"}
+{"ts":"2026-07-17T19:22:02.8100783Z","phase":"Update","level":"info","message":""}
+{"ts":"2026-07-17T19:22:02.8387548Z","phase":"Update","level":"info","message":"Local : v2026.7.17.1359 | build e16577a | 2026-07-17T13:59:23.5143367-05:00"}
+{"ts":"2026-07-17T19:22:02.8414984Z","phase":"Update","level":"info","message":"Remoto: v2026.7.17.1359 | build e16577a | 2026-07-17T13:59:23.5143367-05:00"}
+{"ts":"2026-07-17T19:22:02.8421033Z","phase":"Update","level":"info","message":""}
+{"ts":"2026-07-17T19:22:02.8467449Z","phase":"Update","level":"info","message":"Ya tienes la ultima version publicada (v2026.7.17.1359 / build e16577a)."}
+{"ts":"2026-07-17T19:22:02.8502644Z","phase":"Update","level":"info","message":""}
+{"ts":"2026-07-17T19:22:02.8512809Z","phase":"Update","level":"info","message":"Descargando paquete desde GitHub..."}

@@ -62,9 +62,19 @@ if ($CheckOnly -or (-not $Apply -and -not $Force)) {
   exit $(if ($check.Comparison.updateAvailable) { 2 } else { 0 })
 }
 
+# No degradar: Force reinstala solo si remoto >= local (updateAvailable) o forzar mismo build.
+if ($check.Comparison.status -eq "local_ahead") {
+  Write-Host "No se aplica: la instalacion local es mas nueva que el canal remoto." -ForegroundColor Yellow
+  exit 0
+}
+
 if (-not $check.Comparison.updateAvailable -and -not $Force) {
   Write-Host "Nada que actualizar." -ForegroundColor Green
   exit 0
+}
+
+if (-not $check.Comparison.updateAvailable -and $Force) {
+  Write-Host "Force: reinstalando el paquete remoto actual..." -ForegroundColor Yellow
 }
 
 Write-Host ""

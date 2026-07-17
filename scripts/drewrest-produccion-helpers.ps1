@@ -405,6 +405,31 @@ function Get-RemoteDrewRestCommitViaGit {
   }
 }
 
+function ConvertTo-DrewRestVersionRank {
+  param($Manifest)
+  # Rank comparable: prefer buildDate ticks; fallback CalVer numerico; else 0.
+  if ($Manifest -and $Manifest.buildDate) {
+    try {
+      return [datetimeoffset]::Parse([string]$Manifest.buildDate).UtcTicks
+    } catch {}
+  }
+  $ver = if ($Manifest) { [string]$Manifest.version } else { "" }
+  if (-not $ver) { return [int64]0 }
+  $parts = $ver.Split('.') | ForEach-Object {
+    $n = 0
+    [void][int]::TryParse($_, [ref]$n)
+    $n
+  }
+  # yyyy.M.d.HHmm → compacto en un Int64
+  while ($parts.Count -lt 4) { $parts += 0 }
+  return [int64](
+    ([int64]$parts[0] * 1000000000000L) +
+    ([int64]$parts[1] * 1000000000L) +
+    ([int64]$parts[2] * 1000000L) +
+    ([int64]$parts[3])
+  )
+}
+
 function Compare-DrewRestVersions {
   param(
     $Local,
@@ -427,36 +452,48 @@ function Compare-DrewRestVersions {
     }
   }
 
-  # Senales de cambio (sin tags): version CalVer, buildId, commit o buildDate.
-  $sameBuild = ($Local.buildId -eq $Remote.buildId) -and (
-    -not $Local.sourceCommit -or -not $Remote.sourceCommit -or
-    $Local.sourceCommit -eq $Remote.sourceCommit
+  $sameBuild = ($Local.buildId -and $Remote.buildId -and ($Local.buildId -eq $Remote.buildId)) -or (
+    $Local.sourceCommit -and $Remote.sourceCommit -and
+    $Local.sourceCommit -eq $Remote.sourceCommit -and
+    $Local.version -eq $Remote.version
   )
 
-  $versionChanged = $false
-  if ($Local.version -and $Remote.version -and ($Local.version -ne $Remote.version)) {
-    $versionChanged = $true
-  }
-
-  $remoteNewerDate = $false
-  if ($Local.buildDate -and $Remote.buildDate) {
-    try {
-      $localDt = [datetimeoffset]::Parse($Local.buildDate)
-      $remoteDt = [datetimeoffset]::Parse($Remote.buildDate)
-      $remoteNewerDate = $remoteDt -gt $localDt
-    } catch {
-      $remoteNewerDate = $false
+  if ($sameBuild) {
+    return [ordered]@{
+      status = "current"
+      updateAvailable = $false
+      message = "Ya tienes la ultima version publicada (v$($Local.version) / build $($Local.buildId))."
     }
   }
 
-  if ($versionChanged -or (-not $sameBuild) -or $remoteNewerDate) {
-    $channelHint = ""
-    if ($Remote.updateChannel) { $channelHint = " [$($Remote.updateChannel)]" }
-    if ($Remote.releaseTag) { $channelHint += " $($Remote.releaseTag)" }
+  $localRank = ConvertTo-DrewRestVersionRank $Local
+  $remoteRank = ConvertTo-DrewRestVersionRank $Remote
+  $channelHint = ""
+  if ($Remote.updateChannel) { $channelHint = " [$($Remote.updateChannel)]" }
+  if ($Remote.releaseTag) { $channelHint += " $($Remote.releaseTag)" }
+
+  if ($remoteRank -gt $localRank) {
     return [ordered]@{
       status = "update_available"
       updateAvailable = $true
       message = "Hay una version mas reciente en DrewRestProduccion (v$($Remote.version) / build $($Remote.buildId))$channelHint."
+    }
+  }
+
+  if ($localRank -gt $remoteRank) {
+    return [ordered]@{
+      status = "local_ahead"
+      updateAvailable = $false
+      message = "Esta instalacion (v$($Local.version)) es mas nueva que el remoto (v$($Remote.version)). No hay que actualizar."
+    }
+  }
+
+  # Misma fecha/version distinta buildId: preferir remoto solo si buildId difiere y fechas iguales → update
+  if ($Local.buildId -ne $Remote.buildId) {
+    return [ordered]@{
+      status = "update_available"
+      updateAvailable = $true
+      message = "Hay un paquete distinto en DrewRestProduccion (v$($Remote.version) / build $($Remote.buildId))$channelHint."
     }
   }
 
@@ -530,24 +567,70 @@ function Restore-DrewRestProtectedFiles {
   }
 }
 
+function Stop-DrewRestRuntimeLocks {
+  param([Parameter(Mandatory = $true)][string]$DrewRestRoot)
+
+  $rootFull = [System.IO.Path]::GetFullPath($DrewRestRoot).TrimEnd('\')
+  $killed = 0
+  try {
+    Get-CimInstance Win32_Process -Filter "Name = 'node.exe'" -ErrorAction SilentlyContinue | ForEach-Object {
+      $cmd = [string]$_.CommandLine
+      $exe = [string]$_.ExecutablePath
+      if (
+        ($cmd -and $cmd.IndexOf($rootFull, [StringComparison]::OrdinalIgnoreCase) -ge 0) -or
+        ($exe -and $exe.IndexOf($rootFull, [StringComparison]::OrdinalIgnoreCase) -ge 0)
+      ) {
+        try {
+          Stop-Process -Id $_.ProcessId -Force -ErrorAction Stop
+          $killed++
+        } catch {}
+      }
+    }
+  } catch {}
+
+  if ($killed -gt 0) {
+    Write-Host "Procesos node liberados para actualizar: $killed" -ForegroundColor DarkGray
+    Start-Sleep -Seconds 2
+  }
+}
+
 function Copy-DrewRestTree {
   param(
     [Parameter(Mandatory = $true)][string]$SourceRoot,
     [Parameter(Mandatory = $true)][string]$TargetRoot
   )
 
-  Get-ChildItem -Path $SourceRoot -Force | ForEach-Object {
-    if ($_.Name -eq ".git") { return }
-    $target = Join-Path $TargetRoot $_.Name
-    if ($_.PSIsContainer) {
-      if (Test-Path $target) {
-        Copy-Item -Path (Join-Path $_.FullName "*") -Destination $target -Recurse -Force
-      } else {
-        Copy-Item -Path $_.FullName -Destination $target -Recurse -Force
-      }
-    } else {
-      Copy-Item -Path $_.FullName -Destination $target -Force
+  # Robocopy tolera reintentos; evita tumbar todo el update por un .dll de Prisma bloqueado.
+  $xd = @("/XD", ".git")
+  foreach ($rel in @(
+      "data\postgres",
+      "data\backups",
+      "data\staging",
+      "data\state",
+      "api\logs"
+    )) {
+    $srcEx = Join-Path $SourceRoot $rel
+    if (Test-Path $srcEx) {
+      $xd += "/XD"
+      $xd += $srcEx
     }
+  }
+
+  $args = @(
+    $SourceRoot, $TargetRoot,
+    "/E", "/NFL", "/NDL", "/NJH", "/NJS", "/nc", "/ns", "/np",
+    "/R:4", "/W:2", "/XJ"
+  ) + $xd
+
+  $prev = $ErrorActionPreference
+  $ErrorActionPreference = "Continue"
+  & robocopy @args | Out-Null
+  $code = $LASTEXITCODE
+  $ErrorActionPreference = $prev
+
+  # Robocopy: 0-7 = exito/parcial; >=8 error grave
+  if ($code -ge 8) {
+    throw "No se pudieron copiar archivos de actualizacion (robocopy $code). Deten el API (boton Detener) e intenta de nuevo."
   }
 }
 
@@ -607,6 +690,7 @@ function Invoke-DrewRestUpdateFromFolder {
     [Parameter(Mandatory = $true)][string]$SourceRoot
   )
 
+  Stop-DrewRestRuntimeLocks -DrewRestRoot $InstallRoot
   $backup = Backup-DrewRestProtectedFiles -DrewRestRoot $InstallRoot
   try {
     Copy-DrewRestTree -SourceRoot $SourceRoot -TargetRoot $InstallRoot
@@ -615,6 +699,9 @@ function Invoke-DrewRestUpdateFromFolder {
     $scriptsSource = if (Test-Path $scriptsFromPackage) { $scriptsFromPackage } else { $PSScriptRoot }
     Install-DrewRestUpdateScripts -DrewRestRoot $InstallRoot -ScriptsSource $scriptsSource
     return 0
+  } catch {
+    Write-Host $_.Exception.Message -ForegroundColor Red
+    return 1
   } finally {
     Remove-Item -Path $backup -Recurse -Force -ErrorAction SilentlyContinue
   }
