@@ -1,0 +1,54 @@
+{
+  "backupId": "20260717-134454",
+  "createdAt": "2026-07-17T18:44:54.3802319Z",
+  "appVersion": "2026.7.17.1333",
+  "schemaVersion": 72,
+  "status": "ok",
+  "dbDump": "db.dump",
+  "files": [
+    {
+      "name": "db.dump",
+      "sha256": "e4818bab71cdd3c2aa3021ca70a39d6f7a39c57d342e3cc9969e4b97592ba64d",
+      "bytes": 261325
+    },
+    {
+      "name": "drewrest.config.json",
+      "sha256": "ccf8ecc56b461e0c707c7ad86e02f89dabcc741254f76fd249c79851fba5fd1a",
+      "bytes": 424
+    },
+    {
+      "name": "license.key",
+      "sha256": "23f279ae8f7513f192e77e28669dcdefd75821fdbb5afdb0cc25da4133898c58",
+      "bytes": 338
+    },
+    {
+      "name": "update-channel.json",
+      "sha256": "b40dd59026481cfc4412ff18c363ffdfb8ee44f4b009fbe932317333f26f93a2",
+      "bytes": 30
+    },
+    {
+      "name": "pg-credentials.json",
+      "sha256": "4f70098c82707d919186195da3ace9ac9849b852b1d591b30e84455b305eb33f",
+      "bytes": 243
+    },
+    {
+      "name": "VERSION.json",
+      "sha256": "eb0e95257a86cec55929c5ef3593a0c24a28730986d3ab9961d366b0dd1264ea",
+      "bytes": 498
+    },
+    {
+      "name": "versions.json",
+      "sha256": "eb0e95257a86cec55929c5ef3593a0c24a28730986d3ab9961d366b0dd1264ea",
+      "bytes": 498
+    },
+    {
+      "name": "api.env",
+      "sha256": "4edba9bd2b9693c803162fae66884230e624028860e54d84c68bf56811d375b7",
+      "bytes": 3368
+    }
+  ],
+  "totalBytes": 10690567,
+  "checksumSha256": "d474e98abc804b612284e729fdb8685314921a4190a989ea82789aee36cf2a5f",
+  "error": null,
+  "hasAppPrev": true
+}

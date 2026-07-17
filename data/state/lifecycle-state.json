@@ -1,7 +1,7 @@
 {
   "status": "healthy",
-  "phase": "Start",
-  "backupId": null,
-  "detail": "running",
-  "updatedAt": "2026-07-17T18:26:01.9897517Z"
+  "phase": null,
+  "backupId": "20260717-134454",
+  "detail": "rollback completado",
+  "updatedAt": "2026-07-17T18:44:59.9600923Z"
 }
