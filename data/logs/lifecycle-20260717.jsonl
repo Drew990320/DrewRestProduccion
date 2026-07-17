@@ -34,3 +34,21 @@
 {"ts":"2026-07-17T18:26:01.2352085Z","phase":"Integrity","level":"info","message":"Gate OK","data":{"warnings":1}}
 {"ts":"2026-07-17T18:26:01.2374629Z","phase":"Integrity","level":"warn","message":"LICENSE_SKIP activo en producci\u00F3n potencial"}
 {"ts":"2026-07-17T18:26:01.9909196Z","phase":"Start","level":"info","message":"API \u002B Web iniciados"}
+{"ts":"2026-07-17T18:33:26.5273469Z","phase":"Update","level":"info","message":"Script: -CheckOnly"}
+{"ts":"2026-07-17T18:33:27.1101236Z","phase":"Update","level":"info","message":""}
+{"ts":"2026-07-17T18:33:27.1120579Z","phase":"Update","level":"info","message":"=== DrewRest - actualizaciones ==="}
+{"ts":"2026-07-17T18:33:27.1131777Z","phase":"Update","level":"info","message":"Carpeta: C:\\Users\\nioan\\Desktop\\DrewTech\\Productos\\Codigo Fuente\\App\\DrewRest"}
+{"ts":"2026-07-17T18:33:27.4686834Z","phase":"Update","level":"info","message":"Canal:   main"}
+{"ts":"2026-07-17T18:33:27.4747043Z","phase":"Update","level":"info","message":"Repo:    https://github.com/Drew990320/DrewRestProduccion.git"}
+{"ts":"2026-07-17T18:33:27.4764571Z","phase":"Update","level":"info","message":""}
+{"ts":"2026-07-17T18:33:27.4872694Z","phase":"Update","level":"info","message":"Local : v2026.7.17.1330 | build d14c665 | 2026-07-17T13:30:22.3881418-05:00"}
+{"ts":"2026-07-17T18:33:27.4941837Z","phase":"Update","level":"info","message":"Remoto: v0.0.1 | build 0c3473b | 2026-07-17T13:06:43.2472069-05:00"}
+{"ts":"2026-07-17T18:33:27.4957973Z","phase":"Update","level":"info","message":""}
+{"ts":"2026-07-17T18:33:27.5099963Z","phase":"Update","level":"info","message":"Hay una version mas reciente en DrewRestProduccion (v0.0.1 / build 0c3473b)."}
+{"ts":"2026-07-17T18:33:27.5123957Z","phase":"Update","level":"info","message":""}
+{"ts":"2026-07-17T18:33:27.5132266Z","phase":"Update","level":"info","message":"Para aplicar la actualizacion:"}
+{"ts":"2026-07-17T18:33:27.5143867Z","phase":"Update","level":"info","message":"  inicio.bat actualizar"}
+{"ts":"2026-07-17T18:33:27.5159552Z","phase":"Update","level":"info","message":"  (o cierra y vuelve a abrir DrewRest; al arrancar te preguntara)"}
+{"ts":"2026-07-17T18:33:27.5183525Z","phase":"Update","level":"info","message":""}
+{"ts":"2026-07-17T18:33:27.5199399Z","phase":"Update","level":"info","message":"Se conservan api\\.env, api\\license.key, images\\ y data\\ (Postgres embebido)."}
+{"ts":"2026-07-17T18:33:27.5212911Z","phase":"Update","level":"info","message":"Preferible: DrewRest.exe actualizar"}

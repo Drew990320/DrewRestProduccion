@@ -213,21 +213,61 @@ function Write-DrewRestUpdateChannel {
 function Get-RemoteDrewRestVersionManifest {
   param(
     [string]$Branch = $DrewRestProduccionBranch,
-    [string]$VersionRawUrl = ""
+    [string]$VersionRawUrl = "",
+    [string]$RepoUrl = $DrewRestProduccionRepoUrlHttps,
+    [string]$Owner = $DrewRestProduccionOwner,
+    [string]$Repo = $DrewRestProduccionRepo
   )
+
+  # 1) Tip real de la rama (evita caché de raw.../main/VERSION.json).
+  $tipSha = Get-RemoteDrewRestCommitViaGit -RepoUrl $RepoUrl -Branch $Branch
+  if ($tipSha) {
+    $byCommit = "https://raw.githubusercontent.com/$Owner/$Repo/$tipSha/VERSION.json"
+    try {
+      $sep = "?"
+      $uri = "$byCommit$sep`_=$(Get-Date -UFormat %s)"
+      $headers = @{
+        "Cache-Control" = "no-cache"
+        "Pragma" = "no-cache"
+      }
+      $resp = Invoke-RestMethod -Uri $uri -Method Get -TimeoutSec 20 -Headers $headers
+      if ($resp) {
+        if (-not $resp.publishCommit) {
+          try { $resp | Add-Member -NotePropertyName publishCommit -NotePropertyValue $tipSha -Force } catch {}
+        }
+        return $resp
+      }
+    } catch {
+      # sigue a fallbacks
+    }
+
+    # API de GitHub (menos agresiva en caché que raw por rama).
+    try {
+      $apiUri = "https://api.github.com/repos/$Owner/$Repo/contents/VERSION.json?ref=$tipSha"
+      $apiHeaders = @{
+        "Accept" = "application/vnd.github.raw+json"
+        "User-Agent" = "DrewRest-Updater"
+        "Cache-Control" = "no-cache"
+      }
+      $resp = Invoke-RestMethod -Uri $apiUri -Method Get -TimeoutSec 20 -Headers $apiHeaders
+      if ($resp) { return $resp }
+    } catch {
+      # sigue a fallbacks
+    }
+  }
+
+  # 2) Fallback: URL por rama (puede estar cacheada).
   if (-not $VersionRawUrl) {
     $VersionRawUrl = Get-DrewRestVersionRawUrl -Branch $Branch
   }
   try {
-    # Cache-bust: raw.githubusercontent.com a veces sirve VERSION.json viejo.
     $sep = if ($VersionRawUrl.Contains("?")) { "&" } else { "?" }
     $uri = "$VersionRawUrl$sep`_=$(Get-Date -UFormat %s)"
     $headers = @{
       "Cache-Control" = "no-cache"
       "Pragma" = "no-cache"
     }
-    $resp = Invoke-RestMethod -Uri $uri -Method Get -TimeoutSec 20 -Headers $headers
-    return $resp
+    return Invoke-RestMethod -Uri $uri -Method Get -TimeoutSec 20 -Headers $headers
   } catch {
     return $null
   }
