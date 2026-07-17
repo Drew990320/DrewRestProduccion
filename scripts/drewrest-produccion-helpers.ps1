@@ -70,18 +70,23 @@ function New-DrewRestVersionManifest {
     [Parameter(Mandatory = $true)][string]$AppRepoRoot
   )
 
+  # Version de publicacion (CalVer): cambia en CADA empaquetado aunque package.json
+  # siga en 0.0.1. No dependemos de tags de Git — el cliente compara VERSION.json.
+  $now = Get-Date
+  $publishVersion = $now.ToString("yyyy.M.d.HHmm")
+
   $apiPkgPath = Join-Path $DrewRestRoot "api\package.json"
-  $version = "0.0.0"
+  $packageVersion = "0.0.0"
   if (Test-Path $apiPkgPath) {
     $apiPkg = Get-Content $apiPkgPath -Raw | ConvertFrom-Json
-    if ($apiPkg.version) { $version = [string]$apiPkg.version }
+    if ($apiPkg.version) { $packageVersion = [string]$apiPkg.version }
   }
 
   $sourceCommit = Get-DrewRestSourceCommit -RepoRoot $AppRepoRoot
   $shortId = if ($sourceCommit -ne "unknown" -and $sourceCommit.Length -ge 7) {
     $sourceCommit.Substring(0, 7)
   } else {
-    (Get-Date -Format "yyyyMMddHHmmss")
+    $now.ToString("yyyyMMddHHmmss")
   }
 
   $migrationsDir = Join-Path $DrewRestRoot "api\prisma\migrations"
@@ -97,10 +102,11 @@ function New-DrewRestVersionManifest {
 
   $manifest = [ordered]@{
     product = "DrewRest"
-    version = $version
-    appVersion = $version
+    version = $publishVersion
+    appVersion = $publishVersion
+    packageVersion = $packageVersion
     buildId = $shortId
-    buildDate = (Get-Date).ToString("o")
+    buildDate = $now.ToString("o")
     sourceCommit = $sourceCommit
     schemaVersion = $schemaVersion
     lastMigration = $lastMigration
@@ -213,7 +219,14 @@ function Get-RemoteDrewRestVersionManifest {
     $VersionRawUrl = Get-DrewRestVersionRawUrl -Branch $Branch
   }
   try {
-    $resp = Invoke-RestMethod -Uri $VersionRawUrl -Method Get -TimeoutSec 20
+    # Cache-bust: raw.githubusercontent.com a veces sirve VERSION.json viejo.
+    $sep = if ($VersionRawUrl.Contains("?")) { "&" } else { "?" }
+    $uri = "$VersionRawUrl$sep`_=$(Get-Date -UFormat %s)"
+    $headers = @{
+      "Cache-Control" = "no-cache"
+      "Pragma" = "no-cache"
+    }
+    $resp = Invoke-RestMethod -Uri $uri -Method Get -TimeoutSec 20 -Headers $headers
     return $resp
   } catch {
     return $null
@@ -258,40 +271,40 @@ function Compare-DrewRestVersions {
     }
   }
 
-  $sameBuild = ($Local.buildId -eq $Remote.buildId) -or (
-    $Local.sourceCommit -and $Remote.sourceCommit -and
+  # Senales de cambio (sin tags): version CalVer, buildId, commit o buildDate.
+  $sameBuild = ($Local.buildId -eq $Remote.buildId) -and (
+    -not $Local.sourceCommit -or -not $Remote.sourceCommit -or
     $Local.sourceCommit -eq $Remote.sourceCommit
   )
 
-  if ($sameBuild) {
-    $remoteNewer = $false
-    if ($Local.buildDate -and $Remote.buildDate) {
-      try {
-        $localDt = [datetimeoffset]::Parse($Local.buildDate)
-        $remoteDt = [datetimeoffset]::Parse($Remote.buildDate)
-        $remoteNewer = $remoteDt -gt $localDt
-      } catch {
-        $remoteNewer = $false
-      }
+  $versionChanged = $false
+  if ($Local.version -and $Remote.version -and ($Local.version -ne $Remote.version)) {
+    $versionChanged = $true
+  }
+
+  $remoteNewerDate = $false
+  if ($Local.buildDate -and $Remote.buildDate) {
+    try {
+      $localDt = [datetimeoffset]::Parse($Local.buildDate)
+      $remoteDt = [datetimeoffset]::Parse($Remote.buildDate)
+      $remoteNewerDate = $remoteDt -gt $localDt
+    } catch {
+      $remoteNewerDate = $false
     }
-    if ($remoteNewer) {
-      return [ordered]@{
-        status = "update_available"
-        updateAvailable = $true
-        message = "Hay un paquete mas reciente en el canal (misma base, nueva publicacion)."
-      }
-    }
+  }
+
+  if ($versionChanged -or (-not $sameBuild) -or $remoteNewerDate) {
     return [ordered]@{
-      status = "current"
-      updateAvailable = $false
-      message = "Ya tienes la ultima version publicada."
+      status = "update_available"
+      updateAvailable = $true
+      message = "Hay una version mas reciente en DrewRestProduccion (v$($Remote.version) / build $($Remote.buildId))."
     }
   }
 
   return [ordered]@{
-    status = "update_available"
-    updateAvailable = $true
-    message = "Hay una version mas reciente en DrewRestProduccion."
+    status = "current"
+    updateAvailable = $false
+    message = "Ya tienes la ultima version publicada (v$($Local.version) / build $($Local.buildId))."
   }
 }
 
