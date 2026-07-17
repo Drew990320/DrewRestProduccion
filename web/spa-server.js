@@ -13,6 +13,22 @@ const MAX_OFFSET = 24;
 const ROOT = __dirname;
 const PORT_FILE = path.join(ROOT, 'web-port.txt');
 
+/** Puertos reservados (p. ej. 8081 = Expo en desarrollo). No usar ni al buscar alternativa. */
+const RESERVED_PORTS = new Set(
+  String(process.env.WEB_PORT_SKIP || '8081')
+    .split(/[,;\s]+/)
+    .map((s) => Number(s.trim()))
+    .filter((n) => Number.isFinite(n) && n > 0 && n < 65536),
+);
+
+function nextCandidatePort(port, preferred) {
+  let next = port + 1;
+  while (RESERVED_PORTS.has(next) && next <= preferred + MAX_OFFSET) {
+    next += 1;
+  }
+  return next;
+}
+
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'application/javascript; charset=utf-8',
@@ -39,6 +55,31 @@ function safePath(urlPath) {
   return file;
 }
 
+/** Inyectado en index.html: bloquea Inspeccionar hasta que React autorice (superadmin). */
+const OPERATOR_GUARD_SNIPPET = `
+<script>
+(function(){
+  try { document.title = 'DrewRest'; } catch (e) {}
+  window.__DREWREST_ALLOW_DEVTOOLS__ = false;
+  function allowed(){ return !!window.__DREWREST_ALLOW_DEVTOOLS__; }
+  function blockKey(e){
+    if (allowed()) return;
+    var k = e.key;
+    var ctrl = e.ctrlKey || e.metaKey;
+    if (k === 'F12') { e.preventDefault(); e.stopPropagation(); return; }
+    if (ctrl && e.shiftKey && (k==='I'||k==='i'||k==='J'||k==='j'||k==='C'||k==='c')) {
+      e.preventDefault(); e.stopPropagation(); return;
+    }
+    if (ctrl && !e.shiftKey && (k==='U'||k==='u')) {
+      e.preventDefault(); e.stopPropagation();
+    }
+  }
+  document.addEventListener('contextmenu', function(e){ if (!allowed()) e.preventDefault(); }, true);
+  document.addEventListener('keydown', blockKey, true);
+})();
+</script>
+`;
+
 function sendFile(res, filePath) {
   const ext = path.extname(filePath).toLowerCase();
   res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream' });
@@ -46,7 +87,38 @@ function sendFile(res, filePath) {
 }
 
 function sendIndex(res) {
-  sendFile(res, path.join(ROOT, 'index.html'));
+  const indexPath = path.join(ROOT, 'index.html');
+  fs.readFile(indexPath, 'utf8', (err, html) => {
+    if (err) {
+      res.writeHead(500);
+      res.end('index.html no encontrado');
+      return;
+    }
+    let out = html;
+    if (!/<title>\s*DrewRest\s*<\/title>/i.test(out)) {
+      if (/<title>[^<]*<\/title>/i.test(out)) {
+        out = out.replace(/<title>[^<]*<\/title>/i, '<title>DrewRest</title>');
+      } else if (/<head[^>]*>/i.test(out)) {
+        out = out.replace(/<head[^>]*>/i, (m) => `${m}<title>DrewRest</title>`);
+      }
+    }
+    if (!out.includes('__DREWREST_ALLOW_DEVTOOLS__')) {
+      if (/<\/head>/i.test(out)) {
+        out = out.replace(/<\/head>/i, `${OPERATOR_GUARD_SNIPPET}</head>`);
+      } else {
+        out = OPERATOR_GUARD_SNIPPET + out;
+      }
+    }
+    const buf = Buffer.from(out, 'utf8');
+    res.writeHead(200, {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Content-Length': buf.length,
+      'X-Content-Type-Options': 'nosniff',
+      'Referrer-Policy': 'no-referrer',
+      'X-Frame-Options': 'SAMEORIGIN',
+    });
+    res.end(buf);
+  });
 }
 
 function onRequest(req, res) {
@@ -69,6 +141,11 @@ function onRequest(req, res) {
         const ext = path.extname(filePath).toLowerCase();
         res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream' });
         res.end();
+        return;
+      }
+      // index.html siempre pasa por inyección de título + guardia de operador
+      if (path.basename(filePath).toLowerCase() === 'index.html') {
+        sendIndex(res);
         return;
       }
       sendFile(res, filePath);
@@ -142,8 +219,11 @@ function onListening(port, preferred) {
   console.log('');
 
   if (port !== preferred) {
-    console.log(`Nota: el puerto ${preferred} estaba ocupado por otro servicio (p. ej. Postgres).`);
-    console.log(`      Se uso el puerto ${port}.`);
+    const reserved = [...RESERVED_PORTS].sort((a, b) => a - b).join(', ');
+    console.log(`Nota: el puerto ${preferred} estaba ocupado. Se uso el puerto ${port}.`);
+    if (reserved) {
+      console.log(`      Puertos reservados (no se usan): ${reserved}`);
+    }
     console.log('');
   }
 }
@@ -152,17 +232,20 @@ function tryListen(port, preferred) {
   const server = http.createServer(onRequest);
   server.on('error', (err) => {
     if (err && err.code === 'EADDRINUSE') {
-      const next = port + 1;
+      const next = nextCandidatePort(port, preferred);
       if (next > preferred + MAX_OFFSET) {
         console.error('');
         console.error(
           `No hay puerto libre entre ${preferred} y ${preferred + MAX_OFFSET}.`,
         );
-        console.error('Cierra otro programa que use esos puertos o cambia WEB_PORT en inicio.bat.');
+        console.error(
+          `Reservados: ${[...RESERVED_PORTS].join(', ') || '(ninguno)'}. Cierra otro programa o cambia WEB_PORT.`,
+        );
         console.error('');
         process.exit(1);
       }
-      console.warn(`Puerto ${port} ocupado, probando ${next}...`);
+      const skipHint = RESERVED_PORTS.has(port + 1) ? ' (reservado para desarrollo)' : '';
+      console.warn(`Puerto ${port} ocupado, probando ${next}...${skipHint}`);
       tryListen(next, preferred);
       return;
     }

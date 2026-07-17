@@ -24,10 +24,9 @@ if errorlevel 1 goto :err
 echo Listo.
 echo.
 echo Recomendaciones:
-echo   - Deja minimizadas las ventanas DrewRest_API y DrewRest_Web.
+echo   - Deja DrewRest.exe en marcha (o minimizado).
 echo   - No cierres sesion en Windows; bloquear pantalla esta bien.
-echo   - PostgreSQL debe seguir en marcha.
-echo   - Para detener el sistema usa detener.bat.
+echo   - Para detener el sistema usa DrewRest.exe o detener.bat.
 echo.
 pause
 exit /b 0

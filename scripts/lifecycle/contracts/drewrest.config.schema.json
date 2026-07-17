@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "drewrest.config.schema.json",
+  "title": "DrewRestConfig",
+  "description": "Contrato central de configuración on-prem (data/drewrest.config.json). configVersion=1.",
+  "type": "object",
+  "required": ["configVersion"],
+  "properties": {
+    "configVersion": { "type": "integer", "const": 1 },
+    "server": {
+      "type": "object",
+      "properties": {
+        "apiPort": { "type": "integer", "default": 3000 },
+        "webPort": { "type": "integer", "default": 8080 },
+        "host": { "type": "string", "default": "0.0.0.0" }
+      }
+    },
+    "database": {
+      "type": "object",
+      "properties": {
+        "embedded": { "type": "boolean", "default": true },
+        "host": { "type": "string" },
+        "port": { "type": "integer" },
+        "user": { "type": "string" },
+        "database": { "type": "string" },
+        "urlOverride": { "type": ["string", "null"] }
+      }
+    },
+    "backups": {
+      "type": "object",
+      "properties": {
+        "keepCount": { "type": "integer", "default": 5 },
+        "dir": { "type": "string", "default": "data/backups" }
+      }
+    },
+    "printers": { "type": "object" },
+    "network": { "type": "object" },
+    "lan": { "type": "object" },
+    "updates": {
+      "type": "object",
+      "properties": {
+        "channel": { "type": "string", "default": "stable" },
+        "branch": { "type": "string" },
+        "autoCheck": { "type": "boolean", "default": false }
+      }
+    },
+    "restaurant": { "type": "object" },
+    "regional": { "type": "object" },
+    "modules": { "type": "object" },
+    "extensions": {
+      "type": "object",
+      "description": "Claves nuevas sin recompilar el núcleo",
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}

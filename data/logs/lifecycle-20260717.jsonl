@@ -1,0 +1,7 @@
+﻿{"ts":"2026-07-17T12:55:28.5966666Z","phase":"Config","level":"info","message":"Configuraci\u00F3n cargada","data":{"ConfigVersion":1}}
+{"ts":"2026-07-17T12:55:28.6115479Z","phase":"License","level":"warn","message":"LICENSE_SKIP activo \u2014 se omite validaci\u00F3n (solo lab/desarrollo)"}
+{"ts":"2026-07-17T12:55:43.9551738Z","phase":"Migrate","level":"info","message":"lifecycle/migrate.js"}
+{"ts":"2026-07-17T12:55:50.0449645Z","phase":"Migrate","level":"info","message":"Migraciones OK"}
+{"ts":"2026-07-17T12:55:51.1079725Z","phase":"Integrity","level":"info","message":"Gate OK","data":{"warnings":1}}
+{"ts":"2026-07-17T12:55:51.1111388Z","phase":"Integrity","level":"warn","message":"LICENSE_SKIP activo en producci\u00F3n potencial"}
+{"ts":"2026-07-17T12:55:52.6037816Z","phase":"Start","level":"info","message":"API \u002B Web iniciados"}

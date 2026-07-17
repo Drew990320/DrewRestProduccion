@@ -69,37 +69,65 @@ async function main() {
       { nombre: 'mesero', descripcion: 'Toma pedidos y factura' },
       { nombre: 'chef', descripcion: 'Vista cocina' },
       { nombre: 'admin', descripcion: 'Administración' },
+      { nombre: 'superadmin', descripcion: 'Operación oculta del sistema' },
     ],
   });
   const rolMesero = await prisma.rol.findFirstOrThrow({ where: { nombre: 'mesero' } });
   const rolChef = await prisma.rol.findFirstOrThrow({ where: { nombre: 'chef' } });
   const rolAdmin = await prisma.rol.findFirstOrThrow({ where: { nombre: 'admin' } });
+  const rolSuperadmin = await prisma.rol.findFirstOrThrow({ where: { nombre: 'superadmin' } });
 
   const hash = (p: string) => bcrypt.hashSync(p, 10);
+  const superEmail =
+    process.env.SUPERADMIN_EMAIL?.trim().toLowerCase() ||
+    'superadmin@drewrest.local';
+  const superPassword = process.env.SUPERADMIN_PASSWORD?.trim();
+  const seedUsers: {
+    idRol: number;
+    nombre: string;
+    apellido: string;
+    email: string;
+    passwordHash: string;
+    passwordCambiadoEn?: Date;
+  }[] = [
+    {
+      idRol: rolMesero.idRol,
+      nombre: 'Mesero',
+      apellido: 'Demo',
+      email: 'mesero@drewrest.local',
+      passwordHash: hash('mesero123'),
+    },
+    {
+      idRol: rolChef.idRol,
+      nombre: 'Chef',
+      apellido: 'Demo',
+      email: 'chef@drewrest.local',
+      passwordHash: hash('chef123'),
+    },
+    {
+      idRol: rolAdmin.idRol,
+      nombre: 'Administrador',
+      apellido: '',
+      email: 'admin@drewrest.local',
+      passwordHash: hash('admin123'),
+    },
+  ];
+  if (superPassword) {
+    seedUsers.push({
+      idRol: rolSuperadmin.idRol,
+      nombre: 'Superadmin',
+      apellido: '',
+      email: superEmail,
+      passwordHash: hash(superPassword),
+      passwordCambiadoEn: new Date(),
+    });
+  } else {
+    console.log(
+      'Seed: superadmin omitido (define SUPERADMIN_PASSWORD o usa el login de primer arranque).',
+    );
+  }
   await prisma.usuario.createMany({
-    data: [
-      {
-        idRol: rolMesero.idRol,
-        nombre: 'Mesero',
-        apellido: 'Demo',
-        email: 'mesero@drewrest.local',
-        passwordHash: hash('mesero123'),
-      },
-      {
-        idRol: rolChef.idRol,
-        nombre: 'Chef',
-        apellido: 'Demo',
-        email: 'chef@drewrest.local',
-        passwordHash: hash('chef123'),
-      },
-      {
-        idRol: rolAdmin.idRol,
-        nombre: 'Administrador',
-        apellido: '',
-        email: 'admin@drewrest.local',
-        passwordHash: hash('admin123'),
-      },
-    ],
+    data: seedUsers,
   });
 
   for (let n = 1; n <= 15; n++) {

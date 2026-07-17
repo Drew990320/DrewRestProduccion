@@ -1,0 +1,15 @@
+﻿{"ts":"2026-07-17T00:41:04.2209978Z","phase":"Config","level":"info","message":"Migrado legado \u2192 data/drewrest.config.json"}
+{"ts":"2026-07-17T00:41:04.2358750Z","phase":"Config","level":"info","message":"Configuraci\u00F3n cargada","data":{"ConfigVersion":1}}
+{"ts":"2026-07-17T00:41:04.2438371Z","phase":"License","level":"warn","message":"LICENSE_SKIP activo \u2014 se omite validaci\u00F3n (solo lab/desarrollo)"}
+{"ts":"2026-07-17T00:41:14.1638241Z","phase":"Migrate","level":"warn","message":"Usando preparar-base-datos.js (lifecycle/migrate.js no empaquetado)"}
+{"ts":"2026-07-17T00:41:19.2683461Z","phase":"Migrate","level":"info","message":"Migraciones OK"}
+{"ts":"2026-07-17T00:41:20.4525644Z","phase":"Integrity","level":"info","message":"Gate OK","data":{"warnings":1}}
+{"ts":"2026-07-17T00:41:20.4546704Z","phase":"Integrity","level":"warn","message":"LICENSE_SKIP activo en producci\u00F3n potencial"}
+{"ts":"2026-07-17T00:41:21.6666226Z","phase":"Start","level":"info","message":"API \u002B Web iniciados"}
+{"ts":"2026-07-17T01:12:57.5591161Z","phase":"Config","level":"info","message":"Configuraci\u00F3n cargada","data":{"ConfigVersion":1}}
+{"ts":"2026-07-17T01:12:57.5740163Z","phase":"License","level":"warn","message":"LICENSE_SKIP activo \u2014 se omite validaci\u00F3n (solo lab/desarrollo)"}
+{"ts":"2026-07-17T01:13:08.7703846Z","phase":"Migrate","level":"info","message":"lifecycle/migrate.js"}
+{"ts":"2026-07-17T01:13:14.2996062Z","phase":"Migrate","level":"info","message":"Migraciones OK"}
+{"ts":"2026-07-17T01:13:15.4982986Z","phase":"Integrity","level":"info","message":"Gate OK","data":{"warnings":1}}
+{"ts":"2026-07-17T01:13:15.5007576Z","phase":"Integrity","level":"warn","message":"LICENSE_SKIP activo en producci\u00F3n potencial"}
+{"ts":"2026-07-17T01:13:16.6463566Z","phase":"Start","level":"info","message":"API \u002B Web iniciados"}

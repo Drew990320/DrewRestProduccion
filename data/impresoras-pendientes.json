@@ -1,0 +1,13 @@
+﻿{
+  "impresoras": [
+    {
+      "nombre": "POS-58",
+      "destino": "printer:POS-58",
+      "roles": [
+        "cocina",
+        "factura",
+        "caja"
+      ]
+    }
+  ]
+}

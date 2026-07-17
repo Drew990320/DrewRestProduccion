@@ -13,9 +13,18 @@ function Write-Utf8NoBomFile {
 
 function Resolve-DrewRestRoot {
   param([string]$StartPath = "")
+
+  function Test-DrewRestRootCandidate([string]$dir) {
+    if (-not $dir -or -not (Test-Path $dir)) { return $false }
+    if (-not (Get-Item $dir).PSIsContainer) { return $false }
+    return (Test-Path (Join-Path $dir "DrewRest.exe")) -or
+      (Test-Path (Join-Path $dir "inicio.bat")) -or
+      ((Test-Path (Join-Path $dir "api")) -and (Test-Path (Join-Path $dir "web")))
+  }
+
   if ($StartPath -and (Test-Path $StartPath)) {
     $candidate = $StartPath
-    if ((Get-Item $candidate).PSIsContainer -and (Test-Path (Join-Path $candidate "inicio.bat"))) {
+    if (Test-DrewRestRootCandidate $candidate) {
       return (Resolve-Path $candidate).Path
     }
   }
@@ -23,7 +32,7 @@ function Resolve-DrewRestRoot {
   $here = if ($StartPath) { $StartPath } else { $PSScriptRoot }
   $dir = $here
   for ($i = 0; $i -lt 6; $i++) {
-    if (Test-Path (Join-Path $dir "inicio.bat")) {
+    if (Test-DrewRestRootCandidate $dir) {
       return (Resolve-Path $dir).Path
     }
     $parent = Split-Path -Parent $dir
@@ -33,11 +42,11 @@ function Resolve-DrewRestRoot {
 
   $repoRoot = Split-Path -Parent $PSScriptRoot
   $fallback = Join-Path $repoRoot "DrewRest"
-  if (Test-Path (Join-Path $fallback "inicio.bat")) {
+  if (Test-DrewRestRootCandidate $fallback) {
     return (Resolve-Path $fallback).Path
   }
 
-  throw "No se encontro la carpeta DrewRest (falta inicio.bat). Indica -InstallPath."
+  throw "No se encontro la carpeta DrewRest (falta DrewRest.exe o api+web). Indica -InstallPath."
 }
 
 function Get-DrewRestSourceCommit {
@@ -75,19 +84,48 @@ function New-DrewRestVersionManifest {
     (Get-Date -Format "yyyyMMddHHmmss")
   }
 
+  $migrationsDir = Join-Path $DrewRestRoot "api\prisma\migrations"
+  $schemaVersion = 0
+  $lastMigration = $null
+  if (Test-Path $migrationsDir) {
+    $migDirs = @(Get-ChildItem -Path $migrationsDir -Directory | Sort-Object Name)
+    $schemaVersion = $migDirs.Count
+    if ($migDirs.Count -gt 0) {
+      $lastMigration = $migDirs[-1].Name
+    }
+  }
+
   $manifest = [ordered]@{
     product = "DrewRest"
     version = $version
+    appVersion = $version
     buildId = $shortId
     buildDate = (Get-Date).ToString("o")
     sourceCommit = $sourceCommit
+    schemaVersion = $schemaVersion
+    lastMigration = $lastMigration
+    configVersion = 1
     repoUrl = $DrewRestProduccionRepoUrlHttps
     branch = $DrewRestProduccionBranch
+  }
+
+  $channel = Read-DrewRestUpdateChannel -DrewRestRoot $DrewRestRoot
+  if ($channel.branch -and $channel.branch -ne $DrewRestProduccionBranch) {
+    $manifest.branch = $channel.branch
+  }
+  if ($channel.clientSlug) {
+    $manifest.clientSlug = $channel.clientSlug
   }
 
   $json = ($manifest | ConvertTo-Json -Depth 5)
   $versionPath = Join-Path $DrewRestRoot "VERSION.json"
   Write-Utf8NoBomFile -Path $versionPath -Content $json
+
+  $dataDir = Join-Path $DrewRestRoot "data"
+  New-Item -ItemType Directory -Force -Path $dataDir | Out-Null
+  $versionsMirror = Join-Path $dataDir "versions.json"
+  Write-Utf8NoBomFile -Path $versionsMirror -Content $json
+
   return $manifest
 }
 
@@ -102,9 +140,80 @@ function Read-DrewRestVersionManifest {
   }
 }
 
-function Get-RemoteDrewRestVersionManifest {
+function Get-DrewRestVersionRawUrl {
+  param(
+    [string]$Branch = $DrewRestProduccionBranch,
+    [string]$Owner = $DrewRestProduccionOwner,
+    [string]$Repo = $DrewRestProduccionRepo
+  )
+  return "https://raw.githubusercontent.com/$Owner/$Repo/$Branch/VERSION.json"
+}
+
+function Get-DrewRestBranchZipUrl {
+  param(
+    [string]$Branch = $DrewRestProduccionBranch,
+    [string]$Owner = $DrewRestProduccionOwner,
+    [string]$Repo = $DrewRestProduccionRepo
+  )
+  return "https://github.com/$Owner/$Repo/archive/refs/heads/$Branch.zip"
+}
+
+function Read-DrewRestUpdateChannel {
+  param([Parameter(Mandatory = $true)][string]$DrewRestRoot)
+
+  $channel = [ordered]@{
+    branch = $DrewRestProduccionBranch
+    repoUrl = $DrewRestProduccionRepoUrlHttps
+    clientSlug = $null
+    label = $null
+  }
+
+  $path = Join-Path $DrewRestRoot "api\update-channel.json"
+  if (-not (Test-Path $path)) { return $channel }
+
   try {
-    $resp = Invoke-RestMethod -Uri $DrewRestProduccionVersionRawUrl -Method Get -TimeoutSec 20
+    $json = Get-Content $path -Raw | ConvertFrom-Json
+    if ($json.branch) { $channel.branch = [string]$json.branch }
+    if ($json.repoUrl) { $channel.repoUrl = [string]$json.repoUrl }
+    if ($json.clientSlug) { $channel.clientSlug = [string]$json.clientSlug }
+    if ($json.label) { $channel.label = [string]$json.label }
+  } catch {
+    Write-Host "[aviso] update-channel.json invalido; se usa main." -ForegroundColor Yellow
+  }
+
+  return $channel
+}
+
+function Write-DrewRestUpdateChannel {
+  param(
+    [Parameter(Mandatory = $true)][string]$DrewRestRoot,
+    [Parameter(Mandatory = $true)][string]$Branch,
+    [string]$ClientSlug = "",
+    [string]$Label = "",
+    [string]$RepoUrl = $DrewRestProduccionRepoUrlHttps
+  )
+
+  $payload = [ordered]@{
+    branch = $Branch
+    repoUrl = $RepoUrl
+  }
+  if ($ClientSlug) { $payload.clientSlug = $ClientSlug }
+  if ($Label) { $payload.label = $Label }
+
+  $path = Join-Path $DrewRestRoot "api\update-channel.json"
+  Write-Utf8NoBomFile -Path $path -Content ($payload | ConvertTo-Json -Depth 5)
+}
+
+function Get-RemoteDrewRestVersionManifest {
+  param(
+    [string]$Branch = $DrewRestProduccionBranch,
+    [string]$VersionRawUrl = ""
+  )
+  if (-not $VersionRawUrl) {
+    $VersionRawUrl = Get-DrewRestVersionRawUrl -Branch $Branch
+  }
+  try {
+    $resp = Invoke-RestMethod -Uri $VersionRawUrl -Method Get -TimeoutSec 20
     return $resp
   } catch {
     return $null
@@ -112,11 +221,14 @@ function Get-RemoteDrewRestVersionManifest {
 }
 
 function Get-RemoteDrewRestCommitViaGit {
-  param([string]$RepoUrl = $DrewRestProduccionRepoUrlHttps)
+  param(
+    [string]$RepoUrl = $DrewRestProduccionRepoUrlHttps,
+    [string]$Branch = $DrewRestProduccionBranch
+  )
   $prev = $ErrorActionPreference
   $ErrorActionPreference = "Continue"
   try {
-    $line = git ls-remote $RepoUrl "refs/heads/$DrewRestProduccionBranch" 2>$null | Select-Object -First 1
+    $line = git ls-remote $RepoUrl "refs/heads/$Branch" 2>$null | Select-Object -First 1
     if (-not $line) { return $null }
     return ($line -split "\s+")[0]
   } finally {
@@ -152,6 +264,23 @@ function Compare-DrewRestVersions {
   )
 
   if ($sameBuild) {
+    $remoteNewer = $false
+    if ($Local.buildDate -and $Remote.buildDate) {
+      try {
+        $localDt = [datetimeoffset]::Parse($Local.buildDate)
+        $remoteDt = [datetimeoffset]::Parse($Remote.buildDate)
+        $remoteNewer = $remoteDt -gt $localDt
+      } catch {
+        $remoteNewer = $false
+      }
+    }
+    if ($remoteNewer) {
+      return [ordered]@{
+        status = "update_available"
+        updateAvailable = $true
+        message = "Hay un paquete mas reciente en el canal (misma base, nueva publicacion)."
+      }
+    }
     return [ordered]@{
       status = "current"
       updateAvailable = $false
@@ -181,7 +310,9 @@ function Backup-DrewRestProtectedFiles {
   $map = @(
     @{ rel = "api\.env"; required = $false },
     @{ rel = "api\license.key"; required = $false },
-    @{ rel = "web\web-port.txt"; required = $false }
+    @{ rel = "api\update-channel.json"; required = $false },
+    @{ rel = "web\web-port.txt"; required = $false },
+    @{ rel = "data\pg-credentials.json"; required = $false }
   )
 
   foreach ($item in $map) {
@@ -197,6 +328,12 @@ function Backup-DrewRestProtectedFiles {
   $imagesSrc = Join-Path $DrewRestRoot "images"
   if (Test-Path $imagesSrc) {
     Copy-Item -Path $imagesSrc -Destination (Join-Path $temp "images") -Recurse -Force
+  }
+
+  # Cluster PostgreSQL embebido (nunca debe perderse en una actualizacion).
+  $dataPg = Join-Path $DrewRestRoot "data\postgres"
+  if (Test-Path $dataPg) {
+    Copy-Item -Path $dataPg -Destination (Join-Path $temp "data\postgres") -Recurse -Force
   }
 
   return $temp
@@ -243,7 +380,14 @@ function Copy-DrewRestTree {
 }
 
 function Install-DrewRestUpdateScripts {
-  param([Parameter(Mandatory = $true)][string]$DrewRestRoot)
+  param(
+    [Parameter(Mandatory = $true)][string]$DrewRestRoot,
+    [string]$ScriptsSource = ""
+  )
+
+  if (-not $ScriptsSource) {
+    $ScriptsSource = $PSScriptRoot
+  }
 
   $scriptsDst = Join-Path $DrewRestRoot "scripts"
   New-Item -ItemType Directory -Force -Path $scriptsDst | Out-Null
@@ -254,23 +398,35 @@ function Install-DrewRestUpdateScripts {
     "drewrest-produccion-helpers.ps1"
   )
   foreach ($name in $files) {
-    $src = Join-Path $PSScriptRoot $name
-    if (Test-Path $src) {
-      Copy-Item -Path $src -Destination (Join-Path $scriptsDst $name) -Force
-    }
+    $src = Join-Path $ScriptsSource $name
+    $dst = Join-Path $scriptsDst $name
+    if (-not (Test-Path $src)) { continue }
+    $srcFull = [System.IO.Path]::GetFullPath($src)
+    $dstFull = [System.IO.Path]::GetFullPath($dst)
+    if ($srcFull.Equals($dstFull, [StringComparison]::OrdinalIgnoreCase)) { continue }
+    Copy-Item -Path $src -Destination $dst -Force
   }
 
-  $binDst = Join-Path $DrewRestRoot "bin\actualizar.bat"
-  $bat = @"
-@echo off
-chcp 65001 >nul
-setlocal EnableExtensions
-set "ROOT=%~dp0.."
-cd /d "%ROOT%"
-powershell -NoProfile -ExecutionPolicy Bypass -File "%ROOT%\scripts\actualizar-drewrest.ps1" %*
-if errorlevel 1 pause
-"@
-  Write-Utf8NoBomFile -Path $binDst -Content $bat
+  $lifecycleSrc = Join-Path $ScriptsSource "lifecycle"
+  if (Test-Path $lifecycleSrc) {
+    $lifecycleDst = Join-Path $scriptsDst "lifecycle"
+    New-Item -ItemType Directory -Force -Path $lifecycleDst | Out-Null
+    Copy-Item -Path (Join-Path $lifecycleSrc "*") -Destination $lifecycleDst -Recurse -Force
+  }
+
+  $binDst = Join-Path $DrewRestRoot "bin"
+  if (Test-Path $binDst) {
+    foreach ($stale in @(
+        "inicio.bat", "detener.bat", "detener.vbs", "actualizar.bat",
+        "reparar-api.bat", "ejecutar-baseline-prisma.bat",
+        "mostrar-id-maquina.bat", "configurar-base.bat"
+      )) {
+      $p = Join-Path $binDst $stale
+      if (Test-Path $p) {
+        Remove-Item $p -Force -ErrorAction SilentlyContinue
+      }
+    }
+  }
 }
 
 function Invoke-DrewRestUpdateFromFolder {
@@ -283,7 +439,9 @@ function Invoke-DrewRestUpdateFromFolder {
   try {
     Copy-DrewRestTree -SourceRoot $SourceRoot -TargetRoot $InstallRoot
     Restore-DrewRestProtectedFiles -DrewRestRoot $InstallRoot -BackupRoot $backup
-    Install-DrewRestUpdateScripts -DrewRestRoot $InstallRoot
+    $scriptsFromPackage = Join-Path $SourceRoot "scripts"
+    $scriptsSource = if (Test-Path $scriptsFromPackage) { $scriptsFromPackage } else { $PSScriptRoot }
+    Install-DrewRestUpdateScripts -DrewRestRoot $InstallRoot -ScriptsSource $scriptsSource
     return 0
   } finally {
     Remove-Item -Path $backup -Recurse -Force -ErrorAction SilentlyContinue
@@ -293,6 +451,7 @@ function Invoke-DrewRestUpdateFromFolder {
 function Get-DrewRestUpdateSource {
   param(
     [string]$RepoUrl = $DrewRestProduccionRepoUrlHttps,
+    [string]$Branch = $DrewRestProduccionBranch,
     [string]$WorkDir = ""
   )
 
@@ -306,7 +465,7 @@ function Get-DrewRestUpdateSource {
   $ErrorActionPreference = "Continue"
   git --version 2>$null | Out-Null
   if ($LASTEXITCODE -eq 0) {
-    git clone --depth 1 --branch $DrewRestProduccionBranch $RepoUrl $WorkDir 2>$null | Out-Null
+    git clone --depth 1 --branch $Branch $RepoUrl $WorkDir 2>$null | Out-Null
     if ($LASTEXITCODE -eq 0) {
       $gitOk = $true
     }
@@ -314,12 +473,13 @@ function Get-DrewRestUpdateSource {
   $ErrorActionPreference = $prev
 
   if ($gitOk) {
-    return @{ ok = $true; path = $WorkDir; method = "git" }
+    return @{ ok = $true; path = $WorkDir; method = "git"; branch = $Branch }
   }
 
+  $zipUrl = Get-DrewRestBranchZipUrl -Branch $Branch
   $zipPath = Join-Path $WorkDir "package.zip"
   try {
-    Invoke-WebRequest -Uri $DrewRestProduccionZipUrl -OutFile $zipPath -TimeoutSec 120
+    Invoke-WebRequest -Uri $zipUrl -OutFile $zipPath -TimeoutSec 120
     Expand-Archive -Path $zipPath -DestinationPath $WorkDir -Force
     Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
     $extracted = Get-ChildItem -Path $WorkDir -Directory |
@@ -337,16 +497,22 @@ function Get-DrewRestUpdateSource {
 function Test-DrewRestUpdateAvailable {
   param([Parameter(Mandatory = $true)][string]$InstallRoot)
 
+  $channel = Read-DrewRestUpdateChannel -DrewRestRoot $InstallRoot
+  $branch = $channel.branch
+  $repoUrl = $channel.repoUrl
+  $versionRawUrl = Get-DrewRestVersionRawUrl -Branch $branch
+
   $local = Read-DrewRestVersionManifest -DrewRestRoot $InstallRoot
-  $remote = Get-RemoteDrewRestVersionManifest
+  $remote = Get-RemoteDrewRestVersionManifest -Branch $branch -VersionRawUrl $versionRawUrl
   if (-not $remote) {
-    $remoteCommit = Get-RemoteDrewRestCommitViaGit
+    $remoteCommit = Get-RemoteDrewRestCommitViaGit -RepoUrl $repoUrl -Branch $branch
     if ($remoteCommit) {
       $remote = [pscustomobject]@{
         buildId = $remoteCommit.Substring(0, [Math]::Min(7, $remoteCommit.Length))
         sourceCommit = $remoteCommit
         version = "?"
         buildDate = "?"
+        publishBranch = $branch
       }
     }
   }
@@ -356,5 +522,6 @@ function Test-DrewRestUpdateAvailable {
     Local = $local
     Remote = $remote
     Comparison = $cmp
+    Channel = $channel
   }
 }

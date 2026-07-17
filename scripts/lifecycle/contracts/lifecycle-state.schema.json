@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "lifecycle-state.schema.json",
+  "title": "LifecycleState",
+  "description": "data/state/lifecycle-state.json — estado del Lifecycle Host.",
+  "type": "object",
+  "required": ["status", "updatedAt"],
+  "properties": {
+    "status": { "type": "string", "enum": ["healthy", "updating", "recovery"] },
+    "phase": { "type": "string" },
+    "backupId": { "type": ["string", "null"] },
+    "detail": { "type": ["string", "null"] },
+    "updatedAt": { "type": "string" }
+  }
+}

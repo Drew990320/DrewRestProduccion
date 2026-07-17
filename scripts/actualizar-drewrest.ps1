@@ -3,9 +3,11 @@
 # Repo: https://github.com/Drew990320/DrewRestProduccion.git
 #
 # Uso en el PC del restaurante:
-#   bin\actualizar.bat
-#   bin\actualizar.bat -CheckOnly
-#   bin\actualizar.bat -Apply
+#   inicio.bat                    (pregunta si hay actualizacion)
+#   inicio.bat actualizar         (instala y arranca)
+#   inicio.bat sinactualizar      (arranca sin comprobar)
+#
+# Compatibilidad: bin\actualizar.bat redirige a inicio.bat actualizar
 #
 # Desde desarrollo (monorepo App):
 #   npm run DrewRest:Verificar-Actualizacion
@@ -31,10 +33,12 @@ try {
 Write-Host ""
 Write-Host "=== DrewRest - actualizaciones ===" -ForegroundColor Cyan
 Write-Host "Carpeta: $installRoot"
-Write-Host "Repo:    $DrewRestProduccionRepoUrlHttps"
+$check = Test-DrewRestUpdateAvailable -InstallRoot $installRoot
+$channel = $check.Channel
+Write-Host "Canal:   $($channel.branch)$(if ($channel.label) { " ($($channel.label))" })"
+Write-Host "Repo:    $($channel.repoUrl)"
 Write-Host ""
 
-$check = Test-DrewRestUpdateAvailable -InstallRoot $installRoot
 Write-Host "Local : $(Format-DrewRestVersionLine -Manifest $check.Local)"
 Write-Host "Remoto: $(Format-DrewRestVersionLine -Manifest $check.Remote)"
 Write-Host ""
@@ -49,11 +53,11 @@ if ($CheckOnly -or (-not $Apply -and -not $Force)) {
   if ($check.Comparison.updateAvailable) {
     Write-Host ""
     Write-Host "Para aplicar la actualizacion:" -ForegroundColor Cyan
-    Write-Host "  1. bin\detener.bat"
-    Write-Host "  2. bin\actualizar.bat -Apply"
-    Write-Host "  3. bin\inicio.bat"
+    Write-Host "  inicio.bat actualizar"
+    Write-Host "  (o cierra y vuelve a abrir DrewRest; al arrancar te preguntara)"
     Write-Host ""
-    Write-Host "Se conservan api\.env, api\license.key e images\."
+    Write-Host "Se conservan api\.env, api\license.key, images\ y data\ (Postgres embebido)."
+    Write-Host "Preferible: DrewRest.exe actualizar"
   }
   exit $(if ($check.Comparison.updateAvailable) { 2 } else { 0 })
 }
@@ -69,7 +73,10 @@ $workRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("drewrest-upd-" + [guid
 New-Item -ItemType Directory -Force -Path $workRoot | Out-Null
 
 try {
-  $source = Get-DrewRestUpdateSource -WorkDir (Join-Path $workRoot "clone")
+  $source = Get-DrewRestUpdateSource `
+    -RepoUrl $channel.repoUrl `
+    -Branch $channel.branch `
+    -WorkDir (Join-Path $workRoot "clone")
   if (-not $source.ok) {
     $err = if ($source.error) { $source.error } else { "No se pudo descargar el paquete." }
     Write-Host $err -ForegroundColor Red
@@ -85,7 +92,6 @@ try {
   $after = Read-DrewRestVersionManifest -DrewRestRoot $installRoot
   Write-Host ""
   Write-Host "Actualizacion aplicada: $(Format-DrewRestVersionLine -Manifest $after)" -ForegroundColor Green
-  Write-Host "Ejecuta bin\inicio.bat para arrancar de nuevo." -ForegroundColor Green
   Write-Host ""
   exit 0
 } finally {

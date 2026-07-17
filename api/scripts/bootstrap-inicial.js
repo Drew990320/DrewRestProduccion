@@ -19,6 +19,11 @@ async function ensureRoles() {
     update: {},
     create: { nombre: "admin", descripcion: "Administracion" },
   });
+  await prisma.rol.upsert({
+    where: { nombre: "superadmin" },
+    update: {},
+    create: { nombre: "superadmin", descripcion: "Operacion oculta del sistema" },
+  });
 }
 
 async function ensureUsers() {
@@ -31,6 +36,7 @@ async function ensureUsers() {
   const rolMesero = await prisma.rol.findUniqueOrThrow({ where: { nombre: "mesero" } });
   const rolChef = await prisma.rol.findUniqueOrThrow({ where: { nombre: "chef" } });
   const rolAdmin = await prisma.rol.findUniqueOrThrow({ where: { nombre: "admin" } });
+  const rolSuperadmin = await prisma.rol.findUniqueOrThrow({ where: { nombre: "superadmin" } });
 
   const defaults = [
     {
@@ -54,6 +60,8 @@ async function ensureUsers() {
       email: "admin@drewrest.local",
       password: "admin123",
     },
+    // Superadmin NO se crea aquí: la contraseña se define en la app
+    // (POST /auth/setup-superadmin) para que no quede en el código.
   ];
 
   const created = [];
@@ -78,6 +86,15 @@ async function ensureUsers() {
       },
     });
     created.push({ email: u.email, password: u.password });
+  }
+
+  const superadminCount = await prisma.usuario.count({
+    where: { idRol: rolSuperadmin.idRol },
+  });
+  if (superadminCount === 0) {
+    console.log(
+      "[bootstrap] Superadmin pendiente: define la contraseña en el login (primer arranque).",
+    );
   }
 
   return created;

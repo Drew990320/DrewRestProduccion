@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "versions.schema.json",
+  "title": "DrewRestVersions",
+  "description": "VERSION.json (raíz) + data/versions.json — versionado dual app/schema.",
+  "type": "object",
+  "required": ["appVersion", "schemaVersion", "configVersion"],
+  "properties": {
+    "product": { "type": "string" },
+    "appVersion": { "type": "string" },
+    "version": { "type": "string", "description": "Alias legado de appVersion" },
+    "buildId": { "type": "string" },
+    "buildDate": { "type": "string" },
+    "sourceCommit": { "type": "string" },
+    "schemaVersion": {
+      "type": "integer",
+      "description": "Conteo/orden monotónico de migraciones Prisma del paquete"
+    },
+    "lastMigration": { "type": "string" },
+    "configVersion": { "type": "integer", "const": 1 },
+    "repoUrl": { "type": "string" },
+    "branch": { "type": "string" },
+    "clientSlug": { "type": "string" }
+  }
+}

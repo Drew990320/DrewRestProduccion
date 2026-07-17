@@ -29,6 +29,7 @@ const CAMPO_PRISMA = {
     reimprimir_factura: 'reimprimirFactura',
     cancelar_pedido: 'cancelarPedido',
     transferir_mesa: 'transferirMesa',
+    agrupar_mesas: 'agruparMesas',
     ayuda_companeros: 'ayudaCompaneros',
 };
 const CAMPO_CHEF_PRISMA = {
@@ -67,6 +68,7 @@ let PermisosService = class PermisosService {
             reimprimir_factura: row.reimprimirFactura,
             cancelar_pedido: row.cancelarPedido,
             transferir_mesa: row.transferirMesa,
+            agrupar_mesas: row.agruparMesas,
             ayuda_companeros: row.ayudaCompaneros,
         };
     }
@@ -177,7 +179,7 @@ let PermisosService = class PermisosService {
         return row?.idUsuario === idUsuario;
     }
     async getEfectivos(idUsuario, rol, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
-        if (rol === 'admin') {
+        if (rol === 'admin' || rol === 'superadmin') {
             return (0, permisos_mesero_1.permisosMeseroTodos)();
         }
         if (rol === 'chef') {
@@ -193,6 +195,7 @@ let PermisosService = class PermisosService {
                 reimprimir_factura: false,
                 cancelar_pedido: false,
                 transferir_mesa: false,
+                agrupar_mesas: false,
                 ayuda_companeros: false,
                 puede_cerrar_anulando: false,
                 es_admin: false,
@@ -215,7 +218,7 @@ let PermisosService = class PermisosService {
     }
     async assertPermiso(actor, permiso, opts) {
         const rol = actor.rol.nombre;
-        if (rol === 'admin')
+        if (rol === 'admin' || rol === 'superadmin')
             return;
         if (opts?.permitirChef && rol === 'chef')
             return;
