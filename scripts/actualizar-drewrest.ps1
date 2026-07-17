@@ -79,6 +79,10 @@ if (-not $check.Comparison.updateAvailable -and $Force) {
 
 Write-Host ""
 Write-Host "Descargando paquete desde GitHub..." -ForegroundColor Cyan
+
+# Primero scripts/VERSION (ligero): el PC remoto recupera el motor de update aunque el ZIP grande falle.
+[void](Install-DrewRestUpdateScriptsFromGithub -DrewRestRoot $installRoot -Branch $channel.branch)
+
 $workRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("drewrest-upd-" + [guid]::NewGuid().ToString("N"))
 New-Item -ItemType Directory -Force -Path $workRoot | Out-Null
 
@@ -90,6 +94,7 @@ try {
   if (-not $source.ok) {
     $err = if ($source.error) { $source.error } else { "No se pudo descargar el paquete." }
     Write-Host $err -ForegroundColor Red
+    Write-Host "Los scripts de update ya se intentaron refrescar. Revisa red/Git e intenta de nuevo." -ForegroundColor Yellow
     exit 1
   }
 

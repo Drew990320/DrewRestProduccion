@@ -1,6 +1,6 @@
 {
-  "backupId": "20260717-142159",
-  "createdAt": "2026-07-17T19:21:59.5553353Z",
+  "backupId": "20260717-140009",
+  "createdAt": "2026-07-17T19:00:09.8077716Z",
   "appVersion": "2026.7.17.1359",
   "schemaVersion": 72,
   "status": "ok",
@@ -8,7 +8,7 @@
   "files": [
     {
       "name": "db.dump",
-      "sha256": "d4ac5312f7a3eaf6482d54a6ed8281e9e1f586a9b90c0cf576881111a39035ae",
+      "sha256": "af37373011570fd07f4f46b02d0df890152c83f0c32dc12cb4ac7c1424e66b31",
       "bytes": 261186
     },
     {
@@ -48,7 +48,7 @@
     }
   ],
   "totalBytes": 10690428,
-  "checksumSha256": "212f434085477bc17f9e5e7878c76fde5eb18ee4e194e4541010c4cca0e9cc10",
+  "checksumSha256": "3d89df414d1e5a5ffd5a94a4a8354d91b2d091d6779912f034e0ca3dff71b861",
   "error": null,
   "hasAppPrev": true
 }

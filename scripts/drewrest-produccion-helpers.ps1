@@ -650,7 +650,8 @@ function Install-DrewRestUpdateScripts {
   $files = @(
     "actualizar-drewrest.ps1",
     "drewrest-produccion-config.ps1",
-    "drewrest-produccion-helpers.ps1"
+    "drewrest-produccion-helpers.ps1",
+    "bootstrap-update-scripts.ps1"
   )
   foreach ($name in $files) {
     $src = Join-Path $ScriptsSource $name
@@ -707,6 +708,59 @@ function Invoke-DrewRestUpdateFromFolder {
   }
 }
 
+function Install-DrewRestUpdateScriptsFromGithub {
+  param(
+    [Parameter(Mandatory = $true)][string]$DrewRestRoot,
+    [string]$Branch = $DrewRestProduccionBranch,
+    [string]$Owner = $DrewRestProduccionOwner,
+    [string]$Repo = $DrewRestProduccionRepo
+  )
+
+  $tipSha = Get-RemoteDrewRestCommitViaGit -Branch $Branch
+  if (-not $tipSha) {
+    Write-Host "No se pudo resolver el tip de $Branch para scripts." -ForegroundColor Yellow
+    return $false
+  }
+
+  Write-Host "Actualizando scripts de update desde GitHub ($($tipSha.Substring(0,7)))..." -ForegroundColor Cyan
+  $base = "https://raw.githubusercontent.com/$Owner/$Repo/$tipSha"
+  $scriptsDst = Join-Path $DrewRestRoot "scripts"
+  New-Item -ItemType Directory -Force -Path $scriptsDst | Out-Null
+
+  $files = @(
+    @{ rel = "scripts/actualizar-drewrest.ps1"; dst = (Join-Path $scriptsDst "actualizar-drewrest.ps1") },
+    @{ rel = "scripts/drewrest-produccion-helpers.ps1"; dst = (Join-Path $scriptsDst "drewrest-produccion-helpers.ps1") },
+    @{ rel = "scripts/drewrest-produccion-config.ps1"; dst = (Join-Path $scriptsDst "drewrest-produccion-config.ps1") },
+    @{ rel = "VERSION.json"; dst = (Join-Path $DrewRestRoot "VERSION.json") }
+  )
+
+  $headers = @{
+    "User-Agent" = "DrewRest-Updater"
+    "Cache-Control" = "no-cache"
+  }
+  $ok = 0
+  foreach ($f in $files) {
+    try {
+      $uri = "$base/$($f.rel)?_=$(Get-Date -UFormat %s)"
+      Invoke-WebRequest -Uri $uri -OutFile $f.dst -Headers $headers -TimeoutSec 60 -UseBasicParsing
+      $ok++
+    } catch {
+      Write-Host "  No se pudo bajar $($f.rel): $($_.Exception.Message)" -ForegroundColor Yellow
+    }
+  }
+
+  # Workflow (opcional)
+  try {
+    $wfDir = Join-Path $DrewRestRoot ".github\workflows"
+    New-Item -ItemType Directory -Force -Path $wfDir | Out-Null
+    $wfUri = "$base/.github/workflows/release-on-version.yml?_=$(Get-Date -UFormat %s)"
+    Invoke-WebRequest -Uri $wfUri -OutFile (Join-Path $wfDir "release-on-version.yml") -Headers $headers -TimeoutSec 60 -UseBasicParsing
+  } catch {}
+
+  Write-Host "Scripts ligeros actualizados: $ok/$($files.Count)" -ForegroundColor DarkGray
+  return ($ok -ge 3)
+}
+
 function Get-DrewRestUpdateSource {
   param(
     [string]$RepoUrl = $DrewRestProduccionRepoUrlHttps,
@@ -724,8 +778,14 @@ function Get-DrewRestUpdateSource {
   $ErrorActionPreference = "Continue"
   git --version 2>$null | Out-Null
   if ($LASTEXITCODE -eq 0) {
-    git clone --depth 1 --branch $Branch $RepoUrl $WorkDir 2>$null | Out-Null
-    if ($LASTEXITCODE -eq 0) {
+    Write-Host "Clonando paquete desde GitHub (depth 1). Puede tardar varios minutos..." -ForegroundColor Cyan
+    $env:GIT_TERMINAL_PROMPT = "0"
+    git -c advice.detachedHead=false clone --depth 1 --branch $Branch --single-branch $RepoUrl $WorkDir 2>&1 | ForEach-Object {
+      Write-Host "  $_" -ForegroundColor DarkGray
+    }
+    if ($LASTEXITCODE -eq 0 -and (Test-Path (Join-Path $WorkDir "VERSION.json"))) {
+      $gitOk = $true
+    } elseif ($LASTEXITCODE -eq 0 -and (Test-Path (Join-Path $WorkDir "DrewRest.exe"))) {
       $gitOk = $true
     }
   }
@@ -735,10 +795,13 @@ function Get-DrewRestUpdateSource {
     return @{ ok = $true; path = $WorkDir; method = "git"; branch = $Branch }
   }
 
+  Write-Host "Git no disponible o fallo el clone; descargando ZIP del canal (puede ser >1GB)..." -ForegroundColor Yellow
   $zipUrl = Get-DrewRestBranchZipUrl -Branch $Branch
   $zipPath = Join-Path $WorkDir "package.zip"
   try {
-    Invoke-WebRequest -Uri $zipUrl -OutFile $zipPath -TimeoutSec 120
+    # Timeout alto: el paquete on-prem incluye vendor + api node_modules.
+    Invoke-WebRequest -Uri $zipUrl -OutFile $zipPath -TimeoutSec 7200 -UseBasicParsing
+    Write-Host "Extrayendo ZIP..." -ForegroundColor Cyan
     Expand-Archive -Path $zipPath -DestinationPath $WorkDir -Force
     Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
     $extracted = Get-ChildItem -Path $WorkDir -Directory |
@@ -749,7 +812,12 @@ function Get-DrewRestUpdateSource {
     }
     return @{ ok = $true; path = $extracted.FullName; method = "zip" }
   } catch {
-    return @{ ok = $false; path = $WorkDir; method = "zip"; error = $_.Exception.Message }
+    return @{
+      ok = $false
+      path = $WorkDir
+      method = "zip"
+      error = "Fallo la descarga del paquete: $($_.Exception.Message). ¿Hay Git instalado y red a github.com?"
+    }
   }
 }
 
