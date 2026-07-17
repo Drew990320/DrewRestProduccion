@@ -9,3 +9,5 @@ $DrewRestProduccionVersionRawUrl =
   "https://raw.githubusercontent.com/$DrewRestProduccionOwner/$DrewRestProduccionRepo/$DrewRestProduccionBranch/VERSION.json"
 $DrewRestProduccionZipUrl =
   "https://github.com/$DrewRestProduccionOwner/$DrewRestProduccionRepo/archive/refs/heads/$DrewRestProduccionBranch.zip"
+$DrewRestProduccionReleasesApiUrl =
+  "https://api.github.com/repos/$DrewRestProduccionOwner/$DrewRestProduccionRepo/releases"

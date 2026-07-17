@@ -210,6 +210,110 @@ function Write-DrewRestUpdateChannel {
   Write-Utf8NoBomFile -Path $path -Content ($payload | ConvertTo-Json -Depth 5)
 }
 
+function Install-DrewRestGithubWorkflow {
+  param(
+    [Parameter(Mandatory = $true)][string]$DrewRestRoot,
+    [string]$TemplatesRoot = ""
+  )
+
+  if (-not $TemplatesRoot) {
+    $TemplatesRoot = Join-Path $PSScriptRoot "templates\drewrest-github"
+  }
+  $src = Join-Path $TemplatesRoot "release-on-version.yml"
+  if (-not (Test-Path $src)) { return $false }
+
+  $dstDir = Join-Path $DrewRestRoot ".github\workflows"
+  New-Item -ItemType Directory -Force -Path $dstDir | Out-Null
+  $dst = Join-Path $dstDir "release-on-version.yml"
+  Copy-Item -Path $src -Destination $dst -Force
+  return $true
+}
+
+function Get-DrewRestGithubApiHeaders {
+  return @{
+    "User-Agent" = "DrewRest-Updater"
+    "Accept" = "application/vnd.github+json"
+    "Cache-Control" = "no-cache"
+    "Pragma" = "no-cache"
+  }
+}
+
+# Ultimo GitHub Release (publico). Null si no hay releases.
+function Get-LatestDrewRestGithubRelease {
+  param(
+    [string]$Owner = $DrewRestProduccionOwner,
+    [string]$Repo = $DrewRestProduccionRepo
+  )
+
+  $headers = Get-DrewRestGithubApiHeaders
+  try {
+    $latestUrl = "https://api.github.com/repos/$Owner/$Repo/releases/latest"
+    return Invoke-RestMethod -Uri $latestUrl -Method Get -TimeoutSec 25 -Headers $headers
+  } catch {
+    # 404 = aún no hay releases
+  }
+
+  try {
+    $listUrl = "https://api.github.com/repos/$Owner/$Repo/releases?per_page=5"
+    $list = Invoke-RestMethod -Uri $listUrl -Method Get -TimeoutSec 25 -Headers $headers
+    if ($list -is [System.Array] -and $list.Count -gt 0) {
+      return $list | Where-Object { -not $_.draft -and -not $_.prerelease } | Select-Object -First 1
+    }
+    if ($list -and -not ($list -is [System.Array])) { return $list }
+  } catch {
+    return $null
+  }
+  return $null
+}
+
+function Get-RemoteDrewRestVersionFromRelease {
+  param(
+    [string]$Owner = $DrewRestProduccionOwner,
+    [string]$Repo = $DrewRestProduccionRepo
+  )
+
+  $release = Get-LatestDrewRestGithubRelease -Owner $Owner -Repo $Repo
+  if (-not $release) { return $null }
+
+  $headers = Get-DrewRestGithubApiHeaders
+  $asset = $null
+  if ($release.assets) {
+    $asset = @($release.assets) | Where-Object { $_.name -eq "VERSION.json" } | Select-Object -First 1
+  }
+
+  $manifest = $null
+  if ($asset -and $asset.browser_download_url) {
+    try {
+      $manifest = Invoke-RestMethod -Uri $asset.browser_download_url -Method Get -TimeoutSec 25 -Headers $headers
+    } catch {
+      $manifest = $null
+    }
+  }
+
+  if (-not $manifest -and $release.tag_name) {
+    # Fallback mínimo desde el tag (v2026.7.17.1350 → 2026.7.17.1350)
+    $tagVer = [string]$release.tag_name
+    if ($tagVer.StartsWith("v")) { $tagVer = $tagVer.Substring(1) }
+    $manifest = [pscustomobject]@{
+      version = $tagVer
+      appVersion = $tagVer
+      buildId = $release.target_commitish
+      buildDate = $release.published_at
+      sourceCommit = $release.target_commitish
+    }
+  }
+
+  if (-not $manifest) { return $null }
+
+  try {
+    $manifest | Add-Member -NotePropertyName releaseTag -NotePropertyValue $release.tag_name -Force
+    $manifest | Add-Member -NotePropertyName releaseUrl -NotePropertyValue $release.html_url -Force
+    $manifest | Add-Member -NotePropertyName updateChannel -NotePropertyValue "github-release" -Force
+  } catch {}
+
+  return $manifest
+}
+
 function Get-RemoteDrewRestVersionManifest {
   param(
     [string]$Branch = $DrewRestProduccionBranch,
@@ -219,7 +323,11 @@ function Get-RemoteDrewRestVersionManifest {
     [string]$Repo = $DrewRestProduccionRepo
   )
 
-  # 1) Tip real de la rama (evita caché de raw.../main/VERSION.json).
+  # 1) GitHub Releases (sin caché de raw.../main/; canal preferido).
+  $fromRelease = Get-RemoteDrewRestVersionFromRelease -Owner $Owner -Repo $Repo
+  if ($fromRelease) { return $fromRelease }
+
+  # 2) Tip real de la rama (evita caché de raw.../main/VERSION.json).
   $tipSha = Get-RemoteDrewRestCommitViaGit -RepoUrl $RepoUrl -Branch $Branch
   if ($tipSha) {
     $byCommit = "https://raw.githubusercontent.com/$Owner/$Repo/$tipSha/VERSION.json"
@@ -235,6 +343,7 @@ function Get-RemoteDrewRestVersionManifest {
         if (-not $resp.publishCommit) {
           try { $resp | Add-Member -NotePropertyName publishCommit -NotePropertyValue $tipSha -Force } catch {}
         }
+        try { $resp | Add-Member -NotePropertyName updateChannel -NotePropertyValue "git-tip" -Force } catch {}
         return $resp
       }
     } catch {
@@ -250,13 +359,16 @@ function Get-RemoteDrewRestVersionManifest {
         "Cache-Control" = "no-cache"
       }
       $resp = Invoke-RestMethod -Uri $apiUri -Method Get -TimeoutSec 20 -Headers $apiHeaders
-      if ($resp) { return $resp }
+      if ($resp) {
+        try { $resp | Add-Member -NotePropertyName updateChannel -NotePropertyValue "git-tip" -Force } catch {}
+        return $resp
+      }
     } catch {
       # sigue a fallbacks
     }
   }
 
-  # 2) Fallback: URL por rama (puede estar cacheada).
+  # 3) Fallback: URL por rama (puede estar cacheada).
   if (-not $VersionRawUrl) {
     $VersionRawUrl = Get-DrewRestVersionRawUrl -Branch $Branch
   }
@@ -267,7 +379,11 @@ function Get-RemoteDrewRestVersionManifest {
       "Cache-Control" = "no-cache"
       "Pragma" = "no-cache"
     }
-    return Invoke-RestMethod -Uri $uri -Method Get -TimeoutSec 20 -Headers $headers
+    $resp = Invoke-RestMethod -Uri $uri -Method Get -TimeoutSec 20 -Headers $headers
+    if ($resp) {
+      try { $resp | Add-Member -NotePropertyName updateChannel -NotePropertyValue "raw-branch" -Force } catch {}
+    }
+    return $resp
   } catch {
     return $null
   }
@@ -334,10 +450,13 @@ function Compare-DrewRestVersions {
   }
 
   if ($versionChanged -or (-not $sameBuild) -or $remoteNewerDate) {
+    $channelHint = ""
+    if ($Remote.updateChannel) { $channelHint = " [$($Remote.updateChannel)]" }
+    if ($Remote.releaseTag) { $channelHint += " $($Remote.releaseTag)" }
     return [ordered]@{
       status = "update_available"
       updateAvailable = $true
-      message = "Hay una version mas reciente en DrewRestProduccion (v$($Remote.version) / build $($Remote.buildId))."
+      message = "Hay una version mas reciente en DrewRestProduccion (v$($Remote.version) / build $($Remote.buildId))$channelHint."
     }
   }
 

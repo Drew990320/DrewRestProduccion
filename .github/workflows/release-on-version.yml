@@ -1,0 +1,58 @@
+# Se publica dentro de DrewRestProduccion/.github/workflows/
+# Al subir VERSION.json a main, crea un GitHub Release (tag = v{version})
+# con VERSION.json como asset. El launcher lee /releases/latest (sin caché de raw/main).
+
+name: Release DrewRest
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - VERSION.json
+      - .github/workflows/release-on-version.yml
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Leer VERSION.json
+        id: ver
+        run: |
+          set -euo pipefail
+          test -f VERSION.json
+          VERSION=$(jq -r '.version // empty' VERSION.json)
+          BUILD=$(jq -r '.buildId // empty' VERSION.json)
+          DATE=$(jq -r '.buildDate // empty' VERSION.json)
+          if [ -z "$VERSION" ] || [ "$VERSION" = "null" ]; then
+            echo "VERSION.json sin campo version" >&2
+            exit 1
+          fi
+          TAG="v${VERSION}"
+          {
+            echo "version=${VERSION}"
+            echo "build=${BUILD}"
+            echo "tag=${TAG}"
+            echo "title=DrewRest ${VERSION} (${BUILD})"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Crear o actualizar Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.ver.outputs.tag }}
+          name: ${{ steps.ver.outputs.title }}
+          body: |
+            Actualización on-prem DrewRest `${{ steps.ver.outputs.version }}` (build `${{ steps.ver.outputs.build }}`).
+
+            En el PC del restaurante: pestaña **Actualizar** → **Descargar e instalar**
+            (o `DrewRest.exe actualizar`).
+          files: VERSION.json
+          fail_on_unmatched_files: true
+          make_latest: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
