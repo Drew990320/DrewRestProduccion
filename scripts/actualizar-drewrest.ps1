@@ -81,7 +81,11 @@ Write-Host ""
 Write-Host "Descargando paquete desde GitHub..." -ForegroundColor Cyan
 
 # Primero scripts/VERSION (ligero): el PC remoto recupera el motor de update aunque el ZIP grande falle.
-[void](Install-DrewRestUpdateScriptsFromGithub -DrewRestRoot $installRoot -Branch $channel.branch)
+try {
+  [void](Install-DrewRestUpdateScriptsFromGithub -DrewRestRoot $installRoot -Branch $channel.branch)
+} catch {
+  Write-Host "Aviso: no se pudieron refrescar scripts ligeros ($($_.Exception.Message)). Se continua con el paquete." -ForegroundColor Yellow
+}
 
 $workRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("drewrest-upd-" + [guid]::NewGuid().ToString("N"))
 New-Item -ItemType Directory -Force -Path $workRoot | Out-Null
@@ -94,7 +98,7 @@ try {
   if (-not $source.ok) {
     $err = if ($source.error) { $source.error } else { "No se pudo descargar el paquete." }
     Write-Host $err -ForegroundColor Red
-    Write-Host "Los scripts de update ya se intentaron refrescar. Revisa red/Git e intenta de nuevo." -ForegroundColor Yellow
+    Write-Host "Sin Git, la descarga usa ZIP (puede tardar mucho). Instalar Git for Windows ayuda." -ForegroundColor Yellow
     exit 1
   }
 

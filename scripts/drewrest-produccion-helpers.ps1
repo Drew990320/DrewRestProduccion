@@ -389,20 +389,55 @@ function Get-RemoteDrewRestVersionManifest {
   }
 }
 
+function Get-RemoteDrewRestTipSha {
+  param(
+    [string]$RepoUrl = $DrewRestProduccionRepoUrlHttps,
+    [string]$Branch = $DrewRestProduccionBranch,
+    [string]$Owner = $DrewRestProduccionOwner,
+    [string]$Repo = $DrewRestProduccionRepo
+  )
+
+  # 1) git ls-remote (si Git esta instalado)
+  if (Get-Command git -ErrorAction SilentlyContinue) {
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+      $line = & git ls-remote $RepoUrl "refs/heads/$Branch" 2>$null | Select-Object -First 1
+      if ($line) {
+        $sha = ($line -split "\s+")[0]
+        if ($sha) { return $sha }
+      }
+    } catch {
+      # sin git usable
+    } finally {
+      $ErrorActionPreference = $prev
+    }
+  }
+
+  # 2) API publica de GitHub (PCs sin Git, p. ej. restaurantes)
+  $headers = Get-DrewRestGithubApiHeaders
+  try {
+    $ref = Invoke-RestMethod -Uri "https://api.github.com/repos/$Owner/$Repo/git/ref/heads/$Branch" -Method Get -TimeoutSec 20 -Headers $headers
+    if ($ref.object.sha) { return [string]$ref.object.sha }
+  } catch {}
+
+  try {
+    $commit = Invoke-RestMethod -Uri "https://api.github.com/repos/$Owner/$Repo/commits/$Branch" -Method Get -TimeoutSec 20 -Headers $headers
+    if ($commit.sha) { return [string]$commit.sha }
+  } catch {}
+
+  return $null
+}
+
+# Compat: nombre historico
 function Get-RemoteDrewRestCommitViaGit {
   param(
     [string]$RepoUrl = $DrewRestProduccionRepoUrlHttps,
-    [string]$Branch = $DrewRestProduccionBranch
+    [string]$Branch = $DrewRestProduccionBranch,
+    [string]$Owner = $DrewRestProduccionOwner,
+    [string]$Repo = $DrewRestProduccionRepo
   )
-  $prev = $ErrorActionPreference
-  $ErrorActionPreference = "Continue"
-  try {
-    $line = git ls-remote $RepoUrl "refs/heads/$Branch" 2>$null | Select-Object -First 1
-    if (-not $line) { return $null }
-    return ($line -split "\s+")[0]
-  } finally {
-    $ErrorActionPreference = $prev
-  }
+  return Get-RemoteDrewRestTipSha -RepoUrl $RepoUrl -Branch $Branch -Owner $Owner -Repo $Repo
 }
 
 function ConvertTo-DrewRestVersionRank {
@@ -716,14 +751,18 @@ function Install-DrewRestUpdateScriptsFromGithub {
     [string]$Repo = $DrewRestProduccionRepo
   )
 
-  $tipSha = Get-RemoteDrewRestCommitViaGit -Branch $Branch
-  if (-not $tipSha) {
-    Write-Host "No se pudo resolver el tip de $Branch para scripts." -ForegroundColor Yellow
-    return $false
+  $tipSha = $null
+  try {
+    $tipSha = Get-RemoteDrewRestTipSha -Branch $Branch -Owner $Owner -Repo $Repo
+  } catch {
+    $tipSha = $null
   }
 
-  Write-Host "Actualizando scripts de update desde GitHub ($($tipSha.Substring(0,7)))..." -ForegroundColor Cyan
-  $base = "https://raw.githubusercontent.com/$Owner/$Repo/$tipSha"
+  # Sin tip: usar la rama (main). En PCs sin Git sigue funcionando.
+  $ref = if ($tipSha) { $tipSha } else { $Branch }
+  $label = if ($tipSha) { $tipSha.Substring(0, [Math]::Min(7, $tipSha.Length)) } else { $Branch }
+  Write-Host "Actualizando scripts de update desde GitHub ($label)..." -ForegroundColor Cyan
+  $base = "https://raw.githubusercontent.com/$Owner/$Repo/$ref"
   $scriptsDst = Join-Path $DrewRestRoot "scripts"
   New-Item -ItemType Directory -Force -Path $scriptsDst | Out-Null
 
@@ -731,6 +770,7 @@ function Install-DrewRestUpdateScriptsFromGithub {
     @{ rel = "scripts/actualizar-drewrest.ps1"; dst = (Join-Path $scriptsDst "actualizar-drewrest.ps1") },
     @{ rel = "scripts/drewrest-produccion-helpers.ps1"; dst = (Join-Path $scriptsDst "drewrest-produccion-helpers.ps1") },
     @{ rel = "scripts/drewrest-produccion-config.ps1"; dst = (Join-Path $scriptsDst "drewrest-produccion-config.ps1") },
+    @{ rel = "scripts/bootstrap-update-scripts.ps1"; dst = (Join-Path $scriptsDst "bootstrap-update-scripts.ps1") },
     @{ rel = "VERSION.json"; dst = (Join-Path $DrewRestRoot "VERSION.json") }
   )
 
@@ -749,7 +789,6 @@ function Install-DrewRestUpdateScriptsFromGithub {
     }
   }
 
-  # Workflow (opcional)
   try {
     $wfDir = Join-Path $DrewRestRoot ".github\workflows"
     New-Item -ItemType Directory -Force -Path $wfDir | Out-Null
@@ -776,18 +815,20 @@ function Get-DrewRestUpdateSource {
   $gitOk = $false
   $prev = $ErrorActionPreference
   $ErrorActionPreference = "Continue"
-  git --version 2>$null | Out-Null
-  if ($LASTEXITCODE -eq 0) {
+  if (Get-Command git -ErrorAction SilentlyContinue) {
     Write-Host "Clonando paquete desde GitHub (depth 1). Puede tardar varios minutos..." -ForegroundColor Cyan
     $env:GIT_TERMINAL_PROMPT = "0"
-    git -c advice.detachedHead=false clone --depth 1 --branch $Branch --single-branch $RepoUrl $WorkDir 2>&1 | ForEach-Object {
+    & git -c advice.detachedHead=false clone --depth 1 --branch $Branch --single-branch $RepoUrl $WorkDir 2>&1 | ForEach-Object {
       Write-Host "  $_" -ForegroundColor DarkGray
     }
-    if ($LASTEXITCODE -eq 0 -and (Test-Path (Join-Path $WorkDir "VERSION.json"))) {
-      $gitOk = $true
-    } elseif ($LASTEXITCODE -eq 0 -and (Test-Path (Join-Path $WorkDir "DrewRest.exe"))) {
+    if ($LASTEXITCODE -eq 0 -and (
+        (Test-Path (Join-Path $WorkDir "VERSION.json")) -or
+        (Test-Path (Join-Path $WorkDir "DrewRest.exe"))
+      )) {
       $gitOk = $true
     }
+  } else {
+    Write-Host "Git no esta instalado; se usara descarga ZIP." -ForegroundColor Yellow
   }
   $ErrorActionPreference = $prev
 
@@ -795,7 +836,7 @@ function Get-DrewRestUpdateSource {
     return @{ ok = $true; path = $WorkDir; method = "git"; branch = $Branch }
   }
 
-  Write-Host "Git no disponible o fallo el clone; descargando ZIP del canal (puede ser >1GB)..." -ForegroundColor Yellow
+  Write-Host "Descargando ZIP del canal (puede ser >1GB y tardar varios minutos)..." -ForegroundColor Yellow
   $zipUrl = Get-DrewRestBranchZipUrl -Branch $Branch
   $zipPath = Join-Path $WorkDir "package.zip"
   try {
@@ -816,7 +857,7 @@ function Get-DrewRestUpdateSource {
       ok = $false
       path = $WorkDir
       method = "zip"
-      error = "Fallo la descarga del paquete: $($_.Exception.Message). ¿Hay Git instalado y red a github.com?"
+      error = "Fallo la descarga del paquete: $($_.Exception.Message). En PCs de restaurante conviene instalar Git for Windows."
     }
   }
 }
