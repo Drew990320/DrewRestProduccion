@@ -1,6 +1,6 @@
 # Se publica dentro de DrewRestProduccion/.github/workflows/
 # Al subir VERSION.json a main, crea un GitHub Release (tag = v{version})
-# con VERSION.json como asset. El launcher lee /releases/latest (sin caché de raw/main).
+# con VERSION.json + ZIPs + instalador limpio. El launcher lee /releases/latest.
 
 name: Release DrewRest
 
@@ -59,11 +59,53 @@ jobs:
             --exclude 'data/backups/' \
             --exclude 'data/staging/' \
             --exclude 'data/state/' \
+            --exclude 'DrewRest-Setup.exe' \
             ./ "$STAGE/"
           # Marca para que el cliente sepa que debe npm install
           echo '{"slim":true,"needsNpmInstall":true}' > "$STAGE/UPDATE-SLIM.json"
           (cd "$STAGE" && zip -r -q "$GITHUB_WORKSPACE/DrewRest-update.zip" .)
           ls -lh "$GITHUB_WORKSPACE/DrewRest-update.zip"
+
+      - name: Empaquetar setup limpio (con vendor; sin BD ni node_modules)
+        run: |
+          set -euo pipefail
+          # Instalación nueva: incluye Node + PostgreSQL embebidos.
+          # Sin data/postgres ni credenciales: BD vacía al primer arranque.
+          # Sin api/node_modules: el launcher hace npm install --omit=dev.
+          STAGE="${RUNNER_TEMP}/drewrest-setup"
+          rm -rf "$STAGE"
+          mkdir -p "$STAGE"
+          rsync -a \
+            --exclude '.git/' \
+            --exclude 'api/node_modules/' \
+            --exclude 'api/logs/' \
+            --exclude 'api/.env' \
+            --exclude 'api/license.key' \
+            --exclude 'data/postgres/' \
+            --exclude 'data/postgres-v16-backup/' \
+            --exclude 'data/backups/' \
+            --exclude 'data/staging/' \
+            --exclude 'data/state/' \
+            --exclude 'data/pg-credentials.json' \
+            --exclude 'data/pg-pwfile.tmp' \
+            --exclude 'data/external-db-import-done.flag' \
+            --exclude 'vendor/pgsql/pgAdmin 4/' \
+            --exclude 'vendor/pgsql/StackBuilder/' \
+            --exclude 'vendor/pgsql/include/' \
+            --exclude 'vendor/pgsql/doc/' \
+            --exclude 'DrewRest-Setup.exe' \
+            ./ "$STAGE/"
+          mkdir -p "$STAGE/data"
+          echo '{"cleanInstall":true,"needsNpmInstall":true}' > "$STAGE/INSTALL-CLEAN.json"
+          # Quitar restos de cluster si rsync dejó algo
+          rm -rf "$STAGE/data/postgres" "$STAGE/data/postgres-v16-backup" "$STAGE/data/backups"
+          rm -f "$STAGE/data/pg-credentials.json" "$STAGE/data/pg-pwfile.tmp" "$STAGE/data/external-db-import-done.flag"
+          (cd "$STAGE" && zip -r -q "$GITHUB_WORKSPACE/DrewRest-setup.zip" .)
+          ls -lh "$GITHUB_WORKSPACE/DrewRest-setup.zip"
+          test -f "$GITHUB_WORKSPACE/DrewRest-Setup.exe" || {
+            echo "Falta DrewRest-Setup.exe en el repo (empaqueta con DrewRest:Empaquetar-Setup y publica)." >&2
+            exit 1
+          }
 
       - name: Crear o actualizar Release
         uses: softprops/action-gh-release@v2
@@ -73,13 +115,19 @@ jobs:
           body: |
             Actualización on-prem DrewRest `${{ steps.ver.outputs.version }}` (build `${{ steps.ver.outputs.build }}`).
 
-            Asset `DrewRest-update.zip`: paquete slim (sin node_modules; se reinstalan en destino).
+            ### Instalación nueva (PC limpio)
+            1. Descarga **`DrewRest-Setup.exe`**
+            2. Ejecútalo → elige carpeta (p. ej. `C:\DrewRest`)
+            3. Descarga e instala el paquete limpio (`DrewRest-setup.zip`: sin BD ni datos de otro local)
 
-            En el PC del restaurante: **Detener** → Actualizar → Descargar e instalar
-            (o `DrewRest.exe actualizar`). Sin Git usa el ZIP del Release.
+            ### Actualizar un local ya instalado
+            Asset `DrewRest-update.zip` (slim). En el PC: **Detener** → Actualizar → Descargar e instalar
+            (o `DrewRest.exe actualizar`).
           files: |
             VERSION.json
             DrewRest-update.zip
+            DrewRest-setup.zip
+            DrewRest-Setup.exe
           fail_on_unmatched_files: true
           make_latest: true
         env:

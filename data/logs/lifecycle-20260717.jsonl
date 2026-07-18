@@ -190,3 +190,21 @@
 {"ts":"2026-07-18T02:33:16.0004460Z","phase":"Recovery","level":"info","message":"\u00C1rbol app-prev restaurado"}
 {"ts":"2026-07-18T02:33:18.8368783Z","phase":"Recovery","level":"info","message":"Base de datos restaurada desde dump"}
 {"ts":"2026-07-18T02:33:18.8472727Z","phase":"Recovery","level":"info","message":"Rollback completado","data":{"BackupId":"20260717-212847"}}
+{"ts":"2026-07-18T02:38:53.5753259Z","phase":"Update","level":"info","message":"Script: -CheckOnly"}
+{"ts":"2026-07-18T02:38:54.6486405Z","phase":"Update","level":"info","message":""}
+{"ts":"2026-07-18T02:38:54.6515774Z","phase":"Update","level":"info","message":"=== DrewRest - actualizaciones ==="}
+{"ts":"2026-07-18T02:38:54.6524979Z","phase":"Update","level":"info","message":"Carpeta: C:\\Users\\nioan\\Desktop\\DrewTech\\Productos\\Codigo Fuente\\App\\DrewRest"}
+{"ts":"2026-07-18T02:38:56.1733916Z","phase":"Update","level":"info","message":"Canal:   main"}
+{"ts":"2026-07-18T02:38:56.1759031Z","phase":"Update","level":"info","message":"Repo:    https://github.com/Drew990320/DrewRestProduccion.git"}
+{"ts":"2026-07-18T02:38:56.1766483Z","phase":"Update","level":"info","message":""}
+{"ts":"2026-07-18T02:38:56.1807933Z","phase":"Update","level":"info","message":"Local : v2026.7.17.2135 | build c2008a5 | 2026-07-17T21:35:30.9050307-05:00"}
+{"ts":"2026-07-18T02:38:56.1834803Z","phase":"Update","level":"info","message":"Remoto: v2026.7.17.2135 | build c2008a5 | 2026-07-17T21:35:30.9050307-05:00"}
+{"ts":"2026-07-18T02:38:56.1840804Z","phase":"Update","level":"info","message":""}
+{"ts":"2026-07-18T02:38:56.1893977Z","phase":"Update","level":"info","message":"Ya tienes la ultima version publicada (v2026.7.17.2135 / build c2008a5)."}
+{"ts":"2026-07-18T02:39:00.6473666Z","phase":"Config","level":"info","message":"Configuraci\u00F3n cargada","data":{"ConfigVersion":1}}
+{"ts":"2026-07-18T02:39:00.6548731Z","phase":"License","level":"warn","message":"LICENSE_SKIP activo \u2014 se omite validaci\u00F3n (solo lab/desarrollo)"}
+{"ts":"2026-07-18T02:39:10.8560830Z","phase":"Migrate","level":"info","message":"lifecycle/migrate.js"}
+{"ts":"2026-07-18T02:39:16.2417588Z","phase":"Migrate","level":"info","message":"Migraciones OK"}
+{"ts":"2026-07-18T02:39:16.6851181Z","phase":"Integrity","level":"info","message":"Gate OK","data":{"warnings":1}}
+{"ts":"2026-07-18T02:39:16.6932992Z","phase":"Integrity","level":"warn","message":"LICENSE_SKIP activo en producci\u00F3n potencial"}
+{"ts":"2026-07-18T02:39:17.4617052Z","phase":"Start","level":"info","message":"API \u002B Web iniciados"}
