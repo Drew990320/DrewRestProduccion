@@ -83,11 +83,13 @@ function New-DrewRestVersionManifest {
   }
 
   $sourceCommit = Get-DrewRestSourceCommit -RepoRoot $AppRepoRoot
-  $shortId = if ($sourceCommit -ne "unknown" -and $sourceCommit.Length -ge 7) {
+  $shortCommit = if ($sourceCommit -ne "unknown" -and $sourceCommit.Length -ge 7) {
     $sourceCommit.Substring(0, 7)
   } else {
-    $now.ToString("yyyyMMddHHmmss")
+    "local"
   }
+  # buildId unico por empaquetado (no solo el commit: el mismo HEAD se publica muchas veces).
+  $shortId = "$publishVersion+$shortCommit"
 
   $migrationsDir = Join-Path $DrewRestRoot "api\prisma\migrations"
   $schemaVersion = 0
@@ -487,13 +489,11 @@ function Compare-DrewRestVersions {
     }
   }
 
-  $sameBuild = ($Local.buildId -and $Remote.buildId -and ($Local.buildId -eq $Remote.buildId)) -or (
-    $Local.sourceCommit -and $Remote.sourceCommit -and
-    $Local.sourceCommit -eq $Remote.sourceCommit -and
-    $Local.version -eq $Remote.version
-  )
-
-  if ($sameBuild) {
+  # Misma build solo si coincide VERSION (CalVer). Nunca tratar solo buildId/commit
+  # como "al dia": el mismo commit de fuente se empaqueta muchas veces con distinta version.
+  $sameVersion = $Local.version -and $Remote.version -and ($Local.version -eq $Remote.version)
+  $sameBuildId = $Local.buildId -and $Remote.buildId -and ($Local.buildId -eq $Remote.buildId)
+  if ($sameVersion -and $sameBuildId) {
     return [ordered]@{
       status = "current"
       updateAvailable = $false

@@ -33,6 +33,17 @@ try {
 Write-Host ""
 Write-Host "=== DrewRest - actualizaciones ===" -ForegroundColor Cyan
 Write-Host "Carpeta: $installRoot"
+
+# Refrescar helpers/scripts desde GitHub ANTES de comparar: si el PC tiene un
+# compare viejo (p.ej. mismo buildId = "al dia"), Comprobar mentiria para siempre.
+$channelEarly = Read-DrewRestUpdateChannel -DrewRestRoot $installRoot
+try {
+  [void](Install-DrewRestUpdateScriptsFromGithub -DrewRestRoot $installRoot -Branch $channelEarly.branch)
+  . (Join-Path $PSScriptRoot "drewrest-produccion-helpers.ps1")
+} catch {
+  Write-Host "Aviso: no se refrescaron scripts de update ($($_.Exception.Message))." -ForegroundColor DarkGray
+}
+
 $check = Test-DrewRestUpdateAvailable -InstallRoot $installRoot
 $channel = $check.Channel
 Write-Host "Canal:   $($channel.branch)$(if ($channel.label) { " ($($channel.label))" })"
