@@ -3,7 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.buildPruebaImpresoraEscPos = buildPruebaImpresoraEscPos;
 const instalacion_on_prem_1 = require("../sistema/instalacion-on-prem");
 const escpos_utils_1 = require("./escpos-utils");
-async function buildPruebaImpresoraEscPos(destino, charWidth = escpos_utils_1.DEFAULT_ESC_POS_WIDTH) {
+async function buildPruebaImpresoraEscPos(destino, charWidth = escpos_utils_1.DEFAULT_ESC_POS_WIDTH, anchoPapelMm = charWidth >= 40 ? 80 : 58) {
     const printer = (0, escpos_utils_1.createEscPosPrinter)(charWidth);
     const w = charWidth;
     const sep = '-'.repeat(w);
@@ -64,7 +64,8 @@ async function buildPruebaImpresoraEscPos(destino, charWidth = escpos_utils_1.DE
     await printer.println('[OK] Lineas separadoras');
     await printer.println('[  ] Corte de papel');
     await printer.println(sep);
-    await printer.println('Lineas de relleno (58 mm):');
+    await printer.println(`Ancho papel: ${anchoPapelMm} mm (${w} cols)`);
+    await printer.println(`Lineas de relleno (${anchoPapelMm} mm):`);
     for (let i = 1; i <= 6; i++) {
         await printer.println(`${i}. Item demo prueba #${i}`);
     }

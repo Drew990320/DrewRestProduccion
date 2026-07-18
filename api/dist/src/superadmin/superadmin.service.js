@@ -322,9 +322,67 @@ let SuperadminService = class SuperadminService {
         }
         return { ok: true, eliminados };
     }
+    async purgarHistorialPedidosTenant(tenantId) {
+        const pedidos = await this.prisma.pedido.findMany({
+            where: { idRestaurante: tenantId },
+            select: { idPedido: true },
+        });
+        if (pedidos.length === 0)
+            return 0;
+        const ids = pedidos.map((p) => p.idPedido);
+        const facturas = await this.prisma.factura.findMany({
+            where: { idPedido: { in: ids } },
+            select: { idFactura: true },
+        });
+        const idsFacturas = facturas.map((f) => f.idFactura);
+        await this.prisma.$transaction(async (tx) => {
+            await tx.movInventario.updateMany({
+                where: { idPedido: { in: ids } },
+                data: { idPedido: null, idDetallePedido: null },
+            });
+            await tx.movimientoRecurso.updateMany({
+                where: { idPedido: { in: ids } },
+                data: { idPedido: null },
+            });
+            await tx.movimientoCaja.deleteMany({
+                where: {
+                    OR: [
+                        { idPedido: { in: ids } },
+                        ...(idsFacturas.length
+                            ? [{ idFactura: { in: idsFacturas } }]
+                            : []),
+                    ],
+                },
+            });
+            await tx.detallePedido.updateMany({
+                where: { idPedido: { in: ids } },
+                data: { idFactura: null },
+            });
+            await tx.cuentaCredito.deleteMany({
+                where: { idPedido: { in: ids } },
+            });
+            if (idsFacturas.length) {
+                await tx.factura.deleteMany({
+                    where: { idFactura: { in: idsFacturas } },
+                });
+            }
+            await tx.pedido.deleteMany({ where: { idPedido: { in: ids } } });
+            await tx.mesa.updateMany({
+                where: { idRestaurante: tenantId },
+                data: { estado: 'libre' },
+            });
+        });
+        return ids.length;
+    }
     async purgarMenu(tenantId, confirmar) {
-        if (confirmar.trim().toUpperCase() !== 'PURGAR_MENU') {
-            throw new common_1.BadRequestException('Escribe confirmar: "PURGAR_MENU"');
+        const token = confirmar.trim().toUpperCase();
+        const forzar = token === 'PURGAR_MENU_FORZAR';
+        if (token !== 'PURGAR_MENU' && !forzar) {
+            throw new common_1.BadRequestException('Escribe confirmar: "PURGAR_MENU" o "PURGAR_MENU_FORZAR" (este último también borra pedidos/facturas)');
+        }
+        let pedidosEliminados = 0;
+        if (forzar) {
+            pedidosEliminados = await this.purgarHistorialPedidosTenant(tenantId);
         }
         const productos = await this.prisma.producto.findMany({
             where: { categoria: { idRestaurante: tenantId } },
@@ -394,8 +452,11 @@ let SuperadminService = class SuperadminService {
         }
         this.gateway.emitConfigActualizada('menu', tenantId);
         this.gateway.emitConfigActualizada('categorias', tenantId);
+        this.gateway.emitConfigActualizada('mesas', tenantId);
         return {
             ok: true,
+            forzar,
+            pedidos_eliminados: pedidosEliminados,
             productos_eliminados: productosEliminados,
             productos_ocultos: productosOcultos,
             categorias_eliminadas: categoriasEliminadas,

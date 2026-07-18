@@ -19,6 +19,7 @@ const prisma_service_1 = require("../prisma/prisma.service");
 const tenant_constants_1 = require("../tenant/tenant.constants");
 const impresoras_pos_detect_1 = require("./impresoras-pos.detect");
 const destinos_impresora_cache_1 = require("./destinos-impresora-cache");
+const impresora_papel_ancho_1 = require("./impresora-papel-ancho");
 let ImpresorasPosService = ImpresorasPosService_1 = class ImpresorasPosService {
     prisma;
     config;
@@ -99,6 +100,7 @@ let ImpresorasPosService = ImpresorasPosService_1 = class ImpresorasPosService {
             .split(',')
             .map((s) => s.trim())
             .filter(Boolean);
+        const anchoDefault = (0, impresora_papel_ancho_1.papelMmDesdeChars)(Number(this.config.get('PRINTER_WIDTH') ?? 32));
         let orden = 0;
         for (const destino of targets) {
             const nombre = destino.startsWith('printer:')
@@ -115,6 +117,7 @@ let ImpresorasPosService = ImpresorasPosService_1 = class ImpresorasPosService {
                     roles: ['cocina', 'factura', 'caja'],
                     esCocinaMaestra: esPrimera,
                     baudRate: Number(this.config.get('PRINTER_BAUD_RATE')) || null,
+                    anchoPapelMm: anchoDefault,
                 },
             });
         }
@@ -132,6 +135,7 @@ let ImpresorasPosService = ImpresorasPosService_1 = class ImpresorasPosService {
             activa: row.activa,
             orden: row.orden,
             baud_rate: row.baudRate,
+            ancho_papel_mm: (0, impresora_papel_ancho_1.normalizarAnchoPapelMm)(row.anchoPapelMm ?? 58),
             roles: row.roles,
             es_cocina_maestra: row.esCocinaMaestra,
             reglas_cocina: (row.reglasCocina ?? []).map((r) => ({
@@ -197,6 +201,7 @@ let ImpresorasPosService = ImpresorasPosService_1 = class ImpresorasPosService {
                 activa: dto.activa ?? true,
                 orden: dto.orden ?? (maxOrden._max.orden ?? -1) + 1,
                 baudRate: dto.baud_rate ?? null,
+                anchoPapelMm: (0, impresora_papel_ancho_1.normalizarAnchoPapelMm)(dto.ancho_papel_mm ?? 58),
                 roles: dto.roles,
                 esCocinaMaestra: dto.es_cocina_maestra ?? false,
             },
@@ -231,6 +236,9 @@ let ImpresorasPosService = ImpresorasPosService_1 = class ImpresorasPosService {
                 ...(dto.activa != null ? { activa: dto.activa } : {}),
                 ...(dto.orden != null ? { orden: dto.orden } : {}),
                 ...(dto.baud_rate !== undefined ? { baudRate: dto.baud_rate } : {}),
+                ...(dto.ancho_papel_mm !== undefined
+                    ? { anchoPapelMm: (0, impresora_papel_ancho_1.normalizarAnchoPapelMm)(dto.ancho_papel_mm) }
+                    : {}),
                 ...(dto.roles != null ? { roles: dto.roles } : {}),
                 ...(dto.es_cocina_maestra != null
                     ? { esCocinaMaestra: dto.es_cocina_maestra }
@@ -338,6 +346,7 @@ let ImpresorasPosService = ImpresorasPosService_1 = class ImpresorasPosService {
             },
             orderBy: [{ orden: 'asc' }, { idImpresora: 'asc' }],
         });
+        const anchoEnv = (0, impresora_papel_ancho_1.papelMmDesdeChars)(Number(this.config.get('PRINTER_WIDTH') ?? 32));
         let destinos;
         if (rows.length > 0) {
             destinos = rows.map((r) => ({
@@ -345,6 +354,7 @@ let ImpresorasPosService = ImpresorasPosService_1 = class ImpresorasPosService {
                 nombre: r.nombre,
                 destino: r.destino,
                 baud_rate: r.baudRate,
+                ancho_papel_mm: (0, impresora_papel_ancho_1.normalizarAnchoPapelMm)(r.anchoPapelMm),
                 es_cocina_maestra: r.esCocinaMaestra,
                 reglas: r.reglasCocina.map((regla) => ({
                     alcance: regla.alcance,
@@ -370,6 +380,7 @@ let ImpresorasPosService = ImpresorasPosService_1 = class ImpresorasPosService {
                     nombre: destino,
                     destino,
                     baud_rate: null,
+                    ancho_papel_mm: anchoEnv,
                     es_cocina_maestra: i === 0,
                     reglas: [],
                 }));

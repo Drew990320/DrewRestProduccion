@@ -53,6 +53,7 @@ Object.defineProperty(exports, "DREWTECH_TELEFONO", { enumerable: true, get: fun
 Object.defineProperty(exports, "DREWTECH_TELEFONO_LABEL", { enumerable: true, get: function () { return drewtech_soporte_1.DREWTECH_TELEFONO_LABEL; } });
 const restaurant_branding_1 = require("../common/restaurant-branding");
 const visual_assets_util_1 = require("../visual/visual-assets.util");
+const impresora_papel_ancho_1 = require("../impresoras-pos/impresora-papel-ancho");
 exports.DEFAULT_ESC_POS_WIDTH = 32;
 function ticketNombreLocal() {
     return (0, restaurant_branding_1.restaurantName)();
@@ -155,11 +156,11 @@ function redimensionarPngBuffer(pngBuffer, maxWidthPx, maxHeightPx) {
         return null;
     }
 }
-async function cargarLogoTicketRedimensionado(sourcePath) {
+async function cargarLogoTicketRedimensionado(sourcePath, maxWidthPx = TICKET_LOGO_ANCHO_PX) {
     try {
         const { leerImagenComoPngBuffer } = await Promise.resolve().then(() => __importStar(require('../visual/image-png.util')));
         const pngBuf = await leerImagenComoPngBuffer(sourcePath);
-        return redimensionarPngBuffer(pngBuf, TICKET_LOGO_ANCHO_PX, TICKET_LOGO_MAX_ALTO_PX);
+        return redimensionarPngBuffer(pngBuf, maxWidthPx, TICKET_LOGO_MAX_ALTO_PX);
     }
     catch {
         return null;
@@ -171,11 +172,12 @@ function resolveTicketLogoPath() {
         (0, visual_assets_util_1.resolverAssetVisualPath)('login', null) ??
         (0, restaurant_branding_1.resolveRestaurantLogoPath)());
 }
-async function ticketLogoPngBufferForPreview() {
+async function ticketLogoPngBufferForPreview(charWidth = exports.DEFAULT_ESC_POS_WIDTH) {
     const logoPath = resolveTicketLogoPath();
     if (!logoPath)
         return null;
-    return cargarLogoTicketRedimensionado(logoPath);
+    const maxW = (0, impresora_papel_ancho_1.logoAnchoPxParaPapelMm)((0, impresora_papel_ancho_1.papelMmDesdeChars)(charWidth));
+    return cargarLogoTicketRedimensionado(logoPath, maxW);
 }
 async function printPieDrewTechFactura(printer, charWidth = exports.DEFAULT_ESC_POS_WIDTH) {
     if (!(0, restaurant_branding_1.restaurantMostrarCreditoDrewTech)())
@@ -238,10 +240,11 @@ function createEscPosPrinter(charWidth) {
 async function printEncabezadoRestaurante(printer, charWidth = exports.DEFAULT_ESC_POS_WIDTH) {
     await printer.alignCenter();
     const logoPath = resolveTicketLogoPath();
+    const logoMaxW = (0, impresora_papel_ancho_1.logoAnchoPxParaPapelMm)((0, impresora_papel_ancho_1.papelMmDesdeChars)(charWidth));
     let logoOk = false;
     if (logoPath) {
         try {
-            const logoBuf = await cargarLogoTicketRedimensionado(logoPath);
+            const logoBuf = await cargarLogoTicketRedimensionado(logoPath, logoMaxW);
             if (logoBuf) {
                 await printer.printImageBuffer(logoBuf);
             }

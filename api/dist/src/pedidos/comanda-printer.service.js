@@ -18,6 +18,7 @@ const common_1 = require("@nestjs/common");
 const config_1 = require("@nestjs/config");
 const latency_metrics_1 = require("../common/latency-metrics");
 const impresoras_pos_service_1 = require("../impresoras-pos/impresoras-pos.service");
+const impresora_papel_ancho_1 = require("../impresoras-pos/impresora-papel-ancho");
 const comanda_escpos_builder_1 = require("./comanda-escpos.builder");
 const factura_escpos_builder_1 = require("./factura-escpos.builder");
 const prueba_impresora_escpos_builder_1 = require("./prueba-impresora-escpos.builder");
@@ -31,7 +32,7 @@ const windows_printer_status_1 = require("./windows-printer-status");
 const DEFAULT_CHARS = 32;
 const MAX_PRINT_RETRIES = 2;
 const DEFAULT_BURST_WINDOW_MS = 5_000;
-const DEFAULT_INTER_JOB_DELAY_MS = 2_000;
+const DEFAULT_INTER_JOB_DELAY_MS = 800;
 let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterService {
     config;
     impresorasPos;
@@ -53,13 +54,23 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
             .toLowerCase();
         return v === '1' || v === 'true' || v === 'yes';
     }
-    charWidth() {
+    charWidthLegacy() {
         const n = Number(this.config.get('PRINTER_WIDTH') ?? DEFAULT_CHARS);
-        return Number.isFinite(n) && n >= 24 && n <= 48 ? n : DEFAULT_CHARS;
+        return (0, impresora_papel_ancho_1.clampCharsPorLinea)(n, DEFAULT_CHARS);
+    }
+    charWidthForDestino(destino) {
+        return (0, impresora_papel_ancho_1.charsPorLineaParaPapelMm)(destino.ancho_papel_mm ?? (0, impresora_papel_ancho_1.papelMmDesdeChars)(this.charWidthLegacy()));
     }
     baudRateDefault() {
         const n = Number(this.config.get('PRINTER_BAUD_RATE') ?? 9600);
         return Number.isFinite(n) && n > 0 ? n : 9600;
+    }
+    paperCheckAntesDeEnviar() {
+        const live = process.env.PRINTER_PAPEL_CHECK?.trim();
+        const v = (live || this.config.get('PRINTER_PAPEL_CHECK') || '0')
+            .trim()
+            .toLowerCase();
+        return v === '1' || v === 'true' || v === 'yes';
     }
     jobCooldownMs() {
         const n = Number(this.config.get('PRINTER_JOB_COOLDOWN_MS') ?? DEFAULT_INTER_JOB_DELAY_MS);
@@ -245,7 +256,7 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
     async imprimirComandaEnDestino(ticket, destino) {
         let buffer;
         try {
-            buffer = await (0, comanda_escpos_builder_1.buildComandaEscPos)(ticket, this.charWidth());
+            buffer = await (0, comanda_escpos_builder_1.buildComandaEscPos)(ticket, this.charWidthForDestino(destino));
         }
         catch (e) {
             const msg = e instanceof Error ? e.message : String(e);
@@ -255,81 +266,24 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
         return this.encolarEnDestino(destino.destino, () => this.enviarBufferATargets(buffer, 'comanda', [destino.destino], destino.baud_rate));
     }
     async imprimirFactura(ticket) {
-        let buffer;
-        try {
-            buffer = await (0, factura_escpos_builder_1.buildFacturaEscPos)(ticket, this.charWidth());
-        }
-        catch (e) {
-            const msg = e instanceof Error ? e.message : String(e);
-            this.logger.error(`Error generando ESC/POS factura: ${msg}`);
-            return { impreso: false, error: `Error generando factura: ${msg}` };
-        }
-        return this.enviarPorRol(buffer, 'factura', 'factura');
+        return this.enviarPorRolConBuilder('factura', 'factura', (w) => (0, factura_escpos_builder_1.buildFacturaEscPos)(ticket, w));
     }
     async imprimirCierreCaja(ticket) {
-        let buffer;
-        try {
-            buffer = await (0, cierre_caja_escpos_builder_1.buildCierreCajaEscPos)(ticket, this.charWidth());
-        }
-        catch (e) {
-            const msg = e instanceof Error ? e.message : String(e);
-            this.logger.error(`Error generando ESC/POS cierre: ${msg}`);
-            return { impreso: false, error: `Error generando cierre: ${msg}` };
-        }
-        return this.enviarPorRol(buffer, 'cierre', 'caja');
+        return this.enviarPorRolConBuilder('cierre', 'caja', (w) => (0, cierre_caja_escpos_builder_1.buildCierreCajaEscPos)(ticket, w));
     }
     async imprimirCuentasDivididas(ticket) {
-        let buffer;
-        try {
-            buffer = await (0, cuentas_divididas_escpos_builder_1.buildCuentasDivididasEscPos)(ticket, this.charWidth());
-        }
-        catch (e) {
-            const msg = e instanceof Error ? e.message : String(e);
-            this.logger.error(`Error generando ESC/POS cuentas divididas: ${msg}`);
-            return { impreso: false, error: `Error generando cuentas divididas: ${msg}` };
-        }
-        return this.enviarPorRol(buffer, 'cierre', 'caja');
+        return this.enviarPorRolConBuilder('cierre', 'caja', (w) => (0, cuentas_divididas_escpos_builder_1.buildCuentasDivididasEscPos)(ticket, w));
     }
     async imprimirBaseCaja(ticket) {
-        let buffer;
-        try {
-            buffer = await (0, cierre_caja_escpos_builder_1.buildBaseCajaEscPos)(ticket, this.charWidth());
-        }
-        catch (e) {
-            const msg = e instanceof Error ? e.message : String(e);
-            this.logger.error(`Error generando ESC/POS base caja: ${msg}`);
-            return { impreso: false, error: `Error generando base caja: ${msg}` };
-        }
-        return this.enviarPorRol(buffer, 'cierre', 'caja');
+        return this.enviarPorRolConBuilder('cierre', 'caja', (w) => (0, cierre_caja_escpos_builder_1.buildBaseCajaEscPos)(ticket, w));
     }
     async imprimirBaseCajaCierre(ticket) {
-        let buffer;
-        try {
-            buffer = await (0, cierre_caja_escpos_builder_1.buildBaseCajaCierreEscPos)(ticket, this.charWidth());
-        }
-        catch (e) {
-            const msg = e instanceof Error ? e.message : String(e);
-            this.logger.error(`Error generando ESC/POS base cierre: ${msg}`);
-            return { impreso: false, error: `Error generando base cierre: ${msg}` };
-        }
-        return this.enviarPorRol(buffer, 'cierre', 'caja');
+        return this.enviarPorRolConBuilder('cierre', 'caja', (w) => (0, cierre_caja_escpos_builder_1.buildBaseCajaCierreEscPos)(ticket, w));
     }
     async imprimirMovimientoCaja(ticket) {
-        let buffer;
-        try {
-            buffer = await (0, cierre_caja_escpos_builder_1.buildMovimientoCajaEscPos)(ticket, this.charWidth());
-        }
-        catch (e) {
-            const msg = e instanceof Error ? e.message : String(e);
-            this.logger.error(`Error generando ESC/POS movimiento caja: ${msg}`);
-            return {
-                impreso: false,
-                error: `Error generando comprobante de caja: ${msg}`,
-            };
-        }
-        return this.enviarPorRol(buffer, 'cierre', 'caja');
+        return this.enviarPorRolConBuilder('cierre', 'caja', (w) => (0, cierre_caja_escpos_builder_1.buildMovimientoCajaEscPos)(ticket, w));
     }
-    async enviarPorRol(buffer, tipo, rol) {
+    async enviarPorRolConBuilder(tipo, rol, build) {
         const destinos = await this.impresorasPos.destinosParaRol(rol);
         if (destinos.length === 0) {
             return {
@@ -338,9 +292,29 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
                 codigo_error: 'sin_impresora_configurada',
             };
         }
-        const targets = destinos.map((d) => d.destino);
-        const baud = destinos[0]?.baud_rate ?? null;
-        return this.encolarEnDestino(targets[0], () => this.enviarBufferATargets(buffer, tipo, targets, baud));
+        const errors = [];
+        for (const destino of destinos) {
+            let buffer;
+            try {
+                buffer = await build(this.charWidthForDestino(destino));
+            }
+            catch (e) {
+                const msg = e instanceof Error ? e.message : String(e);
+                this.logger.error(`Error generando ESC/POS ${tipo}: ${msg}`);
+                errors.push(`Error generando ticket: ${msg}`);
+                continue;
+            }
+            const result = await this.encolarEnDestino(destino.destino, () => this.enviarBufferATargets(buffer, tipo, [destino.destino], destino.baud_rate));
+            if (result.impreso)
+                return result;
+            if (result.error)
+                errors.push(result.error);
+        }
+        return {
+            impreso: false,
+            error: errors.join(' | ') || `No se pudo imprimir ${tipo}`,
+            codigo_error: 'otro',
+        };
     }
     async enviarBufferATargets(buffer, tipo, targets, baudRate, opts = {}) {
         if (!this.enabled()) {
@@ -357,8 +331,9 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
             };
         }
         const errors = [];
+        const chequearPapel = !opts.ignorarSensorPapel && this.paperCheckAntesDeEnviar();
         for (const target of targets) {
-            if (!opts.ignorarSensorPapel) {
+            if (chequearPapel) {
                 const papel = await this.consultarPapel(target, baudRate);
                 if (papel?.sinPapel) {
                     const msg = `Sin papel en ${target}. Recargue el rollo en la impresora POS.`;
@@ -513,15 +488,18 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
     }
     async imprimirPrueba() {
         const destinos = await this.impresorasPos.destinosParaRol('cocina');
-        const destino = destinos[0]?.destino ??
-            (await this.impresorasPos.destinosParaRol('factura'))[0]?.destino ??
-            'printer:POS';
-        return this.imprimirPruebaADestino(destino, destinos[0]?.baud_rate ?? null);
+        const first = destinos[0] ??
+            (await this.impresorasPos.destinosParaRol('factura'))[0] ??
+            null;
+        const destino = first?.destino ?? 'printer:POS';
+        return this.imprimirPruebaADestino(destino, first?.baud_rate ?? null, first?.ancho_papel_mm);
     }
-    async imprimirPruebaADestino(destino, baudRate = null) {
+    async imprimirPruebaADestino(destino, baudRate = null, anchoPapelMm = null) {
+        const mm = (0, impresora_papel_ancho_1.normalizarAnchoPapelMm)(anchoPapelMm ?? (0, impresora_papel_ancho_1.papelMmDesdeChars)(this.charWidthLegacy()));
+        const charWidth = (0, impresora_papel_ancho_1.charsPorLineaParaPapelMm)(mm);
         let buffer;
         try {
-            buffer = await (0, prueba_impresora_escpos_builder_1.buildPruebaImpresoraEscPos)(destino, this.charWidth());
+            buffer = await (0, prueba_impresora_escpos_builder_1.buildPruebaImpresoraEscPos)(destino, charWidth, mm);
         }
         catch (e) {
             const msg = e instanceof Error ? e.message : String(e);
