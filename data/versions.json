@@ -1,10 +1,10 @@
 {
     "product":  "DrewRest",
-    "version":  "2026.7.17.2211",
-    "appVersion":  "2026.7.17.2211",
+    "version":  "2026.7.17.2232",
+    "appVersion":  "2026.7.17.2232",
     "packageVersion":  "0.0.1",
     "buildId":  "c2008a5",
-    "buildDate":  "2026-07-17T22:11:47.3599805-05:00",
+    "buildDate":  "2026-07-17T22:32:41.6538779-05:00",
     "sourceCommit":  "c2008a5f067ffda9feafcc7be9baf3f8ef81c100",
     "schemaVersion":  72,
     "lastMigration":  "20250716220000_lifecycle_platform",
