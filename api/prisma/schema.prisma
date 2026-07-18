@@ -712,7 +712,7 @@ model ConfigRestaurante {
   mostrarCreditoDrewTech     Boolean  @default(true) @map("mostrar_credito_drewtech")
   etiquetaDescuentoSopas     String   @default("Descuento sopas") @map("etiqueta_descuento_sopas") @db.VarChar(80)
   etiquetaDescuentoMuleros   String   @default("Descuento clientes especiales") @map("etiqueta_descuento_muleros") @db.VarChar(80)
-  moduloInventarioActivo     Boolean  @default(false) @map("modulo_inventario_activo")
+  moduloInventarioActivo     Boolean  @default(true) @map("modulo_inventario_activo")
   moduloMeserosOperativosActivo Boolean @default(true) @map("modulo_meseros_operativos_activo")
   moduloEnvioCorreoActivo    Boolean  @default(false) @map("modulo_envio_correo_activo")
   moduloResumenDiarioActivo  Boolean  @default(true) @map("modulo_resumen_diario_activo")

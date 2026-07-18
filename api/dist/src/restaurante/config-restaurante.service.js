@@ -116,7 +116,7 @@ let ConfigRestauranteService = class ConfigRestauranteService {
                 etiquetaDescuentoSopas: dto.etiqueta_descuento_sopas?.trim() || 'Descuento sopas',
                 etiquetaDescuentoMuleros: dto.etiqueta_descuento_muleros?.trim() ||
                     'Descuento clientes especiales',
-                moduloInventarioActivo: dto.modulo_inventario_activo ?? false,
+                moduloInventarioActivo: dto.modulo_inventario_activo ?? true,
                 moduloMeserosOperativosActivo: dto.modulo_meseros_operativos_activo ?? true,
                 moduloEnvioCorreoActivo: dto.modulo_envio_correo_activo ?? false,
                 moduloResumenDiarioActivo: dto.modulo_resumen_diario_activo ?? true,
