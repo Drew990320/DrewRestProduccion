@@ -41,6 +41,30 @@ jobs:
             echo "title=DrewRest ${VERSION} (${BUILD})"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Empaquetar update slim (sin node_modules / pgsql / data local)
+        run: |
+          set -euo pipefail
+          # Paquete de actualización: lo esencial. node_modules se regenera en el PC destino.
+          # Sin esto, el ZIP de la rama (~1.5GB) falla en PCs sin Git.
+          STAGE="${RUNNER_TEMP}/drewrest-slim"
+          rm -rf "$STAGE"
+          mkdir -p "$STAGE"
+          rsync -a \
+            --exclude '.git/' \
+            --exclude 'api/node_modules/' \
+            --exclude 'api/logs/' \
+            --exclude 'vendor/pgsql/' \
+            --exclude 'vendor/pgsql18/' \
+            --exclude 'data/postgres/' \
+            --exclude 'data/backups/' \
+            --exclude 'data/staging/' \
+            --exclude 'data/state/' \
+            ./ "$STAGE/"
+          # Marca para que el cliente sepa que debe npm install
+          echo '{"slim":true,"needsNpmInstall":true}' > "$STAGE/UPDATE-SLIM.json"
+          (cd "$STAGE" && zip -r -q "$GITHUB_WORKSPACE/DrewRest-update.zip" .)
+          ls -lh "$GITHUB_WORKSPACE/DrewRest-update.zip"
+
       - name: Crear o actualizar Release
         uses: softprops/action-gh-release@v2
         with:
@@ -49,9 +73,13 @@ jobs:
           body: |
             Actualización on-prem DrewRest `${{ steps.ver.outputs.version }}` (build `${{ steps.ver.outputs.build }}`).
 
-            En el PC del restaurante: pestaña **Actualizar** → **Descargar e instalar**
-            (o `DrewRest.exe actualizar`).
-          files: VERSION.json
+            Asset `DrewRest-update.zip`: paquete slim (sin node_modules; se reinstalan en destino).
+
+            En el PC del restaurante: **Detener** → Actualizar → Descargar e instalar
+            (o `DrewRest.exe actualizar`). Sin Git usa el ZIP del Release.
+          files: |
+            VERSION.json
+            DrewRest-update.zip
           fail_on_unmatched_files: true
           make_latest: true
         env:

@@ -1,0 +1,14 @@
+{
+    "product":  "DrewRest",
+    "version":  "2026.7.17.1508",
+    "appVersion":  "2026.7.17.1508",
+    "packageVersion":  "0.0.1",
+    "buildId":  "5adefa0",
+    "buildDate":  "2026-07-17T15:08:53.9514496-05:00",
+    "sourceCommit":  "5adefa01716774671e4ab7ab37b8f7565b18de4b",
+    "schemaVersion":  72,
+    "lastMigration":  "20250716220000_lifecycle_platform",
+    "configVersion":  1,
+    "repoUrl":  "https://github.com/Drew990320/DrewRestProduccion.git",
+    "branch":  "main"
+}

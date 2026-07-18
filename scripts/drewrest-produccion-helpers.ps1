@@ -734,6 +734,35 @@ function Invoke-DrewRestUpdateFromFolder {
     $scriptsFromPackage = Join-Path $SourceRoot "scripts"
     $scriptsSource = if (Test-Path $scriptsFromPackage) { $scriptsFromPackage } else { $PSScriptRoot }
     Install-DrewRestUpdateScripts -DrewRestRoot $InstallRoot -ScriptsSource $scriptsSource
+
+    $apiDir = Join-Path $InstallRoot "api"
+    $nodeModules = Join-Path $apiDir "node_modules"
+    $slimMarker = Join-Path $InstallRoot "UPDATE-SLIM.json"
+    $needsNpm = (Test-Path $slimMarker) -or (-not (Test-Path $nodeModules))
+    if ($needsNpm -and (Test-Path (Join-Path $apiDir "package.json"))) {
+      $npmCmd = Join-Path $InstallRoot "vendor\node\npm.cmd"
+      if (-not (Test-Path $npmCmd)) {
+        $npmCmd = "npm"
+      }
+      if (Test-Path $nodeModules) {
+        Write-Host "Limpiando api\\node_modules (paquete slim)..." -ForegroundColor DarkGray
+        Remove-Item -LiteralPath $nodeModules -Recurse -Force -ErrorAction SilentlyContinue
+      }
+      Write-Host "Instalando dependencias del API (npm install --omit=dev)..." -ForegroundColor Cyan
+      $prev = $ErrorActionPreference
+      $ErrorActionPreference = "Continue"
+      Push-Location $apiDir
+      try {
+        & $npmCmd install --omit=dev 2>&1 | ForEach-Object { Write-Host "  $_" -ForegroundColor DarkGray }
+        if ($LASTEXITCODE -ne 0) {
+          throw "npm install fallo (codigo $LASTEXITCODE)"
+        }
+      } finally {
+        Pop-Location
+        $ErrorActionPreference = $prev
+      }
+    }
+
     return 0
   } catch {
     Write-Host $_.Exception.Message -ForegroundColor Red
@@ -800,6 +829,38 @@ function Install-DrewRestUpdateScriptsFromGithub {
   return ($ok -ge 3)
 }
 
+function Get-DrewRestReleaseUpdateZipUrl {
+  param(
+    [string]$Owner = $DrewRestProduccionOwner,
+    [string]$Repo = $DrewRestProduccionRepo
+  )
+  $release = Get-LatestDrewRestGithubRelease -Owner $Owner -Repo $Repo
+  if (-not $release -or -not $release.assets) { return $null }
+  $asset = @($release.assets) | Where-Object { $_.name -eq "DrewRest-update.zip" } | Select-Object -First 1
+  if ($asset -and $asset.browser_download_url) { return [string]$asset.browser_download_url }
+  return $null
+}
+
+function Expand-DrewRestUpdateZip {
+  param(
+    [Parameter(Mandatory = $true)][string]$ZipPath,
+    [Parameter(Mandatory = $true)][string]$WorkDir
+  )
+  $extractRoot = Join-Path $WorkDir "extracted"
+  New-Item -ItemType Directory -Force -Path $extractRoot | Out-Null
+  Write-Host "Extrayendo ZIP..." -ForegroundColor Cyan
+  Expand-Archive -Path $ZipPath -DestinationPath $extractRoot -Force
+  # ZIP slim: archivos en la raiz de extracted. ZIP de rama: carpeta DrewRestProduccion-*
+  $nested = Get-ChildItem -Path $extractRoot -Directory |
+    Where-Object { $_.Name -like "$DrewRestProduccionRepo-*" } |
+    Select-Object -First 1
+  if ($nested) { return $nested.FullName }
+  if (Test-Path (Join-Path $extractRoot "VERSION.json") -or (Test-Path (Join-Path $extractRoot "DrewRest.exe"))) {
+    return $extractRoot
+  }
+  return $null
+}
+
 function Get-DrewRestUpdateSource {
   param(
     [string]$RepoUrl = $DrewRestProduccionRepoUrlHttps,
@@ -812,52 +873,66 @@ function Get-DrewRestUpdateSource {
   }
   New-Item -ItemType Directory -Force -Path $WorkDir | Out-Null
 
+  # 1) Preferir ZIP slim del GitHub Release (PCs sin Git; mucho mas pequeno).
+  $releaseZipUrl = Get-DrewRestReleaseUpdateZipUrl
+  if ($releaseZipUrl) {
+    Write-Host "Descargando DrewRest-update.zip desde GitHub Release..." -ForegroundColor Cyan
+    $zipPath = Join-Path $WorkDir "DrewRest-update.zip"
+    try {
+      Invoke-WebRequest -Uri $releaseZipUrl -OutFile $zipPath -TimeoutSec 3600 -UseBasicParsing
+      $extracted = Expand-DrewRestUpdateZip -ZipPath $zipPath -WorkDir $WorkDir
+      Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
+      if ($extracted) {
+        return @{ ok = $true; path = $extracted; method = "release-zip" }
+      }
+      Write-Host "ZIP del Release no tenia estructura esperada; se intenta otro metodo." -ForegroundColor Yellow
+    } catch {
+      Write-Host "No se pudo bajar ZIP del Release: $($_.Exception.Message)" -ForegroundColor Yellow
+    }
+  }
+
+  # 2) Git clone (si hay Git)
   $gitOk = $false
   $prev = $ErrorActionPreference
   $ErrorActionPreference = "Continue"
   if (Get-Command git -ErrorAction SilentlyContinue) {
     Write-Host "Clonando paquete desde GitHub (depth 1). Puede tardar varios minutos..." -ForegroundColor Cyan
     $env:GIT_TERMINAL_PROMPT = "0"
-    & git -c advice.detachedHead=false clone --depth 1 --branch $Branch --single-branch $RepoUrl $WorkDir 2>&1 | ForEach-Object {
+    $cloneDir = Join-Path $WorkDir "clone"
+    New-Item -ItemType Directory -Force -Path $cloneDir | Out-Null
+    & git -c advice.detachedHead=false clone --depth 1 --branch $Branch --single-branch $RepoUrl $cloneDir 2>&1 | ForEach-Object {
       Write-Host "  $_" -ForegroundColor DarkGray
     }
     if ($LASTEXITCODE -eq 0 -and (
-        (Test-Path (Join-Path $WorkDir "VERSION.json")) -or
-        (Test-Path (Join-Path $WorkDir "DrewRest.exe"))
+        (Test-Path (Join-Path $cloneDir "VERSION.json")) -or
+        (Test-Path (Join-Path $cloneDir "DrewRest.exe"))
       )) {
-      $gitOk = $true
+      $ErrorActionPreference = $prev
+      return @{ ok = $true; path = $cloneDir; method = "git"; branch = $Branch }
     }
   } else {
-    Write-Host "Git no esta instalado; se usara descarga ZIP." -ForegroundColor Yellow
+    Write-Host "Git no esta instalado." -ForegroundColor Yellow
   }
   $ErrorActionPreference = $prev
 
-  if ($gitOk) {
-    return @{ ok = $true; path = $WorkDir; method = "git"; branch = $Branch }
-  }
-
-  Write-Host "Descargando ZIP del canal (puede ser >1GB y tardar varios minutos)..." -ForegroundColor Yellow
+  # 3) ZIP completo de la rama (ultimo recurso; muy pesado)
+  Write-Host "Descargando ZIP completo de la rama (puede ser >1GB)..." -ForegroundColor Yellow
   $zipUrl = Get-DrewRestBranchZipUrl -Branch $Branch
   $zipPath = Join-Path $WorkDir "package.zip"
   try {
-    # Timeout alto: el paquete on-prem incluye vendor + api node_modules.
     Invoke-WebRequest -Uri $zipUrl -OutFile $zipPath -TimeoutSec 7200 -UseBasicParsing
-    Write-Host "Extrayendo ZIP..." -ForegroundColor Cyan
-    Expand-Archive -Path $zipPath -DestinationPath $WorkDir -Force
+    $extracted = Expand-DrewRestUpdateZip -ZipPath $zipPath -WorkDir $WorkDir
     Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
-    $extracted = Get-ChildItem -Path $WorkDir -Directory |
-      Where-Object { $_.Name -like "$DrewRestProduccionRepo-*" } |
-      Select-Object -First 1
     if (-not $extracted) {
       return @{ ok = $false; path = $WorkDir; method = "zip"; error = "No se encontro la carpeta extraida del ZIP." }
     }
-    return @{ ok = $true; path = $extracted.FullName; method = "zip" }
+    return @{ ok = $true; path = $extracted; method = "branch-zip" }
   } catch {
     return @{
       ok = $false
       path = $WorkDir
       method = "zip"
-      error = "Fallo la descarga del paquete: $($_.Exception.Message). En PCs de restaurante conviene instalar Git for Windows."
+      error = "Fallo la descarga del paquete: $($_.Exception.Message). Instala Git for Windows o espera el asset DrewRest-update.zip en el Release."
     }
   }
 }

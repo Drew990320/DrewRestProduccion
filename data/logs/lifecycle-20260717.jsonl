@@ -184,3 +184,9 @@
 {"ts":"2026-07-17T19:29:16.6935918Z","phase":"Update","level":"info","message":"Remoto: v2026.7.17.1423 | build c31966b | 2026-07-17T14:23:11.6622348-05:00"}
 {"ts":"2026-07-17T19:29:16.6945397Z","phase":"Update","level":"info","message":""}
 {"ts":"2026-07-17T19:29:16.7000810Z","phase":"Update","level":"info","message":"Ya tienes la ultima version publicada (v2026.7.17.1423 / build c31966b)."}
+{"ts":"2026-07-18T02:33:06.0041555Z","phase":"Update","level":"info","message":"No se pudieron copiar archivos de actualizacion (robocopy 11). Deten el API (boton Detener) e intenta de nuevo."}
+{"ts":"2026-07-18T02:33:14.8574943Z","phase":"Update","level":"error","message":"Fallo update: actualizar-drewrest.ps1 fall\u00F3 (c\u00F3digo 1)"}
+{"ts":"2026-07-18T02:33:14.8650725Z","phase":"Recovery","level":"warn","message":"Restaurando backup 20260717-212847\u2026"}
+{"ts":"2026-07-18T02:33:16.0004460Z","phase":"Recovery","level":"info","message":"\u00C1rbol app-prev restaurado"}
+{"ts":"2026-07-18T02:33:18.8368783Z","phase":"Recovery","level":"info","message":"Base de datos restaurada desde dump"}
+{"ts":"2026-07-18T02:33:18.8472727Z","phase":"Recovery","level":"info","message":"Rollback completado","data":{"BackupId":"20260717-212847"}}
