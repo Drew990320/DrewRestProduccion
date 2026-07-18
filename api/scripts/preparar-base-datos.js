@@ -1,21 +1,28 @@
 /**
  * Prepara la BD on-prem: migrate deploy en BD existente, o db push + baseline en BD vacía.
- * La primera migración del historial asume tablas base (creadas antes con db push).
+ * Evita bucles de `npx prisma migrate resolve` (cuelgan el launcher varios minutos en Windows).
  */
-const { execSync } = require('child_process');
+const { execFileSync } = require('child_process');
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const { PrismaClient } = require('@prisma/client');
 
-const migrationsDir = path.join(__dirname, '..', 'prisma', 'migrations');
+const apiRoot = path.join(__dirname, '..');
+const migrationsDir = path.join(apiRoot, 'prisma', 'migrations');
+const prismaCli = path.join(apiRoot, 'node_modules', 'prisma', 'build', 'index.js');
 
-function run(cmd) {
-  console.log(`> ${cmd}`);
-  execSync(cmd, { stdio: 'inherit', env: process.env });
-}
-
-function runCapture(cmd) {
-  return execSync(cmd, { encoding: 'utf8', env: process.env });
+function runPrisma(args, { inherit = false } = {}) {
+  if (!fs.existsSync(prismaCli)) {
+    throw new Error(`No existe Prisma CLI embebido: ${prismaCli}`);
+  }
+  console.log(`> prisma ${args.join(' ')}`);
+  return execFileSync(process.execPath, [prismaCli, ...args], {
+    cwd: apiRoot,
+    env: process.env,
+    encoding: 'utf8',
+    stdio: inherit ? 'inherit' : ['ignore', 'pipe', 'pipe'],
+  });
 }
 
 function listMigrationNames() {
@@ -28,9 +35,15 @@ function listMigrationNames() {
     .sort();
 }
 
+function migrationChecksum(name) {
+  const file = path.join(migrationsDir, name, 'migration.sql');
+  const content = fs.readFileSync(file);
+  return crypto.createHash('sha256').update(content).digest('hex');
+}
+
 function failedMigrationNames(output) {
   const names = new Set();
-  for (const match of output.matchAll(/`([^`]+)` migration/g)) {
+  for (const match of String(output).matchAll(/`([^`]+)` migration/g)) {
     names.add(match[1]);
   }
   return [...names];
@@ -52,30 +65,72 @@ async function countAppTables() {
   }
 }
 
-function markAllMigrationsApplied() {
-  console.log('');
-  console.log('Marcando migraciones del paquete como ya aplicadas...');
-  for (const name of listMigrationNames()) {
-    try {
-      runCapture(`npx prisma migrate resolve --applied "${name}"`);
-      console.log(`  ok ${name}`);
-    } catch {
-      console.log(`  (omitida) ${name}`);
+/** Quita filas rotas / duplicadas que hacen colgar `migrate deploy` / `resolve`. */
+async function repairMigrationHistory() {
+  const prisma = new PrismaClient();
+  try {
+    const deletedBroken = await prisma.$executeRawUnsafe(`
+      DELETE FROM "_prisma_migrations"
+      WHERE finished_at IS NULL OR rolled_back_at IS NOT NULL
+    `);
+    const deletedDupes = await prisma.$executeRawUnsafe(`
+      DELETE FROM "_prisma_migrations" a
+      USING "_prisma_migrations" b
+      WHERE a.migration_name = b.migration_name
+        AND a.ctid < b.ctid
+    `);
+    if (deletedBroken || deletedDupes) {
+      console.log(
+        `Historial Prisma reparado (rotas=${deletedBroken}, duplicadas=${deletedDupes}).`,
+      );
     }
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+/** Baseline en un solo paso SQL (sin 70+ procesos npx). */
+async function markAllMigrationsApplied() {
+  const names = listMigrationNames();
+  console.log('');
+  console.log(`Marcando ${names.length} migraciones como aplicadas (SQL)…`);
+  const prisma = new PrismaClient();
+  try {
+    let inserted = 0;
+    for (const name of names) {
+      const id = crypto.randomUUID().replace(/-/g, '');
+      const checksum = migrationChecksum(name);
+      const n = await prisma.$executeRaw`
+        INSERT INTO "_prisma_migrations"
+          (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count)
+        SELECT ${id}, ${checksum}, NOW(), ${name}, NULL, NULL, NOW(), 1
+        WHERE NOT EXISTS (
+          SELECT 1 FROM "_prisma_migrations"
+          WHERE migration_name = ${name}
+            AND finished_at IS NOT NULL
+            AND rolled_back_at IS NULL
+        )
+      `;
+      if (Number(n) > 0) inserted += 1;
+    }
+    console.log(`  Baseline: ${inserted} nuevas, ${names.length - inserted} ya estaban.`);
+  } finally {
+    await prisma.$disconnect();
   }
 }
 
 function bootstrapFreshDatabase() {
   console.log('');
   console.log('Base vacía o sin esquema base: creando desde schema.prisma (db push)...');
-  run('npx prisma db push --accept-data-loss');
-  markAllMigrationsApplied();
+  runPrisma(['db', 'push', '--accept-data-loss'], { inherit: true });
+  return markAllMigrationsApplied();
 }
 
-function tryMigrateDeploy() {
+async function tryMigrateDeploy() {
+  await repairMigrationHistory();
   try {
-    const output = runCapture('npx prisma migrate deploy');
-    process.stdout.write(output);
+    const output = runPrisma(['migrate', 'deploy']);
+    process.stdout.write(output || '');
     return;
   } catch (error) {
     const output = `${error.stdout ?? ''}${error.stderr ?? ''}${error.message ?? ''}`;
@@ -84,7 +139,7 @@ function tryMigrateDeploy() {
     for (const name of failedMigrationNames(output)) {
       console.log(`Marcando migración fallida como revertida: ${name}`);
       try {
-        runCapture(`npx prisma migrate resolve --rolled-back "${name}"`);
+        runPrisma(['migrate', 'resolve', '--rolled-back', name]);
       } catch {
         /* ignore */
       }
@@ -93,14 +148,14 @@ function tryMigrateDeploy() {
     if (/P3005|baseline|not empty|no está vacía|no esta vacia/i.test(output)) {
       console.log('');
       console.log('Base con tablas pero sin historial Prisma: baseline automatico...');
-      markAllMigrationsApplied();
-      run('npx prisma migrate deploy');
+      await markAllMigrationsApplied();
+      runPrisma(['migrate', 'deploy'], { inherit: true });
       return;
     }
 
     if (/P3009|failed migrations|does not exist|no existe la relaci/i.test(output)) {
-      bootstrapFreshDatabase();
-      run('npx prisma migrate deploy');
+      await bootstrapFreshDatabase();
+      runPrisma(['migrate', 'deploy'], { inherit: true });
       return;
     }
 
@@ -112,11 +167,11 @@ async function main() {
   const tables = await countAppTables();
   if (tables === 0) {
     console.log('Base sin tablas de aplicación: bootstrap inicial...');
-    bootstrapFreshDatabase();
+    await bootstrapFreshDatabase();
     return;
   }
 
-  tryMigrateDeploy();
+  await tryMigrateDeploy();
 }
 
 main().catch((e) => {

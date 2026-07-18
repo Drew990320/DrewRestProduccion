@@ -1,0 +1,45 @@
+﻿{"ts":"2026-07-18T21:32:30.0840617Z","phase":"Update","level":"warn","message":"Check Release fall\u00F3 (Host desconocido. (api.github.com:443)); probando script\u2026"}
+{"ts":"2026-07-18T21:32:30.1163650Z","phase":"Update","level":"info","message":"Script: -CheckOnly"}
+{"ts":"2026-07-18T21:32:30.7796508Z","phase":"Update","level":"info","message":""}
+{"ts":"2026-07-18T21:32:30.7813757Z","phase":"Update","level":"info","message":"=== DrewRest - actualizaciones ==="}
+{"ts":"2026-07-18T21:32:30.7834794Z","phase":"Update","level":"info","message":"Carpeta: C:\\Users\\nioan\\Desktop\\DrewTech\\Productos\\Codigo Fuente\\App\\DrewRest"}
+{"ts":"2026-07-18T21:32:31.1318015Z","phase":"Update","level":"info","message":"Actualizando scripts de update desde GitHub (main)..."}
+{"ts":"2026-07-18T21:32:31.1635659Z","phase":"Update","level":"info","message":"  No se pudo bajar scripts/actualizar-drewrest.ps1: No se puede resolver el nombre remoto: \u0027raw.githubusercontent.com\u0027"}
+{"ts":"2026-07-18T21:32:31.1669071Z","phase":"Update","level":"info","message":"  No se pudo bajar scripts/drewrest-produccion-helpers.ps1: No se puede resolver el nombre remoto: \u0027raw.githubusercontent.com\u0027"}
+{"ts":"2026-07-18T21:32:31.1700106Z","phase":"Update","level":"info","message":"  No se pudo bajar scripts/drewrest-produccion-config.ps1: No se puede resolver el nombre remoto: \u0027raw.githubusercontent.com\u0027"}
+{"ts":"2026-07-18T21:32:31.1763599Z","phase":"Update","level":"info","message":"  No se pudo bajar scripts/bootstrap-update-scripts.ps1: No se puede resolver el nombre remoto: \u0027raw.githubusercontent.com\u0027"}
+{"ts":"2026-07-18T21:32:31.1814225Z","phase":"Update","level":"info","message":"  No se pudo bajar VERSION.json: No se puede resolver el nombre remoto: \u0027raw.githubusercontent.com\u0027"}
+{"ts":"2026-07-18T21:32:31.1942566Z","phase":"Update","level":"info","message":"Scripts ligeros actualizados: 0/5"}
+{"ts":"2026-07-18T21:32:31.6912212Z","phase":"Update","level":"info","message":"Canal:   main"}
+{"ts":"2026-07-18T21:32:31.6942005Z","phase":"Update","level":"info","message":"Repo:    https://github.com/Drew990320/DrewRestProduccion.git"}
+{"ts":"2026-07-18T21:32:31.6953297Z","phase":"Update","level":"info","message":""}
+{"ts":"2026-07-18T21:32:31.7065911Z","phase":"Update","level":"info","message":"Local : v2026.7.18.0958 | build 2026.7.18.0958\u002Bc2008a5 | 2026-07-18T09:58:29.9376948-05:00"}
+{"ts":"2026-07-18T21:32:31.7092814Z","phase":"Update","level":"info","message":"Remoto: (sin VERSION.json)"}
+{"ts":"2026-07-18T21:32:31.7107428Z","phase":"Update","level":"info","message":""}
+{"ts":"2026-07-18T21:32:31.7193455Z","phase":"Update","level":"info","message":"No se pudo consultar la version remota (repo vacio o sin red)."}
+{"ts":"2026-07-18T21:33:07.8483760Z","phase":"Update","level":"warn","message":"Check Release fall\u00F3 (Host desconocido. (api.github.com:443)); probando script\u2026"}
+{"ts":"2026-07-18T21:33:07.8504924Z","phase":"Update","level":"info","message":"Script: -CheckOnly"}
+{"ts":"2026-07-18T21:33:08.2456088Z","phase":"Update","level":"info","message":""}
+{"ts":"2026-07-18T21:33:08.2475881Z","phase":"Update","level":"info","message":"=== DrewRest - actualizaciones ==="}
+{"ts":"2026-07-18T21:33:08.2488007Z","phase":"Update","level":"info","message":"Carpeta: C:\\Users\\nioan\\Desktop\\DrewTech\\Productos\\Codigo Fuente\\App\\DrewRest"}
+{"ts":"2026-07-18T21:33:08.4583270Z","phase":"Update","level":"info","message":"Actualizando scripts de update desde GitHub (main)..."}
+{"ts":"2026-07-18T21:33:08.4768204Z","phase":"Update","level":"info","message":"  No se pudo bajar scripts/actualizar-drewrest.ps1: No se puede resolver el nombre remoto: \u0027raw.githubusercontent.com\u0027"}
+{"ts":"2026-07-18T21:33:08.4800518Z","phase":"Update","level":"info","message":"  No se pudo bajar scripts/drewrest-produccion-helpers.ps1: No se puede resolver el nombre remoto: \u0027raw.githubusercontent.com\u0027"}
+{"ts":"2026-07-18T21:33:08.4831312Z","phase":"Update","level":"info","message":"  No se pudo bajar scripts/drewrest-produccion-config.ps1: No se puede resolver el nombre remoto: \u0027raw.githubusercontent.com\u0027"}
+{"ts":"2026-07-18T21:33:08.4865338Z","phase":"Update","level":"info","message":"  No se pudo bajar scripts/bootstrap-update-scripts.ps1: No se puede resolver el nombre remoto: \u0027raw.githubusercontent.com\u0027"}
+{"ts":"2026-07-18T21:33:08.4906778Z","phase":"Update","level":"info","message":"  No se pudo bajar VERSION.json: No se puede resolver el nombre remoto: \u0027raw.githubusercontent.com\u0027"}
+{"ts":"2026-07-18T21:33:08.4996137Z","phase":"Update","level":"info","message":"Scripts ligeros actualizados: 0/5"}
+{"ts":"2026-07-18T21:33:08.9190921Z","phase":"Update","level":"info","message":"Canal:   main"}
+{"ts":"2026-07-18T21:33:08.9222330Z","phase":"Update","level":"info","message":"Repo:    https://github.com/Drew990320/DrewRestProduccion.git"}
+{"ts":"2026-07-18T21:33:08.9231665Z","phase":"Update","level":"info","message":""}
+{"ts":"2026-07-18T21:33:08.9364458Z","phase":"Update","level":"info","message":"Local : v2026.7.18.0958 | build 2026.7.18.0958\u002Bc2008a5 | 2026-07-18T09:58:29.9376948-05:00"}
+{"ts":"2026-07-18T21:33:08.9397594Z","phase":"Update","level":"info","message":"Remoto: (sin VERSION.json)"}
+{"ts":"2026-07-18T21:33:08.9406970Z","phase":"Update","level":"info","message":""}
+{"ts":"2026-07-18T21:33:08.9485037Z","phase":"Update","level":"info","message":"No se pudo consultar la version remota (repo vacio o sin red)."}
+{"ts":"2026-07-18T21:36:36.2662456Z","phase":"Config","level":"info","message":"Configuraci\u00F3n cargada","data":{"ConfigVersion":1}}
+{"ts":"2026-07-18T21:36:36.2795840Z","phase":"License","level":"warn","message":"LICENSE_SKIP activo \u2014 se omite validaci\u00F3n (solo lab/desarrollo)"}
+{"ts":"2026-07-18T21:36:45.8327760Z","phase":"Migrate","level":"info","message":"lifecycle/migrate.js"}
+{"ts":"2026-07-18T21:42:45.9270772Z","phase":"Migrate","level":"info","message":"Migraciones OK"}
+{"ts":"2026-07-18T21:42:47.7727821Z","phase":"Integrity","level":"info","message":"Gate OK","data":{"warnings":1}}
+{"ts":"2026-07-18T21:42:47.8044590Z","phase":"Integrity","level":"warn","message":"LICENSE_SKIP activo en producci\u00F3n potencial"}
+{"ts":"2026-07-18T21:42:49.1025867Z","phase":"Start","level":"info","message":"API \u002B Web iniciados"}
