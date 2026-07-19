@@ -6128,6 +6128,7 @@ let PedidosService = class PedidosService {
                         where: { idMesa: pedidoEnTx.idMesa, estado: { in: ABIERTOS } },
                     });
                     if (abiertosRest === 0) {
+                        await this.liberarMesasAnexasDePedidoTx(tx, idPedido);
                         await tx.mesa.update({
                             where: { idMesa: pedidoEnTx.idMesa },
                             data: { estado: 'libre' },
