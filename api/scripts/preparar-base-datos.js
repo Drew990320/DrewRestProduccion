@@ -49,6 +49,42 @@ function failedMigrationNames(output) {
   return [...names];
 }
 
+function isMissingMigrationsTableError(err) {
+  const msg = `${err?.message ?? ''} ${err?.meta?.message ?? ''} ${err?.code ?? ''}`;
+  return (
+    /42P01/i.test(msg) ||
+    /_prisma_migrations["']?\s+does not exist/i.test(msg) ||
+    /no existe la relaci/i.test(msg)
+  );
+}
+
+async function prismaMigrationsTableExists(prisma) {
+  const rows = await prisma.$queryRaw`
+    SELECT 1::int AS ok
+    FROM information_schema.tables
+    WHERE table_schema = 'public'
+      AND table_name = '_prisma_migrations'
+    LIMIT 1
+  `;
+  return Array.isArray(rows) && rows.length > 0;
+}
+
+/** Esquema estándar de Prisma 5 si hace falta baseline sin la tabla. */
+async function ensurePrismaMigrationsTable(prisma) {
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "_prisma_migrations" (
+      "id" VARCHAR(36) PRIMARY KEY,
+      "checksum" VARCHAR(64) NOT NULL,
+      "finished_at" TIMESTAMPTZ,
+      "migration_name" VARCHAR(255) NOT NULL,
+      "logs" TEXT,
+      "rolled_back_at" TIMESTAMPTZ,
+      "started_at" TIMESTAMPTZ NOT NULL DEFAULT now(),
+      "applied_steps_count" INTEGER NOT NULL DEFAULT 0
+    )
+  `);
+}
+
 async function countAppTables() {
   const prisma = new PrismaClient();
   try {
@@ -69,6 +105,11 @@ async function countAppTables() {
 async function repairMigrationHistory() {
   const prisma = new PrismaClient();
   try {
+    if (!(await prismaMigrationsTableExists(prisma))) {
+      console.log('Sin tabla _prisma_migrations aún; se omite reparación.');
+      return;
+    }
+
     const deletedBroken = await prisma.$executeRawUnsafe(`
       DELETE FROM "_prisma_migrations"
       WHERE finished_at IS NULL OR rolled_back_at IS NOT NULL
@@ -84,6 +125,12 @@ async function repairMigrationHistory() {
         `Historial Prisma reparado (rotas=${deletedBroken}, duplicadas=${deletedDupes}).`,
       );
     }
+  } catch (err) {
+    if (isMissingMigrationsTableError(err)) {
+      console.log('Sin tabla _prisma_migrations; se omite reparación.');
+      return;
+    }
+    throw err;
   } finally {
     await prisma.$disconnect();
   }
@@ -96,6 +143,7 @@ async function markAllMigrationsApplied() {
   console.log(`Marcando ${names.length} migraciones como aplicadas (SQL)…`);
   const prisma = new PrismaClient();
   try {
+    await ensurePrismaMigrationsTable(prisma);
     let inserted = 0;
     for (const name of names) {
       const id = crypto.randomUUID().replace(/-/g, '');

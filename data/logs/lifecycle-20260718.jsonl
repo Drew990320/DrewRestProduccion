@@ -43,3 +43,10 @@
 {"ts":"2026-07-18T21:42:47.7727821Z","phase":"Integrity","level":"info","message":"Gate OK","data":{"warnings":1}}
 {"ts":"2026-07-18T21:42:47.8044590Z","phase":"Integrity","level":"warn","message":"LICENSE_SKIP activo en producci\u00F3n potencial"}
 {"ts":"2026-07-18T21:42:49.1025867Z","phase":"Start","level":"info","message":"API \u002B Web iniciados"}
+{"ts":"2026-07-18T22:01:35.6887459Z","phase":"Config","level":"info","message":"Configuraci\u00F3n cargada","data":{"ConfigVersion":1}}
+{"ts":"2026-07-18T22:01:35.7020797Z","phase":"License","level":"warn","message":"LICENSE_SKIP activo \u2014 se omite validaci\u00F3n (solo lab/desarrollo)"}
+{"ts":"2026-07-18T22:01:44.7876603Z","phase":"Migrate","level":"info","message":"lifecycle/migrate.js"}
+{"ts":"2026-07-18T22:01:48.3088247Z","phase":"Migrate","level":"info","message":"Migraciones OK"}
+{"ts":"2026-07-18T22:01:49.5784679Z","phase":"Integrity","level":"info","message":"Gate OK","data":{"warnings":1}}
+{"ts":"2026-07-18T22:01:49.5813246Z","phase":"Integrity","level":"warn","message":"LICENSE_SKIP activo en producci\u00F3n potencial"}
+{"ts":"2026-07-18T22:01:50.4318354Z","phase":"Start","level":"info","message":"API \u002B Web iniciados"}
