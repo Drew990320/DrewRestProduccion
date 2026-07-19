@@ -1475,7 +1475,8 @@ let PedidosService = class PedidosService {
             cobros_atendidos: val.pedidos,
             total_facturado: val.total,
         }))
-            .sort((a, b) => a.mesa_numero - b.mesa_numero);
+            .sort((a, b) => b.total_facturado - a.total_facturado ||
+            a.mesa_numero - b.mesa_numero);
         const pedidosDetalle = facturas.map((f) => {
             const header = {
                 id_factura: f.idFactura,
@@ -1508,7 +1509,10 @@ let PedidosService = class PedidosService {
         const detallesFacturados = await this.prisma.detallePedido.findMany({
             where: {
                 idFactura: { not: null },
-                factura: { emitidaEn: { gte: start, lt: end } },
+                factura: {
+                    emitidaEn: { gte: start, lt: end },
+                    pedido: { idRestaurante: tenantId },
+                },
                 producto: { esAcompanamientoMazorca: false, esCuotaPendienteReparto: false },
             },
             select: {
@@ -1547,6 +1551,7 @@ let PedidosService = class PedidosService {
                 fecha: { gte: fechaDesdeDb, lte: fechaHastaDb },
                 tipo: 'pago_turno',
                 monto: { not: null },
+                mesero: { idRestaurante: tenantId },
             },
             include: {
                 mesero: { select: { nombre: true, apellido: true } },
@@ -1561,7 +1566,13 @@ let PedidosService = class PedidosService {
         }));
         const total_pagos_meseros = pagos_meseros.reduce((s, p) => s + p.monto, 0);
         const devolucionesRows = await this.prisma.movimientoCaja.findMany({
-            where: { fecha: { gte: fechaDesdeDb, lte: fechaHastaDb } },
+            where: {
+                fecha: { gte: fechaDesdeDb, lte: fechaHastaDb },
+                OR: [
+                    { pedido: { idRestaurante: tenantId } },
+                    { pedido: null, usuario: { idRestaurante: tenantId } },
+                ],
+            },
             include: {
                 usuario: { select: { nombre: true, apellido: true } },
                 pedido: { include: { mesa: { select: { numero: true } } } },
@@ -1583,6 +1594,7 @@ let PedidosService = class PedidosService {
         const fiadosRows = await this.prisma.cuentaCredito.findMany({
             where: {
                 factura: { emitidaEn: { gte: start, lt: end } },
+                pedido: { idRestaurante: tenantId },
             },
             include: {
                 pedido: { include: { mesa: { select: { numero: true } } } },
@@ -1700,6 +1712,10 @@ let PedidosService = class PedidosService {
                     await (0, stock_bebida_1.reintegrarStockBebidaTx)(tx, d.producto, d.cantidad);
                 }
                 await tx.pedidoHistorial.deleteMany({ where: { idPedido } });
+                const anexasLiberadas = await this.liberarMesasAnexasDePedidoTx(tx, idPedido);
+                for (const idMesaAnexa of anexasLiberadas) {
+                    mesasLiberadas.add(idMesaAnexa);
+                }
                 await tx.pedido.delete({ where: { idPedido } });
                 const abiertosRest = await tx.pedido.count({
                     where: { idMesa: idMesaPedido, estado: { in: ABIERTOS } },
