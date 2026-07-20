@@ -159,6 +159,8 @@ enum TipoEventoPedido {
   detalle_agregado
   detalle_eliminado
   cantidad_actualizada
+  /// Precio unitario de una línea ajustado en cobro (no altera el menú).
+  precio_unitario_actualizado
   pendiente_anulado_cierre
   cuota_plan_omitida
   cobro_reabierto

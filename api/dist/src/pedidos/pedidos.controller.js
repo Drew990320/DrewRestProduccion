@@ -51,6 +51,7 @@ const patch_detalle_cocina_dto_1 = require("./dto/patch-detalle-cocina.dto");
 const patch_listo_para_recoger_dto_1 = require("./dto/patch-listo-para-recoger.dto");
 const falta_en_cocina_dto_1 = require("./dto/falta-en-cocina.dto");
 const patch_detalle_cantidad_dto_1 = require("./dto/patch-detalle-cantidad.dto");
+const patch_detalle_precio_dto_1 = require("./dto/patch-detalle-precio.dto");
 const patch_detalle_subitems_dto_1 = require("./dto/patch-detalle-subitems.dto");
 const patch_prioridad_cocina_dto_1 = require("./dto/patch-prioridad-cocina.dto");
 let PedidosController = class PedidosController {
@@ -184,6 +185,9 @@ let PedidosController = class PedidosController {
     }
     actualizarCantidadDetalle(idDetalle, dto, req) {
         return this.pedidos.actualizarCantidadDetalle(idDetalle, dto, req.user);
+    }
+    actualizarPrecioDetalle(idDetalle, dto, req) {
+        return this.pedidos.actualizarPrecioDetalle(idDetalle, dto, req.user);
     }
     asignarSubitemsDetalle(idDetalle, dto, req) {
         return this.pedidos.asignarSubitemsDetalle(idDetalle, dto, req.user);
@@ -640,6 +644,17 @@ __decorate([
     __metadata("design:paramtypes", [Number, patch_detalle_cantidad_dto_1.PatchDetalleCantidadDto, Object]),
     __metadata("design:returntype", void 0)
 ], PedidosController.prototype, "actualizarCantidadDetalle", null);
+__decorate([
+    (0, common_1.Patch)('detalles/:idDetalle/precio'),
+    (0, common_1.UseGuards)(detalle_tenant_guard_1.DetalleTenantGuard, roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)('admin'),
+    __param(0, (0, common_1.Param)('idDetalle', common_1.ParseIntPipe)),
+    __param(1, (0, common_1.Body)()),
+    __param(2, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number, patch_detalle_precio_dto_1.PatchDetallePrecioDto, Object]),
+    __metadata("design:returntype", void 0)
+], PedidosController.prototype, "actualizarPrecioDetalle", null);
 __decorate([
     (0, common_1.Patch)('detalles/:idDetalle/subitems'),
     (0, common_1.UseGuards)(detalle_tenant_guard_1.DetalleTenantGuard, roles_guard_1.RolesGuard),

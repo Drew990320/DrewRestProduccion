@@ -3886,6 +3886,63 @@ let PedidosService = class PedidosService {
         this.emit(det.pedido.idPedido, det.pedido.idMesa, det.pedido.idUsuario, det.pedido.idRestaurante);
         return this.obtenerPorIdTrasEscritura(det.pedido.idPedido);
     }
+    async actualizarPrecioDetalle(idDetalle, dto, actor) {
+        if (actor.rol.nombre !== 'admin') {
+            throw new common_1.ForbiddenException('Solo admin puede editar precios en cobro');
+        }
+        const idUsuario = actor.idUsuario;
+        const precioNuevo = Math.round(Number(dto.precio_unitario));
+        if (!Number.isFinite(precioNuevo) || precioNuevo < 0) {
+            throw new common_1.BadRequestException('precio_unitario inválido');
+        }
+        const det = await this.prisma.detallePedido.findUnique({
+            where: { idDetalle },
+            include: {
+                pedido: true,
+                producto: { include: { categoria: true } },
+            },
+        });
+        if (!det) {
+            throw new common_1.NotFoundException('Línea no encontrada');
+        }
+        if (!ABIERTOS.includes(det.pedido.estado)) {
+            throw new common_1.ConflictException('El pedido no admite cambios en las líneas');
+        }
+        if (det.idFactura != null) {
+            throw new common_1.BadRequestException('No se puede cambiar el precio de una línea ya cobrada');
+        }
+        if (det.producto.esCuotaPendienteReparto) {
+            throw new common_1.BadRequestException('No se puede editar el precio de líneas internas de saldo/cuota');
+        }
+        if ((0, mazorca_linea_pedido_1.esDetalleMazorcaAcompanamiento)(det.producto)) {
+            throw new common_1.BadRequestException('No se edita el precio del acompañamiento de mazorca aquí');
+        }
+        const precioAnterior = Math.round(Number(det.precioUnitario));
+        if (precioAnterior === precioNuevo) {
+            return this.obtenerPorIdTrasEscritura(det.pedido.idPedido);
+        }
+        await this.prisma.$transaction(async (tx) => {
+            await tx.detallePedido.update({
+                where: { idDetalle },
+                data: { precioUnitario: precioNuevo },
+            });
+            await tx.pedidoHistorial.create({
+                data: {
+                    idPedido: det.pedido.idPedido,
+                    idUsuario,
+                    tipo: 'precio_unitario_actualizado',
+                    detalleJson: {
+                        id_detalle: idDetalle,
+                        nombre_producto: det.producto.nombre,
+                        precio_anterior: precioAnterior,
+                        precio_nuevo: precioNuevo,
+                    },
+                },
+            });
+        });
+        this.emit(det.pedido.idPedido, det.pedido.idMesa, det.pedido.idUsuario, det.pedido.idRestaurante);
+        return this.obtenerPorIdTrasEscritura(det.pedido.idPedido);
+    }
     async actualizarCantidadDetalle(idDetalle, dto, actor) {
         await this.exigirPermisoMesero(actor, 'editar_cantidades');
         const idUsuario = actor.idUsuario;
