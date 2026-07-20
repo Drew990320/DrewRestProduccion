@@ -109,8 +109,12 @@ let PedidosController = class PedidosController {
     resumenDiarioLineasFactura(idFactura) {
         return this.pedidos.resumenDiarioLineasFactura(idFactura);
     }
-    resumenDiario(fecha, periodo, tenantId) {
-        return this.pedidos.resumenDiario(fecha, { periodo }, tenantId);
+    resumenDiario(fecha, periodo, fechaDesde, fechaHasta, tenantId) {
+        return this.pedidos.resumenDiario(fecha, {
+            periodo,
+            fecha_desde: fechaDesde,
+            fecha_hasta: fechaHasta,
+        }, tenantId);
     }
     vaciarResumenDiario(dto, fecha, req) {
         return this.pedidos.vaciarResumenDiario(req.user, dto, fecha);
@@ -401,9 +405,11 @@ __decorate([
     (0, roles_decorator_1.Roles)('admin', 'superadmin'),
     __param(0, (0, common_1.Query)('fecha')),
     __param(1, (0, common_1.Query)('periodo')),
-    __param(2, (0, current_tenant_decorator_1.CurrentTenantId)()),
+    __param(2, (0, common_1.Query)('fecha_desde')),
+    __param(3, (0, common_1.Query)('fecha_hasta')),
+    __param(4, (0, current_tenant_decorator_1.CurrentTenantId)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String, Number]),
+    __metadata("design:paramtypes", [String, String, String, String, Number]),
     __metadata("design:returntype", void 0)
 ], PedidosController.prototype, "resumenDiario", null);
 __decorate([

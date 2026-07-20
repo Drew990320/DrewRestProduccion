@@ -33,6 +33,12 @@ const DEFAULT_CHARS = 32;
 const MAX_PRINT_RETRIES = 2;
 const DEFAULT_BURST_WINDOW_MS = 5_000;
 const DEFAULT_INTER_JOB_DELAY_MS = 800;
+function bufferPulsoCajon() {
+    return Buffer.concat([
+        Buffer.from([0x1b, 0x70, 0x00, 0x19, 0xfa]),
+        Buffer.from([0x1b, 0x70, 0x01, 0x19, 0xfa]),
+    ]);
+}
 let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterService {
     config;
     impresorasPos;
@@ -267,6 +273,41 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
     }
     async imprimirFactura(ticket) {
         return this.enviarPorRolConBuilder('factura', 'factura', (w) => (0, factura_escpos_builder_1.buildFacturaEscPos)(ticket, w));
+    }
+    async abrirCajon() {
+        if (!this.enabled()) {
+            return { impreso: false, omitido: true };
+        }
+        const destinos = await this.impresorasPos.destinosParaRol('factura');
+        if (destinos.length === 0) {
+            return {
+                impreso: false,
+                omitido: true,
+                codigo_error: 'sin_impresora_configurada',
+            };
+        }
+        const buffer = bufferPulsoCajon();
+        const errors = [];
+        for (const destino of destinos) {
+            try {
+                const result = await this.encolarEnDestino(destino.destino, () => this.enviarBufferATargets(buffer, 'cajon', [destino.destino], destino.baud_rate, { ignorarSensorPapel: true }));
+                if (result.impreso)
+                    return result;
+                if (result.error)
+                    errors.push(result.error);
+            }
+            catch (e) {
+                const msg = e instanceof Error ? e.message : String(e);
+                errors.push(msg);
+                this.logger.warn(`Pulso cajón falló (${destino.destino}): ${msg}`);
+            }
+        }
+        return {
+            impreso: false,
+            omitido: true,
+            error: errors.join(' | ') || 'No se pudo abrir el cajón',
+            codigo_error: 'otro',
+        };
     }
     async imprimirCierreCaja(ticket) {
         return this.enviarPorRolConBuilder('cierre', 'caja', (w) => (0, cierre_caja_escpos_builder_1.buildCierreCajaEscPos)(ticket, w));

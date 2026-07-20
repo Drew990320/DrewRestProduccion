@@ -256,6 +256,21 @@ let PedidosService = class PedidosService {
             return cliente;
         }, 'factura', idPedido);
     }
+    encolarAperturaCajonSiAplica(conEfectivo, idPedido) {
+        if (!conEfectivo)
+            return;
+        void this.comandaPrinter
+            .abrirCajon()
+            .then((r) => {
+            if (r.impreso) {
+                this.logger.log(`Cajón abierto${idPedido != null ? ` (pedido ${idPedido})` : ''}${r.destino ? ` vía ${r.destino}` : ''}`);
+            }
+        })
+            .catch((err) => {
+            const msg = err instanceof Error ? err.message : String(err);
+            this.logger.warn(`Pulso cajón omitido${idPedido != null ? ` pedido ${idPedido}` : ''}: ${msg}`);
+        });
+    }
     estadoImpresora() {
         return this.comandaPrinter.consultarEstadoPapel();
     }
@@ -1357,7 +1372,19 @@ let PedidosService = class PedidosService {
             base = parsed;
         }
         const ancla = base.toFormat('yyyy-LL-dd');
-        const rango = (0, resumen_periodo_1.rangoPeriodoResumen)(periodo, ancla);
+        let rango;
+        if (periodo === 'personalizado') {
+            const desde = (opts?.fecha_desde ?? '').trim() || ancla;
+            const hasta = (opts?.fecha_hasta ?? '').trim() || desde;
+            const custom = (0, resumen_periodo_1.rangoPeriodoPersonalizado)(desde, hasta);
+            if (!custom) {
+                throw new common_1.BadRequestException('Rango personalizado inválido: usa fecha_desde y fecha_hasta (YYYY-MM-DD), desde ≤ hasta y máximo 366 días');
+            }
+            rango = custom;
+        }
+        else {
+            rango = (0, resumen_periodo_1.rangoPeriodoResumen)(periodo, ancla);
+        }
         const startDt = luxon_1.DateTime.fromISO(rango.fecha_desde, {
             zone: 'America/Bogota',
         }).startOf('day');
@@ -5777,6 +5804,7 @@ let PedidosService = class PedidosService {
         const impresionFactura = dto.imprimir_factura === false
             ? { impreso: false, omitido: true }
             : this.encolarImpresionFactura(ticketFactura, idPedido, conCopia);
+        this.encolarAperturaCajonSiAplica(dto.metodo_pago === 'efectivo', idPedido);
         return {
             ...completo,
             id_factura_emitida: idFacturaCreada,
@@ -6172,6 +6200,7 @@ let PedidosService = class PedidosService {
         const impresionFactura = dto.imprimir_factura === false
             ? { impreso: false, omitido: true }
             : this.encolarImpresionFactura(ticketFactura, idPedido, conCopia);
+        this.encolarAperturaCajonSiAplica(reparto.efectivoFactura > 0, idPedido);
         return {
             ...completo,
             id_factura_emitida: idFacturaImprimir,
