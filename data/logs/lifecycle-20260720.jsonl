@@ -1,0 +1,16 @@
+﻿{"ts":"2026-07-21T01:22:36.8849527Z","phase":"Config","level":"info","message":"Configuraci\u00F3n cargada","data":{"ConfigVersion":1}}
+{"ts":"2026-07-21T01:22:36.9629886Z","phase":"License","level":"warn","message":"LICENSE_SKIP activo \u2014 se omite validaci\u00F3n (solo lab/desarrollo)"}
+{"ts":"2026-07-21T01:22:55.2905177Z","phase":"Migrate","level":"info","message":"lifecycle/migrate.js"}
+{"ts":"2026-07-21T01:23:01.5426177Z","phase":"Migrate","level":"info","message":"Migraciones OK"}
+{"ts":"2026-07-21T01:23:03.5048767Z","phase":"Integrity","level":"info","message":"Gate OK","data":{"warnings":1}}
+{"ts":"2026-07-21T01:23:03.5095962Z","phase":"Integrity","level":"warn","message":"LICENSE_SKIP activo en producci\u00F3n potencial"}
+{"ts":"2026-07-21T01:23:05.0371647Z","phase":"Start","level":"info","message":"API \u002B Web iniciados"}
+{"ts":"2026-07-21T01:30:14.4753197Z","phase":"Update","level":"info","message":"Local v2026.7.20.2029 / remoto v2026.7.19.2252. No hay update m\u00E1s nuevo."}
+{"ts":"2026-07-21T01:30:19.2093151Z","phase":"Update","level":"info","message":"Local v2026.7.20.2029 / remoto v2026.7.19.2252. No hay update m\u00E1s nuevo."}
+{"ts":"2026-07-21T01:30:24.6571559Z","phase":"Update","level":"info","message":"Local v2026.7.20.2029 / remoto v2026.7.19.2252. No hay update m\u00E1s nuevo."}
+{"ts":"2026-07-21T01:30:35.3974503Z","phase":"Update","level":"info","message":"Local v2026.7.20.2029 / remoto v2026.7.19.2252. No hay update m\u00E1s nuevo."}
+{"ts":"2026-07-21T01:30:39.5785503Z","phase":"Update","level":"info","message":"Local v2026.7.20.2029 / remoto v2026.7.19.2252. No hay update m\u00E1s nuevo."}
+{"ts":"2026-07-21T01:30:46.0391599Z","phase":"Update","level":"info","message":"Local v2026.7.20.2029 / remoto v2026.7.19.2252. No hay update m\u00E1s nuevo."}
+{"ts":"2026-07-21T01:30:52.4396513Z","phase":"Update","level":"info","message":"Local v2026.7.20.2029 / remoto v2026.7.19.2252. No hay update m\u00E1s nuevo."}
+{"ts":"2026-07-21T01:30:59.9251601Z","phase":"Update","level":"info","message":"Local v2026.7.20.2029 / remoto v2026.7.19.2252. No hay update m\u00E1s nuevo."}
+{"ts":"2026-07-21T01:32:07.2872361Z","phase":"Update","level":"info","message":"Local v2026.7.20.2029 / remoto v2026.7.19.2252. No hay update m\u00E1s nuevo."}

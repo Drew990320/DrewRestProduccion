@@ -32,7 +32,7 @@ const windows_printer_status_1 = require("./windows-printer-status");
 const DEFAULT_CHARS = 32;
 const MAX_PRINT_RETRIES = 2;
 const DEFAULT_BURST_WINDOW_MS = 5_000;
-const DEFAULT_INTER_JOB_DELAY_MS = 800;
+const DEFAULT_INTER_JOB_DELAY_MS = 200;
 function bufferPulsoCajon() {
     return Buffer.concat([
         Buffer.from([0x1b, 0x70, 0x00, 0x19, 0xfa]),
@@ -46,6 +46,7 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
     logger = new common_1.Logger(ComandaPrinterService_1.name);
     colasPorDestino = new Map();
     trabajosPorDestino = new Map();
+    tiposPendientesPorDestino = new Map();
     encoladosRecientes = new Map();
     impresionRapida = false;
     constructor(config, impresorasPos, gateway) {
@@ -139,13 +140,22 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
             r.codigo_error === 'sin_impresora_configurada') {
             return false;
         }
+        const err = (r.error ?? '').toLowerCase();
+        if (/timeout|etimedout|aborted|exceeded|hang|timed out/.test(err)) {
+            return false;
+        }
         return true;
     }
-    encolarEnDestino(destino, job) {
+    encolarEnDestino(destino, job, opts = {}) {
         const key = destino.trim().toLowerCase();
+        const tipo = opts.tipo ?? 'factura';
+        const skipCooldownAfter = opts.skipCooldownAfter === true || tipo === 'cajon';
         const jobId = this.nuevoJobId();
         const porDelante = this.trabajosPorDestino.get(key) ?? 0;
         this.trabajosPorDestino.set(key, porDelante + 1);
+        const tipos = this.tiposPendientesPorDestino.get(key) ?? [];
+        tipos.push(tipo);
+        this.tiposPendientesPorDestino.set(key, tipos);
         this.registrarEncolado(key);
         (0, latency_metrics_1.trackPrintJobQueued)(jobId, destino);
         this.emitirEstadoImpresion(jobId, 'queued', destino);
@@ -175,14 +185,21 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
             const ok = Boolean(result.impreso);
             (0, latency_metrics_1.trackPrintJobFinished)(jobId, ok, result.error);
             this.emitirEstadoImpresion(jobId, ok ? 'completed' : 'error', destino, { error: result.error });
+            const colaTipos = this.tiposPendientesPorDestino.get(key) ?? [];
+            if (colaTipos[0] === tipo)
+                colaTipos.shift();
+            const nextTipo = colaTipos[0];
+            this.tiposPendientesPorDestino.set(key, colaTipos);
             const remainingAfter = (this.trabajosPorDestino.get(key) ?? 1) - 1;
+            const omitirCooldown = skipCooldownAfter || nextTipo === 'cajon';
             if (ok &&
                 remainingAfter > 0 &&
+                !omitirCooldown &&
                 !this.impresionRapida &&
                 this.hayRafagaActiva(key)) {
                 const ms = this.jobCooldownMs();
                 if (ms > 0) {
-                    this.logger.log(`Ticket impreso en ${destino}; pausa ${ms / 1000}s (ráfaga, ${remainingAfter} en cola)`);
+                    this.logger.log(`Ticket impreso en ${destino}; pausa ${ms}ms (ráfaga, ${remainingAfter} en cola)`);
                     await this.sleep(ms);
                 }
             }
@@ -191,10 +208,13 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
         this.colasPorDestino.set(key, run.then(() => undefined, () => undefined));
         return run.finally(() => {
             const n = (this.trabajosPorDestino.get(key) ?? 1) - 1;
-            if (n <= 0)
+            if (n <= 0) {
                 this.trabajosPorDestino.delete(key);
-            else
+                this.tiposPendientesPorDestino.delete(key);
+            }
+            else {
                 this.trabajosPorDestino.set(key, n);
+            }
         });
     }
     filtrarComandaParaEstacion(ticket, destino) {
@@ -269,10 +289,87 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
             this.logger.error(`Error generando ESC/POS comanda: ${msg}`);
             return { impreso: false, error: `Error generando ticket: ${msg}` };
         }
-        return this.encolarEnDestino(destino.destino, () => this.enviarBufferATargets(buffer, 'comanda', [destino.destino], destino.baud_rate));
+        return this.encolarEnDestino(destino.destino, () => this.enviarBufferATargets(buffer, 'comanda', [destino.destino], destino.baud_rate), { tipo: 'comanda' });
     }
     async imprimirFactura(ticket) {
         return this.enviarPorRolConBuilder('factura', 'factura', (w) => (0, factura_escpos_builder_1.buildFacturaEscPos)(ticket, w));
+    }
+    async imprimirFacturaConCajon(ticket, opts = {}) {
+        const abrirCajon = opts.abrirCajon === true;
+        const conCopia = opts.conCopia === true;
+        if (!abrirCajon && !conCopia) {
+            return this.imprimirFactura(ticket);
+        }
+        if (!abrirCajon && conCopia) {
+            const negocio = await this.imprimirFactura({
+                ...ticket,
+                copia_destinatario: 'negocio',
+            });
+            if (!negocio.impreso)
+                return negocio;
+            return this.imprimirFactura({
+                ...ticket,
+                copia_destinatario: 'cliente',
+            });
+        }
+        if (!this.enabled()) {
+            return { impreso: false, omitido: true };
+        }
+        const destinos = await this.impresorasPos.destinosParaRol('factura');
+        if (destinos.length === 0) {
+            return {
+                impreso: false,
+                omitido: true,
+                codigo_error: 'sin_impresora_configurada',
+            };
+        }
+        const pulso = bufferPulsoCajon();
+        const errors = [];
+        for (const destino of destinos) {
+            let ticketBuf;
+            try {
+                ticketBuf = await (0, factura_escpos_builder_1.buildFacturaEscPos)({
+                    ...ticket,
+                    copia_destinatario: conCopia ? 'negocio' : ticket.copia_destinatario,
+                }, this.charWidthForDestino(destino));
+            }
+            catch (e) {
+                const msg = e instanceof Error ? e.message : String(e);
+                this.logger.error(`Error generando ESC/POS factura: ${msg}`);
+                errors.push(`Error generando ticket: ${msg}`);
+                continue;
+            }
+            const combinado = Buffer.concat([pulso, ticketBuf]);
+            try {
+                const result = await this.encolarEnDestino(destino.destino, () => this.enviarBufferATargets(combinado, 'factura', [destino.destino], destino.baud_rate, { ignorarSensorPapel: false }), { tipo: 'factura', skipCooldownAfter: true });
+                if (!result.impreso) {
+                    if (result.error)
+                        errors.push(result.error);
+                    continue;
+                }
+                if (!conCopia)
+                    return result;
+                const cliente = await this.enviarPorRolConBuilder('factura', 'factura', (w) => (0, factura_escpos_builder_1.buildFacturaEscPos)({ ...ticket, copia_destinatario: 'cliente' }, w));
+                if (!cliente.impreso) {
+                    return {
+                        ...cliente,
+                        error: cliente.error ??
+                            'Copia cliente no impresa (la copia negocio sí salió)',
+                    };
+                }
+                return cliente;
+            }
+            catch (e) {
+                const msg = e instanceof Error ? e.message : String(e);
+                errors.push(msg);
+                this.logger.warn(`Factura+cajón falló (${destino.destino}): ${msg}`);
+            }
+        }
+        return {
+            impreso: false,
+            error: errors.join(' | ') || 'No se pudo imprimir factura',
+            codigo_error: 'otro',
+        };
     }
     async abrirCajon() {
         if (!this.enabled()) {
@@ -290,7 +387,7 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
         const errors = [];
         for (const destino of destinos) {
             try {
-                const result = await this.encolarEnDestino(destino.destino, () => this.enviarBufferATargets(buffer, 'cajon', [destino.destino], destino.baud_rate, { ignorarSensorPapel: true }));
+                const result = await this.encolarEnDestino(destino.destino, () => this.enviarBufferATargets(buffer, 'cajon', [destino.destino], destino.baud_rate, { ignorarSensorPapel: true }), { tipo: 'cajon', skipCooldownAfter: true });
                 if (result.impreso)
                     return result;
                 if (result.error)
@@ -345,7 +442,7 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
                 errors.push(`Error generando ticket: ${msg}`);
                 continue;
             }
-            const result = await this.encolarEnDestino(destino.destino, () => this.enviarBufferATargets(buffer, tipo, [destino.destino], destino.baud_rate));
+            const result = await this.encolarEnDestino(destino.destino, () => this.enviarBufferATargets(buffer, tipo, [destino.destino], destino.baud_rate), { tipo });
             if (result.impreso)
                 return result;
             if (result.error)
@@ -400,15 +497,11 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
                 errors.push(`${target}: ${msg}`);
                 this.logger.warn(`Impresión ${tipo} falló (${target}): ${msg}`);
                 if (!opts.ignorarSensorPapel) {
-                    const trasFallo = await this.consultarPapel(target, baudRate);
-                    if (trasFallo?.sinPapel) {
-                        return {
-                            impreso: false,
-                            error: `Sin papel en ${target}. Recargue el rollo en la impresora POS.`,
-                            codigo_error: 'sin_papel',
-                            destino: target,
-                        };
-                    }
+                    void this.consultarPapel(target, baudRate).then((trasFallo) => {
+                        if (trasFallo?.sinPapel) {
+                            this.logger.warn(`Sin papel detectado tras fallo en ${target} (consulta async)`);
+                        }
+                    });
                 }
             }
         }
@@ -548,7 +641,7 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
         }
         return this.encolarEnDestino(destino, () => this.enviarBufferATargets(buffer, 'comanda', [destino], baudRate, {
             ignorarSensorPapel: true,
-        }));
+        }), { tipo: 'comanda' });
     }
 };
 exports.ComandaPrinterService = ComandaPrinterService;

@@ -74,6 +74,8 @@ const TICKET_LOGO_MAX_ALTO_PX = (() => {
 })();
 const FACTURA_LOGO_MAX_ANCHO = 320;
 const FACTURA_LOGO_MAX_ALTO = 120;
+const LOGO_TICKET_CACHE_TTL_MS = 30 * 60 * 1000;
+const logoTicketCache = new Map();
 function dimensionesLogoContenidas(srcW, srcH, maxW, maxH) {
     if (srcW <= 0 || srcH <= 0) {
         return { width: maxW, height: Math.min(maxH, 72) };
@@ -157,10 +159,17 @@ function redimensionarPngBuffer(pngBuffer, maxWidthPx, maxHeightPx) {
     }
 }
 async function cargarLogoTicketRedimensionado(sourcePath, maxWidthPx = TICKET_LOGO_ANCHO_PX) {
+    const cacheKey = `${sourcePath}|${maxWidthPx}`;
+    const hit = logoTicketCache.get(cacheKey);
+    if (hit && Date.now() - hit.at < LOGO_TICKET_CACHE_TTL_MS) {
+        return hit.buf;
+    }
     try {
         const { leerImagenComoPngBuffer } = await Promise.resolve().then(() => __importStar(require('../visual/image-png.util')));
         const pngBuf = await leerImagenComoPngBuffer(sourcePath);
-        return redimensionarPngBuffer(pngBuf, maxWidthPx, TICKET_LOGO_MAX_ALTO_PX);
+        const buf = redimensionarPngBuffer(pngBuf, maxWidthPx, TICKET_LOGO_MAX_ALTO_PX);
+        logoTicketCache.set(cacheKey, { buf, at: Date.now() });
+        return buf;
     }
     catch {
         return null;

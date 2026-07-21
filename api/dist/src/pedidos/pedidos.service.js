@@ -230,31 +230,11 @@ let PedidosService = class PedidosService {
     encolarImpresionComanda(comanda, idPedido) {
         return this.encolarImpresion(() => this.comandaPrinter.imprimirComanda(comanda), 'comanda', idPedido);
     }
-    encolarImpresionFactura(ticket, idPedido, conCopia = false) {
-        return this.encolarImpresion(async () => {
-            const negocio = await this.comandaPrinter.imprimirFactura({
-                ...ticket,
-                copia_destinatario: conCopia ? 'negocio' : undefined,
-            });
-            if (!negocio.impreso) {
-                return negocio;
-            }
-            if (!conCopia) {
-                return negocio;
-            }
-            const cliente = await this.comandaPrinter.imprimirFactura({
-                ...ticket,
-                copia_destinatario: 'cliente',
-            });
-            if (!cliente.impreso) {
-                return {
-                    ...cliente,
-                    error: cliente.error ??
-                        'Copia cliente no impresa (la copia negocio sí salió)',
-                };
-            }
-            return cliente;
-        }, 'factura', idPedido);
+    encolarImpresionFactura(ticket, idPedido, conCopia = false, abrirCajon = false) {
+        return this.encolarImpresion(() => this.comandaPrinter.imprimirFacturaConCajon(ticket, {
+            conCopia,
+            abrirCajon,
+        }), 'factura', idPedido);
     }
     encolarAperturaCajonSiAplica(conEfectivo, idPedido) {
         if (!conEfectivo)
@@ -270,6 +250,13 @@ let PedidosService = class PedidosService {
             const msg = err instanceof Error ? err.message : String(err);
             this.logger.warn(`Pulso cajón omitido${idPedido != null ? ` pedido ${idPedido}` : ''}: ${msg}`);
         });
+    }
+    encolarImpresionYCajonTrasCobro(opts) {
+        if (opts.imprimir) {
+            return this.encolarImpresionFactura(opts.ticket, opts.idPedido, opts.conCopia, opts.abrirCajon);
+        }
+        this.encolarAperturaCajonSiAplica(opts.abrirCajon, opts.idPedido);
+        return { impreso: false, omitido: true };
     }
     estadoImpresora() {
         return this.comandaPrinter.consultarEstadoPapel();
@@ -5611,8 +5598,13 @@ let PedidosService = class PedidosService {
         }
         let solicitudes = this.prepararSolicitudesCobro(pedido, dto);
         let pedidoParaCobro = pedido;
-        const configRow = await this.obtenerConfigDescuentosRow(pedido.idRestaurante);
+        const [configRow, invCfg] = await Promise.all([
+            this.obtenerConfigDescuentosRow(pedido.idRestaurante),
+            this.inventarioDeduccion.obtenerConfig(pedido.idRestaurante),
+        ]);
         const config = this.mapConfigDescuentos(configRow);
+        const eventoFactura = (invCfg.evento_deduccion_consumible ??
+            invCfg.evento_deduccion_comercial);
         const cuotaPlan = await this.aplicarCuotaPlanEnFacturacion(idPedido, dto, pedidoParaCobro, solicitudes, config);
         solicitudes = cuotaPlan.solicitudes;
         pedidoParaCobro = cuotaPlan.pedido;
@@ -5701,9 +5693,6 @@ let PedidosService = class PedidosService {
         if (dto.cobro_mixto_grupo != null && !dto.detalles_cobro?.length) {
             throw new common_1.BadRequestException('El pago mixto requiere detalles_cobro en cada parte (efectivo y transferencia). Recarga la app.');
         }
-        const invCfg = await this.inventarioDeduccion.obtenerConfig(pedido.idRestaurante);
-        const eventoFactura = (invCfg.evento_deduccion_consumible ??
-            invCfg.evento_deduccion_comercial);
         try {
             await this.prisma.$transaction(async (tx) => {
                 await (0, prisma_lock_1.lockPedidoEnTx)(tx, idPedido);
@@ -5713,8 +5702,21 @@ let PedidosService = class PedidosService {
                         estado: true,
                         idMesa: true,
                         detalles: {
-                            include: detalleInclude,
                             orderBy: { idDetalle: 'asc' },
+                            select: {
+                                idDetalle: true,
+                                idPedido: true,
+                                idProducto: true,
+                                idFactura: true,
+                                cantidad: true,
+                                precioUnitario: true,
+                                notaCocina: true,
+                                enviadoCocina: true,
+                                listoCocina: true,
+                                listoParaRecoger: true,
+                                idDetallePadre: true,
+                                producto: { select: { nombre: true } },
+                            },
                         },
                     },
                 });
@@ -5849,19 +5851,30 @@ let PedidosService = class PedidosService {
             throw e;
         }
         this.emit(idPedido, pedido.idMesa, pedido.idUsuario, pedido.idRestaurante);
-        const completo = await this.obtenerPorIdTrasEscritura(idPedido);
-        const ticketFactura = this.construirTicketFactura(completo, idFacturaCreada, false, detalleExcesoCobro);
-        if (esFiado) {
-            ticketFactura.fiado_cliente = dto.nombre_cliente_fiado.trim();
-            const tel = dto.telefono_cliente_fiado?.trim();
-            if (tel)
-                ticketFactura.fiado_telefono = tel;
+        const imprimir = dto.imprimir_factura !== false;
+        const abrirCajon = dto.metodo_pago === 'efectivo';
+        const conCopia = imprimir && dto.factura_con_copia === true;
+        if (!imprimir && abrirCajon) {
+            this.encolarAperturaCajonSiAplica(true, idPedido);
         }
-        const conCopia = dto.imprimir_factura !== false && dto.factura_con_copia === true;
-        const impresionFactura = dto.imprimir_factura === false
-            ? { impreso: false, omitido: true }
-            : this.encolarImpresionFactura(ticketFactura, idPedido, conCopia);
-        this.encolarAperturaCajonSiAplica(dto.metodo_pago === 'efectivo', idPedido);
+        const completo = await this.obtenerPorIdTrasEscritura(idPedido);
+        let impresionFactura = { impreso: false, omitido: true };
+        if (imprimir) {
+            const ticketFactura = this.construirTicketFactura(completo, idFacturaCreada, false, detalleExcesoCobro);
+            if (esFiado) {
+                ticketFactura.fiado_cliente = dto.nombre_cliente_fiado.trim();
+                const tel = dto.telefono_cliente_fiado?.trim();
+                if (tel)
+                    ticketFactura.fiado_telefono = tel;
+            }
+            impresionFactura = this.encolarImpresionYCajonTrasCobro({
+                idPedido,
+                ticket: ticketFactura,
+                imprimir: true,
+                conCopia,
+                abrirCajon,
+            });
+        }
         return {
             ...completo,
             id_factura_emitida: idFacturaCreada,
@@ -5897,8 +5910,13 @@ let PedidosService = class PedidosService {
             throw new common_1.BadRequestException('No hay ítems pendientes de cobro');
         }
         let pedidoParaCobro = pedido;
-        const configRow = await this.obtenerConfigDescuentosRow(pedido.idRestaurante);
+        const [configRow, invCfgMixto] = await Promise.all([
+            this.obtenerConfigDescuentosRow(pedido.idRestaurante),
+            this.inventarioDeduccion.obtenerConfig(pedido.idRestaurante),
+        ]);
         const config = this.mapConfigDescuentos(configRow);
+        const eventoFacturaMixto = (invCfgMixto.evento_deduccion_consumible ??
+            invCfgMixto.evento_deduccion_comercial);
         const cuotaPlan = await this.aplicarCuotaPlanEnFacturacion(idPedido, dto, pedidoParaCobro, solicitudes, config);
         solicitudes = cuotaPlan.solicitudes;
         pedidoParaCobro = cuotaPlan.pedido;
@@ -6041,9 +6059,6 @@ let PedidosService = class PedidosService {
             ? pedidoParaCobro.detalles.some((d) => d.idFactura == null && (0, saldo_restante_1.esNotaSaldoRestantePendiente)(d.notaCocina))
             : (0, cobro_parcial_1.quedaPendienteTrasCobro)(detallesSerial, solicitudes);
         const idsFacturas = [];
-        const invCfgMixto = await this.inventarioDeduccion.obtenerConfig(pedido.idRestaurante);
-        const eventoFacturaMixto = (invCfgMixto.evento_deduccion_consumible ??
-            invCfgMixto.evento_deduccion_comercial);
         const crearEnTx = async (tx, sol, metodo, grupo, importesForzados) => {
             const factura = await tx.factura.create({
                 data: {
@@ -6064,8 +6079,24 @@ let PedidosService = class PedidosService {
             });
             const pedidoDet = await tx.pedido.findUnique({
                 where: { idPedido },
-                include: {
-                    detalles: { include: detalleInclude, orderBy: { idDetalle: 'asc' } },
+                select: {
+                    detalles: {
+                        orderBy: { idDetalle: 'asc' },
+                        select: {
+                            idDetalle: true,
+                            idPedido: true,
+                            idProducto: true,
+                            idFactura: true,
+                            cantidad: true,
+                            precioUnitario: true,
+                            notaCocina: true,
+                            enviadoCocina: true,
+                            listoCocina: true,
+                            listoParaRecoger: true,
+                            idDetallePadre: true,
+                            producto: { select: { nombre: true } },
+                        },
+                    },
                 },
             });
             const detallesPorId = new Map((pedidoDet?.detalles ?? []).map((d) => [d.idDetalle, d]));
@@ -6251,13 +6282,24 @@ let PedidosService = class PedidosService {
         const idFacturaImprimir = cobroMixtoGrupo != null
             ? Math.min(...idsFacturas)
             : idsFacturas[idsFacturas.length - 1];
+        const imprimir = dto.imprimir_factura !== false;
+        const abrirCajon = reparto.efectivoFactura > 0;
+        const conCopia = imprimir && dto.factura_con_copia === true;
+        if (!imprimir && abrirCajon) {
+            this.encolarAperturaCajonSiAplica(true, idPedido);
+        }
         const completo = await this.obtenerPorIdTrasEscritura(idPedido);
-        const ticketFactura = this.construirTicketFactura(completo, idFacturaImprimir, false, detalleExcesoCobro);
-        const conCopia = dto.imprimir_factura !== false && dto.factura_con_copia === true;
-        const impresionFactura = dto.imprimir_factura === false
-            ? { impreso: false, omitido: true }
-            : this.encolarImpresionFactura(ticketFactura, idPedido, conCopia);
-        this.encolarAperturaCajonSiAplica(reparto.efectivoFactura > 0, idPedido);
+        let impresionFactura = { impreso: false, omitido: true };
+        if (imprimir) {
+            const ticketFactura = this.construirTicketFactura(completo, idFacturaImprimir, false, detalleExcesoCobro);
+            impresionFactura = this.encolarImpresionYCajonTrasCobro({
+                idPedido,
+                ticket: ticketFactura,
+                imprimir: true,
+                conCopia,
+                abrirCajon,
+            });
+        }
         return {
             ...completo,
             id_factura_emitida: idFacturaImprimir,
