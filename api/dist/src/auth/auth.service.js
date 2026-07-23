@@ -46,20 +46,26 @@ exports.AuthService = void 0;
 const common_1 = require("@nestjs/common");
 const jwt_1 = require("@nestjs/jwt");
 const bcrypt = __importStar(require("bcrypt"));
+const crypto_1 = require("crypto");
+const mail_service_1 = require("../mail/mail.service");
 const prisma_service_1 = require("../prisma/prisma.service");
 const tenant_constants_1 = require("../tenant/tenant.constants");
-const tenant_service_1 = require("../tenant/tenant.service");
 const tenant_access_1 = require("../tenant/tenant-access");
+const tenant_service_1 = require("../tenant/tenant.service");
 const usuario_display_1 = require("../usuarios/usuario-display");
-const SETUP_SUPERADMIN_EMAIL_DEFAULT = 'superadmin@drewrest.local';
+const OTP_TTL_MS = 10 * 60_000;
+const OTP_MAX_ATTEMPTS = 5;
 let AuthService = class AuthService {
     prisma;
     jwt;
     tenant;
-    constructor(prisma, jwt, tenant) {
+    mail;
+    passwordResetOtps = new Map();
+    constructor(prisma, jwt, tenant, mail) {
         this.prisma = prisma;
         this.jwt = jwt;
         this.tenant = tenant;
+        this.mail = mail;
     }
     async setupStatus() {
         const count = await this.prisma.usuario.count({
@@ -72,7 +78,7 @@ let AuthService = class AuthService {
         if (!status.necesita_definir_superadmin) {
             throw new common_1.ConflictException('El superadmin ya está definido. Usa el inicio de sesión normal.');
         }
-        const email = (dto.email?.trim().toLowerCase() || SETUP_SUPERADMIN_EMAIL_DEFAULT).trim();
+        const email = this.assertEmailRecuperable(dto.email);
         const nombre = dto.nombre?.trim() || 'Superadmin';
         const rol = await this.prisma.rol.upsert({
             where: { nombre: 'superadmin' },
@@ -117,6 +123,101 @@ let AuthService = class AuthService {
             include: { rol: true },
         });
         return this.issueSession(user);
+    }
+    async requestPasswordReset(dto) {
+        const email = this.assertEmailRecuperable(dto.email);
+        const tenantId = dto.tenant_slug?.trim()
+            ? await this.tenant.resolveIdBySlug(dto.tenant_slug)
+            : tenant_constants_1.DEFAULT_TENANT_ID;
+        const user = await this.prisma.usuario.findUnique({
+            where: { idRestaurante_email: { idRestaurante: tenantId, email } },
+            include: { rol: true },
+        });
+        const rolOk = user?.activo &&
+            (user.rol.nombre === 'superadmin' || user.rol.nombre === 'admin');
+        if (!rolOk) {
+            return {
+                ok: true,
+                message: 'Si el correo está registrado, recibirás un código de 6 dígitos en unos segundos.',
+            };
+        }
+        if (!this.mail.estaConfigurado()) {
+            throw new common_1.BadRequestException('El servidor no tiene SMTP configurado (SMTP_HOST / SMTP_FROM). ' +
+                'Configúralo en api/.env para poder restablecer la contraseña por correo.');
+        }
+        const code = String((0, crypto_1.randomInt)(100000, 999999));
+        const key = this.otpKey(tenantId, email);
+        this.passwordResetOtps.set(key, {
+            codeHash: this.hashOtp(code),
+            expiresAt: Date.now() + OTP_TTL_MS,
+            attempts: 0,
+            userId: user.idUsuario,
+        });
+        const subject = 'Código para restablecer contraseña — DrewRest';
+        const text = [
+            'Tu código de verificación DrewRest es:',
+            '',
+            `  ${code}`,
+            '',
+            'Válido por 10 minutos. Si no pediste restablecer la contraseña, ignora este mensaje.',
+        ].join('\n');
+        const html = `
+      <p>Tu código de verificación DrewRest es:</p>
+      <p style="font-size:28px;font-weight:700;letter-spacing:4px;">${code}</p>
+      <p>Válido por 10 minutos. Si no pediste restablecer la contraseña, ignora este mensaje.</p>
+    `;
+        const sent = await this.mail.enviar({ to: email, subject, text, html });
+        if (!sent.enviado) {
+            this.passwordResetOtps.delete(key);
+            throw new common_1.BadRequestException(sent.error ?? 'No se pudo enviar el código por correo.');
+        }
+        return {
+            ok: true,
+            message: 'Te enviamos un código de 6 dígitos a tu correo. Introdúcelo en la app.',
+        };
+    }
+    async confirmPasswordReset(dto) {
+        const email = this.assertEmailRecuperable(dto.email);
+        const tenantId = dto.tenant_slug?.trim()
+            ? await this.tenant.resolveIdBySlug(dto.tenant_slug)
+            : tenant_constants_1.DEFAULT_TENANT_ID;
+        const key = this.otpKey(tenantId, email);
+        const entry = this.passwordResetOtps.get(key);
+        if (!entry || entry.expiresAt < Date.now()) {
+            this.passwordResetOtps.delete(key);
+            throw new common_1.UnauthorizedException('Código inválido o vencido. Solicita uno nuevo.');
+        }
+        entry.attempts += 1;
+        if (entry.attempts > OTP_MAX_ATTEMPTS) {
+            this.passwordResetOtps.delete(key);
+            throw new common_1.UnauthorizedException('Demasiados intentos. Solicita un código nuevo.');
+        }
+        if (!this.otpMatches(entry.codeHash, dto.code.trim())) {
+            throw new common_1.UnauthorizedException('Código incorrecto.');
+        }
+        const user = await this.prisma.usuario.findUnique({
+            where: { idUsuario: entry.userId },
+            include: { rol: true },
+        });
+        if (!user?.activo ||
+            user.email !== email ||
+            (user.rol.nombre !== 'superadmin' && user.rol.nombre !== 'admin')) {
+            this.passwordResetOtps.delete(key);
+            throw new common_1.UnauthorizedException('No se pudo restablecer la contraseña.');
+        }
+        const passwordHash = await bcrypt.hash(dto.password, 10);
+        await this.prisma.usuario.update({
+            where: { idUsuario: user.idUsuario },
+            data: {
+                passwordHash,
+                passwordCambiadoEn: new Date(),
+            },
+        });
+        this.passwordResetOtps.delete(key);
+        return {
+            ok: true,
+            message: 'Contraseña actualizada. Ya puedes iniciar sesión.',
+        };
     }
     async login(dto) {
         const tenantId = dto.tenant_slug?.trim()
@@ -198,12 +299,36 @@ let AuthService = class AuthService {
         }
         return { ok: true };
     }
+    assertEmailRecuperable(raw) {
+        const email = (raw ?? '').trim().toLowerCase();
+        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            throw new common_1.BadRequestException('Indica un correo válido (ej. tu@gmail.com).');
+        }
+        if (email.endsWith('.local')) {
+            throw new common_1.BadRequestException('Usa un correo real (Gmail, Outlook, etc.). Los correos .local no reciben el código de recuperación.');
+        }
+        return email;
+    }
+    otpKey(tenantId, email) {
+        return `${tenantId}:${email}`;
+    }
+    hashOtp(code) {
+        return (0, crypto_1.createHash)('sha256').update(code).digest('hex');
+    }
+    otpMatches(storedHash, code) {
+        const a = Buffer.from(storedHash, 'hex');
+        const b = Buffer.from(this.hashOtp(code), 'hex');
+        if (a.length !== b.length)
+            return false;
+        return (0, crypto_1.timingSafeEqual)(a, b);
+    }
 };
 exports.AuthService = AuthService;
 exports.AuthService = AuthService = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [prisma_service_1.PrismaService,
         jwt_1.JwtService,
-        tenant_service_1.TenantService])
+        tenant_service_1.TenantService,
+        mail_service_1.MailService])
 ], AuthService);
 //# sourceMappingURL=auth.service.js.map

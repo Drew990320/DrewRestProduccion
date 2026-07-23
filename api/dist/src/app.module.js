@@ -14,6 +14,7 @@ const throttler_1 = require("@nestjs/throttler");
 const path_1 = require("path");
 const app_controller_1 = require("./app.controller");
 const auth_module_1 = require("./auth/auth.module");
+const mail_module_1 = require("./mail/mail.module");
 const categorias_module_1 = require("./categorias/categorias.module");
 const menu_module_1 = require("./menu/menu.module");
 const creditos_module_1 = require("./creditos/creditos.module");
@@ -61,6 +62,7 @@ exports.AppModule = AppModule = __decorate([
             prisma_module_1.PrismaModule,
             tenant_module_1.TenantModule,
             restaurante_module_1.RestauranteModule,
+            mail_module_1.MailModule,
             auth_module_1.AuthModule,
             lugares_mesa_module_1.LugaresMesaModule,
             mesas_module_1.MesasModule,

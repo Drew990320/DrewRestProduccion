@@ -17,6 +17,8 @@ const common_1 = require("@nestjs/common");
 const throttler_1 = require("@nestjs/throttler");
 const auth_service_1 = require("./auth.service");
 const login_dto_1 = require("./dto/login.dto");
+const password_reset_confirm_dto_1 = require("./dto/password-reset-confirm.dto");
+const password_reset_request_dto_1 = require("./dto/password-reset-request.dto");
 const setup_superadmin_dto_1 = require("./dto/setup-superadmin.dto");
 const verify_password_dto_1 = require("./dto/verify-password.dto");
 const jwt_auth_guard_1 = require("./jwt-auth.guard");
@@ -33,6 +35,12 @@ let AuthController = class AuthController {
     }
     setupSuperadmin(dto) {
         return this.auth.setupSuperadmin(dto);
+    }
+    requestPasswordReset(dto) {
+        return this.auth.requestPasswordReset(dto);
+    }
+    confirmPasswordReset(dto) {
+        return this.auth.confirmPasswordReset(dto);
     }
     login(dto) {
         return this.auth.login(dto);
@@ -71,6 +79,22 @@ __decorate([
     __metadata("design:paramtypes", [setup_superadmin_dto_1.SetupSuperadminDto]),
     __metadata("design:returntype", void 0)
 ], AuthController.prototype, "setupSuperadmin", null);
+__decorate([
+    (0, throttler_1.Throttle)({ default: { limit: 5, ttl: 60_000 } }),
+    (0, common_1.Post)('password-reset/request'),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [password_reset_request_dto_1.PasswordResetRequestDto]),
+    __metadata("design:returntype", void 0)
+], AuthController.prototype, "requestPasswordReset", null);
+__decorate([
+    (0, throttler_1.Throttle)({ default: { limit: 10, ttl: 60_000 } }),
+    (0, common_1.Post)('password-reset/confirm'),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [password_reset_confirm_dto_1.PasswordResetConfirmDto]),
+    __metadata("design:returntype", void 0)
+], AuthController.prototype, "confirmPasswordReset", null);
 __decorate([
     (0, throttler_1.Throttle)({ default: { limit: 12, ttl: 60_000 } }),
     (0, common_1.Post)('login'),
