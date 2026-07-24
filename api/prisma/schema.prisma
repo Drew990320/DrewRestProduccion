@@ -415,10 +415,16 @@ model Producto {
   stockDisponible    Int                     @default(0) @map("stock_disponible")
   /// Si true, no aparece en menú al llegar a 0; si false, se muestra como agotado.
   ocultarSinStock    Boolean                 @default(true) @map("ocultar_sin_stock")
+  /// Combo de menú: precio fijo; el mesero elige N componentes elegibles.
+  esCombo            Boolean                 @default(false) @map("es_combo")
+  comboMin           Int                     @default(1) @map("combo_min")
+  comboMax           Int                     @default(1) @map("combo_max")
   categoria          Categoria               @relation(fields: [idCategoria], references: [idCategoria])
   detalles           DetallePedido[]
   opciones                 PersonalizacionOpcion[]
   subitems           ProductoSubitem[]
+  comboElegiblesComoCombo ProductoComboElegible[] @relation("ComboProducto")
+  comboElegiblesComoComponente ProductoComboElegible[] @relation("ComboComponente")
   configOperativaMazorca   ConfigOperativa[]       @relation("ProductoMazorcaConfig")
   configOperativaSoda      ConfigOperativa[]       @relation("ProductoSodaAlmuerzoConfig")
   configOperativaCuotaPendiente ConfigOperativa[]  @relation("ProductoCuotaPendienteConfig")
@@ -429,6 +435,20 @@ model Producto {
   reglasImpresionCocina ReglaImpresionCocina[]
 
   @@map("producto")
+}
+
+/// Productos del menú que pueden elegirse al armar un combo.
+model ProductoComboElegible {
+  idComboElegible      Int      @id @default(autoincrement()) @map("id_combo_elegible")
+  idProductoCombo      Int      @map("id_producto_combo")
+  idProductoComponente Int      @map("id_producto_componente")
+  orden                Int      @default(0)
+  combo                Producto @relation("ComboProducto", fields: [idProductoCombo], references: [idProducto], onDelete: Cascade)
+  componente           Producto @relation("ComboComponente", fields: [idProductoComponente], references: [idProducto], onDelete: Cascade)
+
+  @@unique([idProductoCombo, idProductoComponente])
+  @@index([idProductoCombo, orden])
+  @@map("producto_combo_elegible")
 }
 
 model PersonalizacionOpcion {
@@ -520,28 +540,33 @@ model PedidoHistorial {
 }
 
 model DetallePedido {
-  idDetalle         Int                  @id @default(autoincrement()) @map("id_detalle")
-  idPedido          Int                  @map("id_pedido")
-  idProducto        Int                  @map("id_producto")
-  idDetallePadre    Int?                 @map("id_detalle_padre")
-  cantidad          Int                  @default(1)
-  precioUnitario    Decimal              @map("precio_unitario") @db.Decimal(10, 2)
-  notaCocina        String?              @map("nota_cocina") @db.Text
-  listoCocina       Boolean              @default(false) @map("listo_cocina")
-  listoParaRecoger  Boolean              @default(false) @map("listo_para_recoger")
-  enviadoCocina     Boolean              @default(false) @map("enviado_cocina")
-  enviadoCocinaEn   DateTime?            @map("enviado_cocina_en")
-  idFactura         Int?                 @map("id_factura")
-  pedido            Pedido               @relation(fields: [idPedido], references: [idPedido], onDelete: Cascade)
-  producto          Producto             @relation(fields: [idProducto], references: [idProducto])
-  detallePadre      DetallePedido?       @relation("DetalleEmpaque", fields: [idDetallePadre], references: [idDetalle], onDelete: Cascade)
-  empaquesAsociados DetallePedido[]      @relation("DetalleEmpaque")
-  personalizaciones DetPersonalizacion[]
-  subitems          DetSubitemCantidad[]
-  factura           Factura?             @relation(fields: [idFactura], references: [idFactura])
+  idDetalle            Int                  @id @default(autoincrement()) @map("id_detalle")
+  idPedido             Int                  @map("id_pedido")
+  idProducto           Int                  @map("id_producto")
+  idDetallePadre       Int?                 @map("id_detalle_padre")
+  /// Padre del componente dentro de un combo (distinto del empaque).
+  idDetalleComboPadre  Int?                 @map("id_detalle_combo_padre")
+  cantidad             Int                  @default(1)
+  precioUnitario       Decimal              @map("precio_unitario") @db.Decimal(10, 2)
+  notaCocina           String?              @map("nota_cocina") @db.Text
+  listoCocina          Boolean              @default(false) @map("listo_cocina")
+  listoParaRecoger     Boolean              @default(false) @map("listo_para_recoger")
+  enviadoCocina        Boolean              @default(false) @map("enviado_cocina")
+  enviadoCocinaEn      DateTime?            @map("enviado_cocina_en")
+  idFactura            Int?                 @map("id_factura")
+  pedido               Pedido               @relation(fields: [idPedido], references: [idPedido], onDelete: Cascade)
+  producto             Producto             @relation(fields: [idProducto], references: [idProducto])
+  detallePadre         DetallePedido?       @relation("DetalleEmpaque", fields: [idDetallePadre], references: [idDetalle], onDelete: Cascade)
+  empaquesAsociados    DetallePedido[]      @relation("DetalleEmpaque")
+  detalleComboPadre    DetallePedido?       @relation("DetalleCombo", fields: [idDetalleComboPadre], references: [idDetalle], onDelete: Cascade)
+  componentesCombo     DetallePedido[]      @relation("DetalleCombo")
+  personalizaciones    DetPersonalizacion[]
+  subitems             DetSubitemCantidad[]
+  factura              Factura?             @relation(fields: [idFactura], references: [idFactura])
 
   @@index([idPedido])
   @@index([idDetallePadre])
+  @@index([idDetalleComboPadre])
   @@index([idFactura])
   @@map("detalle_pedido")
 }

@@ -34,6 +34,7 @@ class AddDetalleDto {
     opcion_ids;
     subitems;
     sin_empaque_auto;
+    componente_ids;
 }
 exports.AddDetalleDto = AddDetalleDto;
 __decorate([
@@ -68,4 +69,10 @@ __decorate([
     (0, class_validator_1.IsBoolean)(),
     __metadata("design:type", Boolean)
 ], AddDetalleDto.prototype, "sin_empaque_auto", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsArray)(),
+    (0, class_validator_1.IsInt)({ each: true }),
+    __metadata("design:type", Array)
+], AddDetalleDto.prototype, "componente_ids", void 0);
 //# sourceMappingURL=add-detalle.dto.js.map

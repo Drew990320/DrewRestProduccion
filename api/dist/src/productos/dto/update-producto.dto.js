@@ -30,6 +30,9 @@ class UpdateProductoDto {
     control_stock;
     stock_disponible;
     ocultar_sin_stock;
+    es_combo;
+    combo_min;
+    combo_max;
 }
 exports.UpdateProductoDto = UpdateProductoDto;
 __decorate([
@@ -120,4 +123,23 @@ __decorate([
     (0, class_validator_1.IsBoolean)(),
     __metadata("design:type", Boolean)
 ], UpdateProductoDto.prototype, "ocultar_sin_stock", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], UpdateProductoDto.prototype, "es_combo", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsInt)(),
+    (0, class_validator_1.Min)(1),
+    __metadata("design:type", Number)
+], UpdateProductoDto.prototype, "combo_min", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsInt)(),
+    (0, class_validator_1.Min)(1),
+    __metadata("design:type", Number)
+], UpdateProductoDto.prototype, "combo_max", void 0);
 //# sourceMappingURL=update-producto.dto.js.map

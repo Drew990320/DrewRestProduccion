@@ -183,7 +183,7 @@ exports.HELP_RECORRIDO_ACTIONS = [
             },
             {
                 title: '16. Transferir o agrupar',
-                body: '«Transferir a otra mesa» mueve el pedido. «Agrupar mesas» une mesas libres con «Agregar mesa libre».',
+                body: '«Transferir a otra mesa» mueve el pedido (libre u ocupada como 2.ª cuenta). «Agrupar mesas» une mesas libres con «Agregar mesa libre».',
                 buscarTablet: 'Secciones «Transferir» y «Agrupar» en la columna PEDIDO',
                 buscarMovil: 'Paneles «Transferir a otra mesa» y «Agrupar mesas» bajo la barra de acciones',
                 confirmarEntendido: true,

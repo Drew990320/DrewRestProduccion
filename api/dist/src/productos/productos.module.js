@@ -17,6 +17,8 @@ const personalizaciones_controller_1 = require("./personalizaciones.controller")
 const personalizaciones_service_1 = require("./personalizaciones.service");
 const producto_subitems_controller_1 = require("./producto-subitems.controller");
 const producto_subitems_service_1 = require("./producto-subitems.service");
+const producto_combo_controller_1 = require("./producto-combo.controller");
+const producto_combo_service_1 = require("./producto-combo.service");
 let ProductosModule = class ProductosModule {
 };
 exports.ProductosModule = ProductosModule;
@@ -27,11 +29,13 @@ exports.ProductosModule = ProductosModule = __decorate([
             productos_controller_1.ProductosController,
             personalizaciones_controller_1.PersonalizacionesController,
             producto_subitems_controller_1.ProductoSubitemsController,
+            producto_combo_controller_1.ProductoComboController,
         ],
         providers: [
             productos_service_1.ProductosService,
             personalizaciones_service_1.PersonalizacionesService,
             producto_subitems_service_1.ProductoSubitemsService,
+            producto_combo_service_1.ProductoComboService,
         ],
     })
 ], ProductosModule);

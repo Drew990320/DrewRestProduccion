@@ -43,6 +43,18 @@ let MenuService = class MenuService {
                             where: { activo: true },
                             orderBy: [{ orden: 'asc' }, { idSubitem: 'asc' }],
                         },
+                        comboElegiblesComoCombo: {
+                            include: {
+                                componente: {
+                                    include: {
+                                        categoria: {
+                                            select: { nombre: true, esBebida: true },
+                                        },
+                                    },
+                                },
+                            },
+                            orderBy: [{ orden: 'asc' }, { idComboElegible: 'asc' }],
+                        },
                     },
                     orderBy: { nombre: 'asc' },
                 },
@@ -76,6 +88,33 @@ let MenuService = class MenuService {
                 envia_cocina: p.enviaCocina,
                 usa_subitems_repartibles: p.usaSubitemsRepartibles,
                 cantidad_reparto_subitems: Math.max(1, p.cantidadRepartoSubitems ?? 1),
+                es_combo: p.esCombo,
+                combo_min: Math.max(1, p.comboMin ?? 1),
+                combo_max: Math.max(1, p.comboMax ?? 1),
+                combo_elegibles: p.esCombo
+                    ? p.comboElegiblesComoCombo
+                        .filter((e) => e.componente.activo)
+                        .filter((e) => (0, stock_producto_1.productoVisibleEnMenu)({
+                        activo: true,
+                        control_stock: e.componente.controlStock,
+                        stock_disponible: e.componente.stockDisponible,
+                        ocultar_sin_stock: e.componente.ocultarSinStock,
+                    }))
+                        .map((e) => ({
+                        id_producto: e.idProductoComponente,
+                        nombre: e.componente.nombre,
+                        precio: Number(e.componente.precio),
+                        categoria_nombre: e.componente.categoria.nombre,
+                        es_bebida: e.componente.categoria.esBebida,
+                        envia_cocina: e.componente.enviaCocina,
+                        control_stock: e.componente.controlStock,
+                        stock_disponible: e.componente.stockDisponible,
+                        agotado: (0, stock_producto_1.productoAgotado)({
+                            control_stock: e.componente.controlStock,
+                            stock_disponible: e.componente.stockDisponible,
+                        }),
+                    }))
+                    : [],
                 control_stock: p.controlStock,
                 stock_disponible: p.stockDisponible,
                 ocultar_sin_stock: p.ocultarSinStock,

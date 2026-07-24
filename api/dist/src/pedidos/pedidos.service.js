@@ -3517,7 +3517,11 @@ let PedidosService = class PedidosService {
         }
         const producto = await this.prisma.producto.findUnique({
             where: { idProducto: dto.id_producto },
-            include: { categoria: true, subitems: { where: { activo: true } } },
+            include: {
+                categoria: true,
+                subitems: { where: { activo: true } },
+                comboElegiblesComoCombo: true,
+            },
         });
         if (!producto?.activo) {
             throw new common_1.BadRequestException('Producto no disponible');
@@ -3528,6 +3532,9 @@ let PedidosService = class PedidosService {
         const dia = (0, timezone_1.weekdayBogota)();
         if (!(0, categoria_dia_1.categoriaDisponibleEnDia)(producto.categoria, dia)) {
             throw new common_1.BadRequestException('Este producto no está disponible en el menú de hoy');
+        }
+        if (producto.esCombo) {
+            return this.agregarDetalleCombo(idPedido, dto, actor, pedido, producto);
         }
         const opcionIds = Array.isArray(dto.opcion_ids) ? dto.opcion_ids : [];
         const subitemsDto = Array.isArray(dto.subitems) ? dto.subitems : [];
@@ -3574,6 +3581,7 @@ let PedidosService = class PedidosService {
                     idPedido,
                     idProducto: dto.id_producto,
                     idDetallePadre: null,
+                    idDetalleComboPadre: null,
                     enviadoCocina: false,
                     listoCocina: false,
                     listoParaRecoger: false,
@@ -3731,6 +3739,165 @@ let PedidosService = class PedidosService {
             consolidar: false,
         });
     }
+    async agregarDetalleCombo(idPedido, dto, actor, pedido, producto) {
+        const idUsuario = actor.idUsuario;
+        const componenteIds = Array.isArray(dto.componente_ids)
+            ? dto.componente_ids.map((n) => Math.round(Number(n))).filter((n) => n > 0)
+            : [];
+        const comboMin = Math.max(1, producto.comboMin ?? 1);
+        const comboMax = Math.max(comboMin, producto.comboMax ?? 1);
+        if (componenteIds.length < comboMin || componenteIds.length > comboMax) {
+            throw new common_1.BadRequestException(`El combo requiere entre ${comboMin} y ${comboMax} ítems (elegiste ${componenteIds.length})`);
+        }
+        const elegibles = new Set(producto.comboElegiblesComoCombo.map((e) => e.idProductoComponente));
+        if (elegibles.size === 0) {
+            throw new common_1.BadRequestException('Este combo no tiene productos elegibles configurados');
+        }
+        for (const id of componenteIds) {
+            if (!elegibles.has(id)) {
+                throw new common_1.BadRequestException('Algún ítem no pertenece al pool del combo');
+            }
+        }
+        const uniqueIds = [...new Set(componenteIds)];
+        const componentes = await this.prisma.producto.findMany({
+            where: { idProducto: { in: uniqueIds }, activo: true },
+            include: { categoria: true },
+        });
+        if (componentes.length !== uniqueIds.length) {
+            throw new common_1.BadRequestException('Algún componente no está disponible');
+        }
+        const byId = new Map(componentes.map((c) => [c.idProducto, c]));
+        const ordenados = componenteIds.map((id) => {
+            const c = byId.get(id);
+            if (!c)
+                throw new common_1.BadRequestException('Componente inválido');
+            return c;
+        });
+        const cantidadCombo = Math.max(1, Math.round(dto.cantidad));
+        const sinEmpaque = dto.sin_empaque_auto === true;
+        const lineasAgregadas = [];
+        const op = await this.ctxOperativa(pedido.idRestaurante);
+        const invCfg = await this.inventarioDeduccion.obtenerConfig(pedido.idRestaurante);
+        await this.prisma.$transaction(async (tx) => {
+            const padre = await tx.detallePedido.create({
+                data: {
+                    idPedido,
+                    idProducto: producto.idProducto,
+                    cantidad: cantidadCombo,
+                    precioUnitario: producto.precio,
+                    notaCocina: dto.nota_cocina ?? null,
+                },
+            });
+            lineasAgregadas.push({
+                id_detalle: padre.idDetalle,
+                nombre_producto: producto.nombre,
+                cantidad: cantidadCombo,
+            });
+            const invLineas = [];
+            for (const comp of ordenados) {
+                await (0, stock_bebida_1.descontarStockBebidaTx)(tx, comp, cantidadCombo);
+                const hijo = await tx.detallePedido.create({
+                    data: {
+                        idPedido,
+                        idProducto: comp.idProducto,
+                        cantidad: cantidadCombo,
+                        precioUnitario: 0,
+                        idDetalleComboPadre: padre.idDetalle,
+                        notaCocina: null,
+                    },
+                });
+                lineasAgregadas.push({
+                    id_detalle: hijo.idDetalle,
+                    nombre_producto: `${producto.nombre} · ${comp.nombre}`,
+                    cantidad: cantidadCombo,
+                });
+                invLineas.push({
+                    id_detalle_pedido: hijo.idDetalle,
+                    id_producto: comp.idProducto,
+                    cantidad: cantidadCombo,
+                    nombre_producto: comp.nombre,
+                });
+                const debeAutoEmpaque = pedido.modoServicio === 'para_llevar' &&
+                    !sinEmpaque &&
+                    (0, empaque_para_llevar_1.productoCobraEmpaqueParaLlevarPorPlatoFuerte)({
+                        esPlatoPrincipal: comp.esPlatoPrincipal,
+                        esEmpacable: comp.esEmpacable,
+                        categoria: comp.categoria,
+                    });
+                if (debeAutoEmpaque) {
+                    const emp = await tx.producto.findFirst({
+                        where: { esEmpacable: true, activo: true },
+                        orderBy: { idProducto: 'asc' },
+                    });
+                    if (emp) {
+                        const e = await tx.detallePedido.create({
+                            data: {
+                                idPedido,
+                                idProducto: emp.idProducto,
+                                cantidad: cantidadCombo,
+                                precioUnitario: (0, empaque_para_llevar_1.precioEmpaqueParaLlevarDecimal)(op.precioEmpaque),
+                                idDetallePadre: hijo.idDetalle,
+                            },
+                        });
+                        lineasAgregadas.push({
+                            id_detalle: e.idDetalle,
+                            nombre_producto: emp.nombre,
+                            cantidad: cantidadCombo,
+                        });
+                    }
+                }
+            }
+            if (invLineas.length > 0) {
+                await this.inventarioDeduccion.aplicarEventoLineasEnTx(tx, {
+                    tenantId: pedido.idRestaurante,
+                    evento: invCfg.evento_deduccion_comercial,
+                    idPedido,
+                    lineas: invLineas,
+                    idUsuario,
+                });
+            }
+            await tx.pedidoHistorial.create({
+                data: {
+                    idPedido,
+                    idUsuario,
+                    tipo: 'detalle_agregado',
+                    detalleJson: { lineas: lineasAgregadas, combo: true },
+                },
+            });
+            const mesa = await tx.mesa.findUnique({
+                where: { idMesa: pedido.idMesa },
+                select: { numero: true },
+            });
+            if (mesa) {
+                const todos = await tx.detallePedido.findMany({
+                    where: { idPedido },
+                    include: { producto: { include: { categoria: true } } },
+                });
+                const ctx = todos.map((d) => ({
+                    es_bebida: (0, cocina_producto_1.categoriaEsBebida)(d.producto.categoria),
+                    es_acompanamiento_mazorca: d.producto.esAcompanamientoMazorca,
+                    es_empacable: d.producto.esEmpacable,
+                    categoria_nombre: d.producto.categoria.nombre,
+                    listo_para_recoger: d.listoParaRecoger,
+                    id_detalle_padre: d.idDetallePadre,
+                }));
+                await (0, mazorca_linea_pedido_1.sincronizarLineaMazorcaAcompanamiento)(tx, {
+                    idPedido,
+                    numComensales: pedido.numComensales,
+                    mesaNumero: mesa.numero,
+                    estadoPedido: pedido.estado,
+                    idProductoMazorca: op.idProductoMazorca,
+                    usaLineaMazorca: (0, transferencia_pedido_1.pedidoDebeTenerLineaMazorca)(mesa.numero, ctx, op.mazorcaActiva),
+                    idRestaurante: pedido.idRestaurante,
+                });
+            }
+        });
+        await this.notificarCompaneroModificoPedido(pedido, idUsuario, lineasAgregadas, 'agregado');
+        this.emit(idPedido, pedido.idMesa, pedido.idUsuario, pedido.idRestaurante);
+        return this.obtenerPorIdTrasEscritura(idPedido, pedido.idRestaurante, {
+            consolidar: false,
+        });
+    }
     async eliminarDetalle(idDetalle, actor) {
         const idUsuario = actor.idUsuario;
         const det = await this.prisma.detallePedido.findUnique({
@@ -3739,6 +3906,9 @@ let PedidosService = class PedidosService {
         });
         if (!det) {
             throw new common_1.NotFoundException('Línea no encontrada');
+        }
+        if (det.idDetalleComboPadre != null) {
+            throw new common_1.BadRequestException('Quita el combo completo; no se puede eliminar un componente suelto');
         }
         const permisoQuitar = det.producto.esEmpacable && det.idDetallePadre != null
             ? 'editar_cantidades'
@@ -3752,9 +3922,15 @@ let PedidosService = class PedidosService {
         }
         const mesaId = det.pedido.idMesa;
         const pedidoId = det.pedido.idPedido;
-        const hijos = det.idDetallePadre == null
+        const hijosEmpaque = det.idDetallePadre == null
             ? await this.prisma.detallePedido.findMany({
                 where: { idDetallePadre: idDetalle },
+                include: { producto: true },
+            })
+            : [];
+        const hijosCombo = det.producto.esCombo
+            ? await this.prisma.detallePedido.findMany({
+                where: { idDetalleComboPadre: idDetalle },
                 include: { producto: true },
             })
             : [];
@@ -3764,25 +3940,48 @@ let PedidosService = class PedidosService {
                 nombre_producto: det.producto.nombre,
                 cantidad: det.cantidad,
             },
-            ...hijos.map((h) => ({
+            ...hijosEmpaque.map((h) => ({
+                id_detalle: h.idDetalle,
+                nombre_producto: h.producto.nombre,
+                cantidad: h.cantidad,
+            })),
+            ...hijosCombo.map((h) => ({
                 id_detalle: h.idDetalle,
                 nombre_producto: h.producto.nombre,
                 cantidad: h.cantidad,
             })),
         ];
         await this.prisma.$transaction(async (tx) => {
-            await this.inventarioDeduccion.revertirLineaEnTx(tx, {
-                tenantId: det.pedido.idRestaurante,
-                idPedido: pedidoId,
-                linea: {
-                    id_detalle_pedido: det.idDetalle,
-                    id_producto: det.idProducto,
-                    cantidad: det.cantidad,
-                    nombre_producto: det.producto.nombre,
-                },
-                idUsuario,
-            });
-            await (0, stock_bebida_1.reintegrarStockBebidaTx)(tx, det.producto, det.cantidad);
+            if (hijosCombo.length > 0) {
+                for (const hijo of hijosCombo) {
+                    await this.inventarioDeduccion.revertirLineaEnTx(tx, {
+                        tenantId: det.pedido.idRestaurante,
+                        idPedido: pedidoId,
+                        linea: {
+                            id_detalle_pedido: hijo.idDetalle,
+                            id_producto: hijo.idProducto,
+                            cantidad: hijo.cantidad,
+                            nombre_producto: hijo.producto.nombre,
+                        },
+                        idUsuario,
+                    });
+                    await (0, stock_bebida_1.reintegrarStockBebidaTx)(tx, hijo.producto, hijo.cantidad);
+                }
+            }
+            else {
+                await this.inventarioDeduccion.revertirLineaEnTx(tx, {
+                    tenantId: det.pedido.idRestaurante,
+                    idPedido: pedidoId,
+                    linea: {
+                        id_detalle_pedido: det.idDetalle,
+                        id_producto: det.idProducto,
+                        cantidad: det.cantidad,
+                        nombre_producto: det.producto.nombre,
+                    },
+                    idUsuario,
+                });
+                await (0, stock_bebida_1.reintegrarStockBebidaTx)(tx, det.producto, det.cantidad);
+            }
             await tx.pedidoHistorial.create({
                 data: {
                     idPedido: pedidoId,
@@ -6976,12 +7175,16 @@ let PedidosService = class PedidosService {
         const pedidoEnDestino = await this.prisma.pedido.findFirst({
             where: { idMesa: mesaNueva.idMesa, estado: { in: ABIERTOS } },
         });
+        const destinoEsAnexa = await this.prisma.pedidoMesaAnexa.findUnique({
+            where: { idMesa: mesaNueva.idMesa },
+        });
         const destinoLibrePreliminar = mesaNueva.estado === 'libre' && pedidoEnDestino == null;
         const opRow = await this.obtenerConfigOperativaRow(pedido.idRestaurante);
         const validacionPreliminar = (0, transferencia_pedido_1.validarTransferenciaPedido)({
             origen_mesa_numero: pedido.mesa.numero,
             destino_mesa_numero: mesaNueva.numero,
             destino_libre: destinoLibrePreliminar,
+            destino_es_anexa: destinoEsAnexa != null,
             mesas_virtuales: opRow,
         });
         if (validacionPreliminar.accion === 'rechazar') {
@@ -7016,11 +7219,15 @@ let PedidosService = class PedidosService {
             const otroEnDestino = await tx.pedido.findFirst({
                 where: { idMesa: mesaNueva.idMesa, estado: { in: ABIERTOS } },
             });
+            const anexaDestino = await tx.pedidoMesaAnexa.findUnique({
+                where: { idMesa: mesaNueva.idMesa },
+            });
             const destinoLibre = mesaDestinoTx.estado === 'libre' && otroEnDestino == null;
             const validacion = (0, transferencia_pedido_1.validarTransferenciaPedido)({
                 origen_mesa_numero: pedido.mesa.numero,
                 destino_mesa_numero: mesaNueva.numero,
                 destino_libre: destinoLibre,
+                destino_es_anexa: anexaDestino != null,
                 mesas_virtuales: opRow,
             });
             if (validacion.accion === 'rechazar') {
@@ -7176,6 +7383,7 @@ let PedidosService = class PedidosService {
                 id_detalle: d.idDetalle,
                 id_producto: d.idProducto,
                 id_detalle_padre: d.idDetallePadre,
+                id_detalle_combo_padre: d.idDetalleComboPadre ?? null,
                 nombre_producto: nombreProducto,
                 categoria_nombre: d.producto.categoria.nombre,
                 id_categoria: d.producto.categoria.idCategoria,
@@ -7185,11 +7393,12 @@ let PedidosService = class PedidosService {
                 es_empacable: d.producto.esEmpacable,
                 es_plato_principal: d.producto.esPlatoPrincipal,
                 es_acompanamiento_mazorca: d.producto.esAcompanamientoMazorca,
+                es_combo: d.producto.esCombo,
                 categoria_prioridad_cocina_baja: d.producto.categoria.prioridadCocinaBaja,
                 producto_prioridad_cocina_baja: d.producto.prioridadCocinaBaja,
                 es_cuota_pendiente_reparto: esCuotaPend,
                 usa_subitems_repartibles: d.producto.usaSubitemsRepartibles,
-                marcar_cocina: marcar,
+                marcar_cocina: d.producto.esCombo ? false : marcar,
                 enviado_cocina: d.enviadoCocina,
                 listo_para_recoger: d.listoParaRecoger,
                 listo_cocina: d.listoCocina,
