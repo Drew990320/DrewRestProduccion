@@ -35,8 +35,8 @@ const DEFAULT_BURST_WINDOW_MS = 5_000;
 const DEFAULT_INTER_JOB_DELAY_MS = 200;
 function bufferPulsoCajon() {
     return Buffer.concat([
-        Buffer.from([0x1b, 0x70, 0x00, 0x19, 0xfa]),
-        Buffer.from([0x1b, 0x70, 0x01, 0x19, 0xfa]),
+        Buffer.from([0x1b, 0x70, 0x00, 0x19, 0x64]),
+        Buffer.from([0x1b, 0x70, 0x01, 0x19, 0x64]),
     ]);
 }
 let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterService {

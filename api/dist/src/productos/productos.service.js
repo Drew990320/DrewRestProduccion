@@ -76,17 +76,9 @@ function mapProducto(p) {
         control_stock: p.controlStock,
         stock_disponible: p.stockDisponible,
         ocultar_sin_stock: p.ocultarSinStock,
-        es_combo: p.esCombo,
-        combo_min: Math.max(1, p.comboMin ?? 1),
-        combo_max: Math.max(1, p.comboMax ?? 1),
         es_bebida: p.categoria.esBebida ?? false,
         total_usos_pedido: p._count?.detalles ?? 0,
     };
-}
-function normalizarComboMinMax(minRaw, maxRaw) {
-    const comboMin = Math.max(1, Math.min(99, Math.round(minRaw)));
-    const comboMax = Math.max(comboMin, Math.min(99, Math.round(maxRaw)));
-    return { comboMin, comboMax };
 }
 let ProductosService = class ProductosService {
     prisma;
@@ -157,40 +149,26 @@ let ProductosService = class ProductosService {
         if (dto.usa_subitems_repartibles && (flags.esEmpacable || esMazorca)) {
             throw new common_1.BadRequestException('Este producto no admite subítems repartibles');
         }
-        const esCombo = Boolean(dto.es_combo);
-        if (esCombo && (flags.esEmpacable || esMazorca || dto.usa_subitems_repartibles)) {
-            throw new common_1.BadRequestException('Un combo no puede ser empacable, mazorca ni usar subítems repartibles');
-        }
-        const { comboMin, comboMax } = normalizarComboMinMax(dto.combo_min ?? 1, dto.combo_max ?? dto.combo_min ?? 1);
-        const enviaCocina = esCombo
-            ? dto.envia_cocina === true
-            : resolverEnviaCocinaProducto(cat, { envia_cocina: dto.envia_cocina }, undefined, {
-                esEmpacable: flags.esEmpacable,
-                esAcompanamientoMazorca: esMazorca,
-            });
+        const enviaCocina = resolverEnviaCocinaProducto(cat, { envia_cocina: dto.envia_cocina }, undefined, {
+            esEmpacable: flags.esEmpacable,
+            esAcompanamientoMazorca: esMazorca,
+        });
         const created = await this.prisma.producto.create({
             data: {
                 idCategoria: dto.id_categoria,
                 nombre: dto.nombre.trim(),
                 descripcion: dto.descripcion?.trim() || null,
                 precio: dto.precio,
-                esPlatoPrincipal: esCombo ? false : flags.esPlatoPrincipal,
-                esEmpacable: esCombo ? false : flags.esEmpacable,
+                esPlatoPrincipal: flags.esPlatoPrincipal,
+                esEmpacable: flags.esEmpacable,
                 enviaCocina,
-                usaSubitemsRepartibles: esCombo
-                    ? false
-                    : (dto.usa_subitems_repartibles ?? false),
-                cantidadRepartoSubitems: !esCombo &&
-                    dto.usa_subitems_repartibles &&
-                    dto.cantidad_reparto_subitems != null
+                usaSubitemsRepartibles: dto.usa_subitems_repartibles ?? false,
+                cantidadRepartoSubitems: dto.usa_subitems_repartibles && dto.cantidad_reparto_subitems != null
                     ? Math.max(1, Math.min(99, Math.round(dto.cantidad_reparto_subitems)))
                     : 1,
                 esAcompanamientoMazorca: esMazorca,
                 tipoProteina: dto.tipo_proteina ?? 'ninguno',
                 prioridadCocinaBaja: dto.prioridad_cocina_baja ?? null,
-                esCombo,
-                comboMin,
-                comboMax,
                 activo: true,
                 ...(dto.control_stock != null ? { controlStock: dto.control_stock } : {}),
                 ...(dto.stock_disponible != null
@@ -240,19 +218,10 @@ let ProductosService = class ProductosService {
             (flags.esEmpacable || esMazorca)) {
             throw new common_1.BadRequestException('Este producto no admite subítems repartibles');
         }
-        const esCombo = dto.es_combo != null ? dto.es_combo : existing.esCombo;
-        if (esCombo && (flags.esEmpacable || esMazorca || dto.usa_subitems_repartibles)) {
-            throw new common_1.BadRequestException('Un combo no puede ser empacable, mazorca ni usar subítems repartibles');
-        }
-        const { comboMin, comboMax } = normalizarComboMinMax(dto.combo_min ?? existing.comboMin, dto.combo_max ?? existing.comboMax);
-        const enviaCocina = esCombo
-            ? dto.envia_cocina != null
-                ? dto.envia_cocina
-                : existing.enviaCocina
-            : resolverEnviaCocinaProducto(cat, { envia_cocina: dto.envia_cocina }, existing.enviaCocina, {
-                esEmpacable: flags.esEmpacable,
-                esAcompanamientoMazorca: esMazorca,
-            });
+        const enviaCocina = resolverEnviaCocinaProducto(cat, { envia_cocina: dto.envia_cocina }, existing.enviaCocina, {
+            esEmpacable: flags.esEmpacable,
+            esAcompanamientoMazorca: esMazorca,
+        });
         const updated = await this.prisma.producto.update({
             where: { idProducto },
             data: {
@@ -263,23 +232,18 @@ let ProductosService = class ProductosService {
                     : {}),
                 ...(dto.precio != null ? { precio: dto.precio } : {}),
                 ...(dto.activo != null ? { activo: dto.activo } : {}),
-                esPlatoPrincipal: esCombo ? false : flags.esPlatoPrincipal,
-                esEmpacable: esCombo ? false : flags.esEmpacable,
+                esPlatoPrincipal: flags.esPlatoPrincipal,
+                esEmpacable: flags.esEmpacable,
                 enviaCocina,
                 ...(dto.usa_subitems_repartibles != null
-                    ? { usaSubitemsRepartibles: esCombo ? false : dto.usa_subitems_repartibles }
-                    : esCombo
-                        ? { usaSubitemsRepartibles: false }
-                        : {}),
+                    ? { usaSubitemsRepartibles: dto.usa_subitems_repartibles }
+                    : {}),
                 ...(dto.cantidad_reparto_subitems != null
                     ? {
                         cantidadRepartoSubitems: Math.max(1, Math.min(99, Math.round(dto.cantidad_reparto_subitems))),
                     }
                     : {}),
                 esAcompanamientoMazorca: esMazorca,
-                esCombo,
-                comboMin,
-                comboMax,
                 ...(dto.tipo_proteina != null ? { tipoProteina: dto.tipo_proteina } : {}),
                 ...(dto.prioridad_cocina_baja !== undefined
                     ? { prioridadCocinaBaja: dto.prioridad_cocina_baja }
@@ -294,11 +258,6 @@ let ProductosService = class ProductosService {
             },
             include: { categoria: { select: { nombre: true, esBebida: true } } },
         });
-        if (!esCombo && existing.esCombo) {
-            await this.prisma.productoComboElegible.deleteMany({
-                where: { idProductoCombo: idProducto },
-            });
-        }
         if (dto.es_acompanamiento_mazorca != null) {
             await this.asegurarUnicoMazorca(idProducto, esMazorca, tenantId);
         }
