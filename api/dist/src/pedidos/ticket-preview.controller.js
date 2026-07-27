@@ -194,8 +194,8 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], TicketPreviewController.prototype, "pedidoTotalHtml", null);
 __decorate([
-    (0, common_1.Get)('factura/:id/html'),
-    __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
+    (0, common_1.Get)('factura/:idFactura/html'),
+    __param(0, (0, common_1.Param)('idFactura', common_1.ParseIntPipe)),
     __param(1, (0, common_1.Query)()),
     __param(2, (0, common_1.Res)()),
     __metadata("design:type", Function),
@@ -203,8 +203,8 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], TicketPreviewController.prototype, "facturaHtml", null);
 __decorate([
-    (0, common_1.Get)('factura/:id'),
-    __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
+    (0, common_1.Get)('factura/:idFactura'),
+    __param(0, (0, common_1.Param)('idFactura', common_1.ParseIntPipe)),
     __param(1, (0, common_1.Query)()),
     __param(2, (0, common_1.Res)()),
     __metadata("design:type", Function),
@@ -212,8 +212,8 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], TicketPreviewController.prototype, "factura", null);
 __decorate([
-    (0, common_1.Get)('movimiento-caja/:id/html'),
-    __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
+    (0, common_1.Get)('movimiento-caja/:idMovimiento/html'),
+    __param(0, (0, common_1.Param)('idMovimiento', common_1.ParseIntPipe)),
     __param(1, (0, common_1.Res)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Number, Object]),

@@ -139,6 +139,9 @@ async function buildFacturaEscPos(ticket, charWidth = escpos_utils_1.DEFAULT_ESC
     else if (ticket.descuento_promociones > 0) {
         await printer.println((0, escpos_utils_1.lineaConPrecio)('Desc. promociones', `-${(0, escpos_utils_1.formatCopEscPos)(ticket.descuento_promociones)}`, w));
     }
+    if ((ticket.monto_redondeo ?? 0) > 0) {
+        await printer.println((0, escpos_utils_1.lineaConPrecio)('Redondeo', (0, escpos_utils_1.formatCopEscPos)(ticket.monto_redondeo ?? 0), w));
+    }
     await printer.bold(true);
     await printer.println((0, escpos_utils_1.lineaConPrecio)('TOTAL', (0, escpos_utils_1.formatCopEscPos)(ticket.total), w));
     await printer.bold(false);

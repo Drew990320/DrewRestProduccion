@@ -16,13 +16,16 @@ const categoria_menu_icon_1 = require("@drewrest/shared-domain/categoria-menu-ic
 const empaque_para_llevar_1 = require("@drewrest/shared-domain/empaque-para-llevar");
 const cocina_producto_1 = require("@drewrest/shared-domain/cocina-producto");
 const prisma_service_1 = require("../prisma/prisma.service");
+const menu_activo_service_1 = require("../menu/menu-activo.service");
 const pedidos_gateway_1 = require("../pedidos/pedidos.gateway");
 let CategoriasService = class CategoriasService {
     prisma;
     gateway;
-    constructor(prisma, gateway) {
+    menuActivo;
+    constructor(prisma, gateway, menuActivo) {
         this.prisma = prisma;
         this.gateway = gateway;
+        this.menuActivo = menuActivo;
     }
     normalizeIconoMenu(raw, nombreFallback) {
         if (raw == null && !nombreFallback)
@@ -77,7 +80,7 @@ let CategoriasService = class CategoriasService {
     async listarTodasAdmin(tenantId) {
         const [rows, stats] = await Promise.all([
             this.prisma.categoria.findMany({
-                where: { idRestaurante: tenantId },
+                where: { idRestaurante: tenantId, canal: 'restaurante' },
                 orderBy: { nombre: 'asc' },
             }),
             this.contadoresPorCategoria(tenantId),
@@ -89,6 +92,7 @@ let CategoriasService = class CategoriasService {
         const dup = await this.prisma.categoria.findFirst({
             where: {
                 idRestaurante: tenantId,
+                canal: 'restaurante',
                 nombre: { equals: nombre, mode: 'insensitive' },
             },
         });
@@ -117,6 +121,7 @@ let CategoriasService = class CategoriasService {
                 esPlatoPrincipalDefault: dto.es_plato_principal_default ?? defaults.es_plato_principal_default,
                 prioridadCocinaBaja: dto.prioridad_cocina_baja ?? defaults.prioridad_cocina_baja,
                 iconoMenu: this.normalizeIconoMenu(dto.icono_menu, nombre),
+                canal: 'restaurante',
             },
         });
         this.gateway.emitConfigActualizada('categorias', tenantId);
@@ -309,6 +314,17 @@ let CategoriasService = class CategoriasService {
     }
     async importarPlantilla(tenantId, dto) {
         const modo = dto.modo ?? 'skip_existing';
+        const idMenu = Number(dto.id_menu);
+        if (!Number.isFinite(idMenu) || idMenu <= 0) {
+            throw new common_1.BadRequestException('Debes elegir a qué menú cargar');
+        }
+        const menu = await this.prisma.menu.findFirst({
+            where: { idMenu, idRestaurante: tenantId },
+            select: { idMenu: true, nombre: true },
+        });
+        if (!menu) {
+            throw new common_1.NotFoundException('Menú / franja no encontrado');
+        }
         let creadas = 0;
         let actualizadas = 0;
         let omitidas = 0;
@@ -417,7 +433,7 @@ let CategoriasService = class CategoriasService {
                 });
                 creadas += 1;
             }
-            const prodStats = await this.importarProductosDePlantilla(categoria, item.productos ?? [], modo);
+            const prodStats = await this.importarProductosDePlantilla(categoria, item.productos ?? [], modo, menu.idMenu);
             productosCreados += prodStats.creados;
             productosActualizados += prodStats.actualizados;
             productosOmitidos += prodStats.omitidos;
@@ -437,9 +453,11 @@ let CategoriasService = class CategoriasService {
             productos_actualizados: productosActualizados,
             productos_omitidos: productosOmitidos,
             modo,
+            id_menu: menu.idMenu,
+            menu_nombre: menu.nombre,
         };
     }
-    async importarProductosDePlantilla(categoria, productos, modo) {
+    async importarProductosDePlantilla(categoria, productos, modo, idMenu) {
         let creados = 0;
         let actualizados = 0;
         let omitidos = 0;
@@ -483,6 +501,7 @@ let CategoriasService = class CategoriasService {
                             enviaCocina,
                         },
                     });
+                    await this.menuActivo.asegurarProductoEnMenu(idMenu, existing.idProducto, precio);
                     actualizados += 1;
                 }
                 else {
@@ -490,7 +509,7 @@ let CategoriasService = class CategoriasService {
                 }
                 continue;
             }
-            await this.prisma.producto.create({
+            const created = await this.prisma.producto.create({
                 data: {
                     idCategoria: categoria.idCategoria,
                     nombre,
@@ -502,6 +521,7 @@ let CategoriasService = class CategoriasService {
                     enviaCocina,
                 },
             });
+            await this.menuActivo.asegurarProductoEnMenu(idMenu, created.idProducto, precio);
             creados += 1;
         }
         return { creados, actualizados, omitidos };
@@ -511,6 +531,7 @@ exports.CategoriasService = CategoriasService;
 exports.CategoriasService = CategoriasService = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [prisma_service_1.PrismaService,
-        pedidos_gateway_1.PedidosGateway])
+        pedidos_gateway_1.PedidosGateway,
+        menu_activo_service_1.MenuActivoService])
 ], CategoriasService);
 //# sourceMappingURL=categorias.service.js.map

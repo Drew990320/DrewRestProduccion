@@ -49,6 +49,11 @@ exports.ACTION_ICON_KEYS = [
     'pago_transferencia',
     'pago_mixto',
     'pago_fiado',
+    'pago_redondeo',
+    'tienda_gestionar',
+    'tienda_nueva_venta',
+    'tienda_abrir_catalogo',
+    'tienda_cobrar',
 ];
 exports.ACTION_ICON_DEFAULTS = {
     pedido_agregar_menu: 'fast-food-outline',
@@ -95,6 +100,11 @@ exports.ACTION_ICON_DEFAULTS = {
     pago_transferencia: 'swap-horizontal-outline',
     pago_mixto: 'layers-outline',
     pago_fiado: 'document-text-outline',
+    pago_redondeo: 'calculator-outline',
+    tienda_gestionar: 'bag-handle-outline',
+    tienda_nueva_venta: 'add-circle-outline',
+    tienda_abrir_catalogo: 'basket-outline',
+    tienda_cobrar: 'cash-outline',
 };
 exports.ACTION_ICON_SECCIONES = [
     {
@@ -159,7 +169,22 @@ exports.ACTION_ICON_SECCIONES = [
     },
     {
         titulo: 'Métodos de pago',
-        keys: ['pago_efectivo', 'pago_transferencia', 'pago_mixto', 'pago_fiado'],
+        keys: [
+            'pago_efectivo',
+            'pago_transferencia',
+            'pago_mixto',
+            'pago_fiado',
+            'pago_redondeo',
+        ],
+    },
+    {
+        titulo: 'Tienda',
+        keys: [
+            'tienda_gestionar',
+            'tienda_nueva_venta',
+            'tienda_abrir_catalogo',
+            'tienda_cobrar',
+        ],
     },
 ];
 exports.ACTION_ICON_LABELS = {
@@ -207,6 +232,11 @@ exports.ACTION_ICON_LABELS = {
     pago_transferencia: 'Pago transferencia',
     pago_mixto: 'Pago mixto',
     pago_fiado: 'Pago fiado',
+    pago_redondeo: 'Redondear cobro',
+    tienda_gestionar: 'Gestionar catálogo tienda',
+    tienda_nueva_venta: 'Nueva venta tienda',
+    tienda_abrir_catalogo: 'Productos (tienda)',
+    tienda_cobrar: 'Cobrar venta tienda',
 };
 function resolverIconoAccion(key, guardado) {
     if ((0, nav_app_icon_1.esNavAppIconValido)(guardado))

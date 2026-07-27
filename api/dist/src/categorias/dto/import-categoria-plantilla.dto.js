@@ -181,6 +181,7 @@ __decorate([
 ], CategoriaPlantillaItemDto.prototype, "productos", void 0);
 class ImportCategoriaPlantillaDto {
     modo;
+    id_menu;
     categorias;
 }
 exports.ImportCategoriaPlantillaDto = ImportCategoriaPlantillaDto;
@@ -189,6 +190,11 @@ __decorate([
     (0, class_validator_1.IsIn)(['merge', 'skip_existing']),
     __metadata("design:type", String)
 ], ImportCategoriaPlantillaDto.prototype, "modo", void 0);
+__decorate([
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsNumber)(),
+    __metadata("design:type", Number)
+], ImportCategoriaPlantillaDto.prototype, "id_menu", void 0);
 __decorate([
     (0, class_validator_1.IsArray)(),
     (0, class_validator_1.ValidateNested)({ each: true }),

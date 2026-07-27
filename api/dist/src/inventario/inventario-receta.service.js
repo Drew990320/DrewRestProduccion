@@ -20,6 +20,193 @@ let InventarioRecetaService = class InventarioRecetaService {
     constructor(prisma) {
         this.prisma = prisma;
     }
+    async buildMapArticulos(client, tenantId, lineas) {
+        const idsInv = new Set();
+        const idsRec = new Set();
+        if (lineas) {
+            for (const l of lineas) {
+                if (l.idInventario != null)
+                    idsInv.add(l.idInventario);
+                if (l.idRecurso != null)
+                    idsRec.add(l.idRecurso);
+            }
+        }
+        const [articulos, recursos] = await Promise.all([
+            client.inventario.findMany({
+                where: {
+                    idRestaurante: tenantId,
+                    ...(lineas ? { idInventario: { in: [...idsInv] } } : {}),
+                },
+            }),
+            client.recurso.findMany({
+                where: {
+                    idRestaurante: tenantId,
+                    ...(lineas ? { idRecurso: { in: [...idsRec] } } : {}),
+                },
+            }),
+        ]);
+        const mapArt = new Map();
+        for (const a of articulos) {
+            mapArt.set(a.idInventario, {
+                id_articulo: a.idInventario,
+                unidad_stock: a.unidad,
+                costo_unitario: a.costoUnitario != null ? Number(a.costoUnitario) : undefined,
+            });
+        }
+        for (const r of recursos) {
+            mapArt.set(r.idRecurso, {
+                id_articulo: r.idRecurso,
+                unidad_stock: r.unidad,
+                costo_unitario: Number(r.costo),
+            });
+        }
+        return mapArt;
+    }
+    async loadRecetasActivas(client, tenantId) {
+        return client.recetaProducto.findMany({
+            where: { idRestaurante: tenantId, activa: true },
+            include: {
+                lineas: { orderBy: { orden: 'asc' } },
+                producto: { select: { idProducto: true, nombre: true } },
+            },
+        });
+    }
+    dominioDesdeRow(row) {
+        return {
+            id_receta: String(row.idReceta),
+            id_producto: row.idProducto,
+            lineas: row.lineas.map((l) => this.mapLinea(l)),
+        };
+    }
+    async recalcularPorRecurso(idRecurso, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
+        const recurso = await this.prisma.recurso.findFirst({
+            where: { idRecurso, idRestaurante: tenantId },
+            select: { idRecurso: true, idInventarioLegacy: true },
+        });
+        if (!recurso) {
+            return { productos_actualizados: 0, ids_producto: [] };
+        }
+        const todas = await this.loadRecetasActivas(this.prisma, tenantId);
+        if (!todas.length) {
+            return { productos_actualizados: 0, ids_producto: [] };
+        }
+        const porId = new Map(todas.map((r) => [r.idReceta, r]));
+        const afectadas = new Set();
+        for (const r of todas) {
+            for (const l of r.lineas) {
+                if (l.idRecurso === idRecurso)
+                    afectadas.add(r.idReceta);
+                if (recurso.idInventarioLegacy != null &&
+                    l.idInventario === recurso.idInventarioLegacy) {
+                    afectadas.add(r.idReceta);
+                }
+            }
+        }
+        let crecio = true;
+        while (crecio) {
+            crecio = false;
+            for (const r of todas) {
+                if (afectadas.has(r.idReceta))
+                    continue;
+                for (const l of r.lineas) {
+                    if (l.idSubreceta != null && afectadas.has(l.idSubreceta)) {
+                        afectadas.add(r.idReceta);
+                        crecio = true;
+                        break;
+                    }
+                }
+            }
+        }
+        if (!afectadas.size) {
+            return { productos_actualizados: 0, ids_producto: [] };
+        }
+        const mapArt = await this.buildMapArticulos(this.prisma, tenantId, todas.flatMap((r) => r.lineas));
+        const mapRecetas = new Map();
+        for (const r of todas) {
+            mapRecetas.set(String(r.idReceta), this.dominioDesdeRow(r));
+        }
+        const idsProducto = [];
+        await this.prisma.$transaction(async (tx) => {
+            for (const idReceta of afectadas) {
+                const row = porId.get(idReceta);
+                if (!row)
+                    continue;
+                const costo = (0, inventario_receta_1.calcularCostoReceta)(this.dominioDesdeRow(row), mapArt, mapRecetas);
+                await tx.recetaProducto.update({
+                    where: { idReceta },
+                    data: { costoCalculado: costo },
+                });
+                idsProducto.push(row.idProducto);
+            }
+        });
+        (0, deduccion_contexto_cache_1.invalidateDeduccionEstructuraCache)(tenantId);
+        return {
+            productos_actualizados: idsProducto.length,
+            ids_producto: [...new Set(idsProducto)],
+        };
+    }
+    async recalcularPorInventario(idInventario, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
+        const bridge = await this.prisma.recurso.findFirst({
+            where: { idInventarioLegacy: idInventario, idRestaurante: tenantId },
+            select: { idRecurso: true },
+        });
+        if (bridge) {
+            return this.recalcularPorRecurso(bridge.idRecurso, tenantId);
+        }
+        const lineas = await this.prisma.recetaLinea.findMany({
+            where: {
+                idInventario,
+                receta: { idRestaurante: tenantId, activa: true },
+            },
+            select: { idReceta: true },
+        });
+        const ids = [...new Set(lineas.map((l) => l.idReceta))];
+        if (!ids.length) {
+            return { productos_actualizados: 0, ids_producto: [] };
+        }
+        const todas = await this.loadRecetasActivas(this.prisma, tenantId);
+        const porId = new Map(todas.map((r) => [r.idReceta, r]));
+        const afectadas = new Set(ids);
+        let crecio = true;
+        while (crecio) {
+            crecio = false;
+            for (const r of todas) {
+                if (afectadas.has(r.idReceta))
+                    continue;
+                for (const l of r.lineas) {
+                    if (l.idSubreceta != null && afectadas.has(l.idSubreceta)) {
+                        afectadas.add(r.idReceta);
+                        crecio = true;
+                        break;
+                    }
+                }
+            }
+        }
+        const mapArt = await this.buildMapArticulos(this.prisma, tenantId, todas.flatMap((r) => r.lineas));
+        const mapRecetas = new Map();
+        for (const r of todas) {
+            mapRecetas.set(String(r.idReceta), this.dominioDesdeRow(r));
+        }
+        const idsProducto = [];
+        await this.prisma.$transaction(async (tx) => {
+            for (const idReceta of afectadas) {
+                const row = porId.get(idReceta);
+                if (!row)
+                    continue;
+                const costo = (0, inventario_receta_1.calcularCostoReceta)(this.dominioDesdeRow(row), mapArt, mapRecetas);
+                await tx.recetaProducto.update({
+                    where: { idReceta },
+                    data: { costoCalculado: costo },
+                });
+                idsProducto.push(row.idProducto);
+            }
+        });
+        (0, deduccion_contexto_cache_1.invalidateDeduccionEstructuraCache)(tenantId);
+        return {
+            productos_actualizados: idsProducto.length,
+            ids_producto: [...new Set(idsProducto)],
+        };
+    }
     mapLinea(l) {
         const sust = Array.isArray(l.sustituciones)
             ? l.sustituciones
@@ -186,31 +373,15 @@ let InventarioRecetaService = class InventarioRecetaService {
             if (!completa) {
                 throw new common_1.BadRequestException('No se pudo guardar la receta');
             }
-            const [articulos, recursos] = await Promise.all([
-                tx.inventario.findMany({ where: { idRestaurante: tenantId } }),
-                tx.recurso.findMany({ where: { idRestaurante: tenantId } }),
-            ]);
-            const mapArt = new Map(articulos.map((a) => [
-                a.idInventario,
-                {
-                    id_articulo: a.idInventario,
-                    unidad_stock: a.unidad,
-                    costo_unitario: a.costoUnitario != null ? Number(a.costoUnitario) : undefined,
-                },
-            ]));
-            for (const r of recursos) {
-                mapArt.set(r.idRecurso, {
-                    id_articulo: r.idRecurso,
-                    unidad_stock: r.unidad,
-                    costo_unitario: Number(r.costo),
-                });
+            const todas = await this.loadRecetasActivas(tx, tenantId);
+            const mapArt = await this.buildMapArticulos(tx, tenantId, todas.flatMap((r) => r.lineas));
+            const mapRecetas = new Map();
+            for (const r of todas) {
+                mapRecetas.set(String(r.idReceta), this.dominioDesdeRow(r));
             }
-            const dominio = {
-                id_receta: String(completa.idReceta),
-                id_producto: completa.idProducto,
-                lineas: completa.lineas.map((l) => this.mapLinea(l)),
-            };
-            const costo = (0, inventario_receta_1.calcularCostoReceta)(dominio, mapArt);
+            mapRecetas.set(String(completa.idReceta), this.dominioDesdeRow(completa));
+            const dominio = this.dominioDesdeRow(completa);
+            const costo = (0, inventario_receta_1.calcularCostoReceta)(dominio, mapArt, mapRecetas);
             await tx.recetaProducto.update({
                 where: { idReceta: receta.idReceta },
                 data: { costoCalculado: costo },

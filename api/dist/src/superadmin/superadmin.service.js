@@ -57,6 +57,7 @@ const config_inventario_cache_1 = require("../inventario/config-inventario-cache
 const restaurant_branding_1 = require("../common/restaurant-branding");
 const distribucion_enlaces_1 = require("../sistema/distribucion-enlaces");
 const instalacion_on_prem_1 = require("../sistema/instalacion-on-prem");
+const config_restaurante_cache_1 = require("../restaurante/config-restaurante-cache");
 const PEDIDOS_ABIERTOS = ['abierto', 'en_cocina'];
 function assertHttpUrlOrEmpty(label, raw) {
     if (raw == null)
@@ -82,23 +83,26 @@ let SuperadminService = class SuperadminService {
         if (!restaurante) {
             throw new common_1.NotFoundException('Restaurante no encontrado');
         }
-        const [adminCount, chefCount, meseroCount, productos, categorias, mesas, lugares, inventario, recursos, recetas,] = await Promise.all([
+        const [adminCount, chefCount, meseroCount, productos, categorias, mesas, lugares, inventario, recursos, recetas, cfg,] = await Promise.all([
             this.prisma.usuario.count({
                 where: {
                     idRestaurante: tenantId,
                     rol: { nombre: roles_1.ROL_ADMIN },
+                    activo: true,
                 },
             }),
             this.prisma.usuario.count({
                 where: {
                     idRestaurante: tenantId,
                     rol: { nombre: roles_1.ROL_CHEF },
+                    activo: true,
                 },
             }),
             this.prisma.usuario.count({
                 where: {
                     idRestaurante: tenantId,
                     rol: { nombre: roles_1.ROL_MESERO },
+                    activo: true,
                 },
             }),
             this.prisma.producto.count({
@@ -122,6 +126,13 @@ let SuperadminService = class SuperadminService {
             this.prisma.recetaProducto.count({
                 where: { idRestaurante: tenantId },
             }),
+            this.prisma.configRestaurante.findUnique({
+                where: { idRestaurante: tenantId },
+                select: {
+                    moduloRetailActivo: true,
+                    moduloRedondeoCobroActivo: true,
+                },
+            }),
         ]);
         return {
             restaurante: {
@@ -131,6 +142,10 @@ let SuperadminService = class SuperadminService {
                 activo: restaurante.activo,
                 acceso_hasta: restaurante.accesoHasta?.toISOString() ?? null,
                 plan: restaurante.plan,
+            },
+            modulos: {
+                modulo_retail_activo: cfg?.moduloRetailActivo ?? false,
+                modulo_redondeo_cobro_activo: cfg?.moduloRedondeoCobroActivo ?? false,
             },
             admin_registrado: adminCount > 0,
             totales: {
@@ -184,10 +199,14 @@ let SuperadminService = class SuperadminService {
         }
         if (rolNombre === roles_1.ROL_ADMIN) {
             const existentes = await this.prisma.usuario.count({
-                where: { idRestaurante: tenantId, rol: { nombre: roles_1.ROL_ADMIN } },
+                where: {
+                    idRestaurante: tenantId,
+                    rol: { nombre: roles_1.ROL_ADMIN },
+                    activo: true,
+                },
             });
             if (existentes > 0) {
-                throw new common_1.ConflictException('Ya hay un administrador. Elimínalo primero si quieres crear otro.');
+                throw new common_1.ConflictException('Ya hay un administrador activo. Elimínalo primero si quieres crear otro.');
             }
         }
         const nombre = dto.nombre.trim();
@@ -223,8 +242,17 @@ let SuperadminService = class SuperadminService {
                     idRestaurante_email: { idRestaurante: tenantId, email: emailManual },
                 },
             });
-            if (exists) {
+            if (exists?.activo) {
                 throw new common_1.ConflictException('Ya existe un usuario con ese correo');
+            }
+            if (exists && !exists.activo) {
+                const suffix = (0, restaurant_branding_1.restaurantEmailSuffix)();
+                await this.prisma.usuario.update({
+                    where: { idUsuario: exists.idUsuario },
+                    data: {
+                        email: `eliminado.${exists.idUsuario}.${Date.now()}${suffix}`,
+                    },
+                });
             }
             return emailManual;
         }
@@ -236,11 +264,23 @@ let SuperadminService = class SuperadminService {
                 : (0, email_mesero_1.emailMeseroDesdeNombre)(nombre);
         let candidato = preferido;
         let n = 2;
-        while (await this.prisma.usuario.findUnique({
-            where: {
-                idRestaurante_email: { idRestaurante: tenantId, email: candidato },
-            },
-        })) {
+        while (true) {
+            const ocupado = await this.prisma.usuario.findUnique({
+                where: {
+                    idRestaurante_email: { idRestaurante: tenantId, email: candidato },
+                },
+            });
+            if (!ocupado)
+                break;
+            if (!ocupado.activo) {
+                await this.prisma.usuario.update({
+                    where: { idUsuario: ocupado.idUsuario },
+                    data: {
+                        email: `eliminado.${ocupado.idUsuario}.${Date.now()}${suffix}`,
+                    },
+                });
+                break;
+            }
             if (rol === roles_1.ROL_ADMIN) {
                 candidato = `admin${n}${suffix}`;
             }
@@ -294,33 +334,140 @@ let SuperadminService = class SuperadminService {
             acceso_hasta: updated.accesoHasta?.toISOString() ?? null,
         };
     }
+    async patchModulos(tenantId, dto) {
+        if (dto.modulo_retail_activo === undefined &&
+            dto.modulo_redondeo_cobro_activo === undefined) {
+            throw new common_1.BadRequestException('Nada que actualizar');
+        }
+        await this.prisma.restaurante.upsert({
+            where: { idRestaurante: tenantId },
+            create: {
+                idRestaurante: tenantId,
+                slug: `r${tenantId}`,
+                nombre: 'Restaurante',
+            },
+            update: {},
+        });
+        const row = await this.prisma.configRestaurante.upsert({
+            where: { idRestaurante: tenantId },
+            create: {
+                idRestaurante: tenantId,
+                ...(dto.modulo_retail_activo !== undefined
+                    ? { moduloRetailActivo: dto.modulo_retail_activo }
+                    : {}),
+                ...(dto.modulo_redondeo_cobro_activo !== undefined
+                    ? { moduloRedondeoCobroActivo: dto.modulo_redondeo_cobro_activo }
+                    : {}),
+            },
+            update: {
+                ...(dto.modulo_retail_activo !== undefined
+                    ? { moduloRetailActivo: dto.modulo_retail_activo }
+                    : {}),
+                ...(dto.modulo_redondeo_cobro_activo !== undefined
+                    ? { moduloRedondeoCobroActivo: dto.modulo_redondeo_cobro_activo }
+                    : {}),
+            },
+        });
+        (0, config_restaurante_cache_1.invalidateConfigRestauranteCache)(tenantId);
+        if (dto.modulo_retail_activo) {
+            await this.asegurarMesaBoutique(tenantId);
+        }
+        return {
+            ok: true,
+            modulo_retail_activo: row.moduloRetailActivo,
+            modulo_redondeo_cobro_activo: row.moduloRedondeoCobroActivo,
+        };
+    }
+    async asegurarMesaBoutique(tenantId) {
+        const op = await this.prisma.configOperativa.findUnique({
+            where: { idRestaurante: tenantId },
+        });
+        const numero = op?.numeroMesaBoutique ??
+            (0, mesa_label_1.resolverMesasVirtuales)(op).numero_mesa_boutique;
+        const existing = await this.prisma.mesa.findFirst({
+            where: { idRestaurante: tenantId, numero },
+        });
+        if (existing)
+            return;
+        await this.prisma.mesa.create({
+            data: {
+                idRestaurante: tenantId,
+                numero,
+                capacidad: 1,
+                estado: 'libre',
+                disponibleLunes: true,
+                disponibleMartes: true,
+                disponibleMiercoles: true,
+                disponibleJueves: true,
+                disponibleViernes: true,
+                disponibleSabado: true,
+                disponibleDomingo: true,
+            },
+        });
+    }
     async eliminarAdmin(tenantId) {
         const admins = await this.prisma.usuario.findMany({
             where: {
                 idRestaurante: tenantId,
                 rol: { nombre: roles_1.ROL_ADMIN },
+                activo: true,
             },
             include: { rol: true },
         });
         if (admins.length === 0) {
-            return { ok: true, eliminados: 0 };
+            return { ok: true, eliminados: 0, desactivados: 0 };
         }
         let eliminados = 0;
+        let desactivados = 0;
         for (const admin of admins) {
-            const pedidos = await this.prisma.pedido.count({
-                where: { idUsuario: admin.idUsuario },
-            });
-            if (pedidos > 0) {
-                throw new common_1.ConflictException('El administrador tiene pedidos en el historial. No se puede eliminar; desactiva el acceso del restaurante o vacía datos de prueba primero.');
-            }
-            await this.prisma.usuario.delete({
-                where: { idUsuario: admin.idUsuario },
-            });
-            (0, auth_user_cache_1.invalidateAuthUser)(admin.idUsuario);
-            this.gateway.emitAuthSesionInvalidada(admin.idUsuario, 'credenciales', 'La cuenta de administrador fue eliminada.', tenantId);
-            eliminados += 1;
+            const liberado = await this.quitarAdminCuenta(admin.idUsuario, tenantId);
+            if (liberado === 'deleted')
+                eliminados += 1;
+            else
+                desactivados += 1;
         }
-        return { ok: true, eliminados };
+        return { ok: true, eliminados, desactivados };
+    }
+    async quitarAdminCuenta(idUsuario, tenantId) {
+        const tieneHistorial = await this.adminTieneHistorial(idUsuario);
+        if (!tieneHistorial) {
+            try {
+                await this.prisma.usuario.delete({ where: { idUsuario } });
+                (0, auth_user_cache_1.invalidateAuthUser)(idUsuario);
+                this.gateway.emitAuthSesionInvalidada(idUsuario, 'credenciales', 'La cuenta de administrador fue eliminada.', tenantId);
+                return 'deleted';
+            }
+            catch {
+            }
+        }
+        const suffix = (0, restaurant_branding_1.restaurantEmailSuffix)();
+        await this.prisma.usuario.update({
+            where: { idUsuario },
+            data: {
+                activo: false,
+                email: `eliminado.${idUsuario}.${Date.now()}${suffix}`,
+                passwordCambiadoEn: new Date(),
+            },
+        });
+        (0, auth_user_cache_1.invalidateAuthUser)(idUsuario);
+        this.gateway.emitAuthSesionInvalidada(idUsuario, 'credenciales', 'La cuenta de administrador fue desactivada.', tenantId);
+        return 'deactivated';
+    }
+    async adminTieneHistorial(idUsuario) {
+        const [pedidos, facturas, historial, caja, creditos, asientos,] = await Promise.all([
+            this.prisma.pedido.count({ where: { idUsuario } }),
+            this.prisma.factura.count({ where: { idUsuario } }),
+            this.prisma.pedidoHistorial.count({ where: { idUsuario } }),
+            this.prisma.movimientoCaja.count({ where: { idUsuario } }),
+            this.prisma.cuentaCredito.count({ where: { idUsuario } }),
+            this.prisma.asientoContable.count({ where: { idUsuario } }),
+        ]);
+        return (pedidos > 0 ||
+            facturas > 0 ||
+            historial > 0 ||
+            caja > 0 ||
+            creditos > 0 ||
+            asientos > 0);
     }
     async purgarHistorialPedidosTenant(tenantId) {
         const pedidos = await this.prisma.pedido.findMany({

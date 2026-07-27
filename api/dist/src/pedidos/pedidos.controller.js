@@ -508,20 +508,20 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], PedidosController.prototype, "crearMovimientoCaja", null);
 __decorate([
-    (0, common_1.Post)('movimientos-caja/:id/imprimir'),
+    (0, common_1.Post)('movimientos-caja/:idMovimiento/imprimir'),
     (0, common_1.UseGuards)(pedido_tenant_guard_1.PedidoTenantGuard, roles_guard_1.RolesGuard),
     (0, roles_decorator_1.Roles)('admin'),
-    __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
+    __param(0, (0, common_1.Param)('idMovimiento', common_1.ParseIntPipe)),
     __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Number, Object]),
     __metadata("design:returntype", void 0)
 ], PedidosController.prototype, "imprimirMovimientoCaja", null);
 __decorate([
-    (0, common_1.Delete)('movimientos-caja/:id'),
+    (0, common_1.Delete)('movimientos-caja/:idMovimiento'),
     (0, common_1.UseGuards)(pedido_tenant_guard_1.PedidoTenantGuard, roles_guard_1.RolesGuard),
     (0, roles_decorator_1.Roles)('admin'),
-    __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
+    __param(0, (0, common_1.Param)('idMovimiento', common_1.ParseIntPipe)),
     __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Number, Object]),

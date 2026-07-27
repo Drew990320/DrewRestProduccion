@@ -59,6 +59,8 @@ let ConfigRestauranteService = class ConfigRestauranteService {
             modulo_contabilidad_activo: row.moduloContabilidadActivo,
             modulo_creditos_activo: row.moduloCreditosActivo,
             modulo_odoo_activo: row.moduloOdooActivo,
+            modulo_retail_activo: row.moduloRetailActivo,
+            modulo_redondeo_cobro_activo: row.moduloRedondeoCobroActivo,
             actualizado_en: row.actualizadoEn.toISOString(),
         };
     }

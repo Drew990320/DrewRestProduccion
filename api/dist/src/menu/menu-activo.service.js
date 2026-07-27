@@ -115,18 +115,13 @@ let MenuActivoService = class MenuActivoService {
         }
         return mp.precio;
     }
-    async asegurarProductoEnMenuDefault(idProducto, precio, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
-        const def = await this.prisma.menu.findFirst({
-            where: { idRestaurante: tenantId, esDefault: true },
-        });
-        if (!def)
-            return;
+    async asegurarProductoEnMenu(idMenu, idProducto, precio) {
         await this.prisma.menuProducto.upsert({
             where: {
-                idMenu_idProducto: { idMenu: def.idMenu, idProducto },
+                idMenu_idProducto: { idMenu, idProducto },
             },
             create: {
-                idMenu: def.idMenu,
+                idMenu,
                 idProducto,
                 precio,
                 activo: true,
@@ -136,6 +131,14 @@ let MenuActivoService = class MenuActivoService {
                 activo: true,
             },
         });
+    }
+    async asegurarProductoEnMenuDefault(idProducto, precio, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
+        const def = await this.prisma.menu.findFirst({
+            where: { idRestaurante: tenantId, esDefault: true },
+        });
+        if (!def)
+            return;
+        await this.asegurarProductoEnMenu(def.idMenu, idProducto, precio);
     }
     async sincronizarPrecioMenuDefault(idProducto, precio, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
         const def = await this.prisma.menu.findFirst({

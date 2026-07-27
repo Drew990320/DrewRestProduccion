@@ -13,6 +13,7 @@ const inventario_module_1 = require("../inventario/inventario.module");
 const contabilidad_module_1 = require("../contabilidad/contabilidad.module");
 const impresoras_pos_module_1 = require("../impresoras-pos/impresoras-pos.module");
 const permisos_module_1 = require("../permisos/permisos.module");
+const menu_module_1 = require("../menu/menu.module");
 const pedidos_controller_1 = require("./pedidos.controller");
 const pedidos_gateway_1 = require("./pedidos.gateway");
 const pedidos_service_1 = require("./pedidos.service");
@@ -31,6 +32,7 @@ exports.PedidosModule = PedidosModule = __decorate([
             inventario_module_1.InventarioModule,
             contabilidad_module_1.ContabilidadModule,
             (0, common_1.forwardRef)(() => impresoras_pos_module_1.ImpresorasPosModule),
+            (0, common_1.forwardRef)(() => menu_module_1.MenuModule),
         ],
         controllers: [pedidos_controller_1.PedidosController, ticket_preview_controller_1.TicketPreviewController],
         providers: [

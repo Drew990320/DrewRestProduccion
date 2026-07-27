@@ -24,6 +24,7 @@ const inventario_module_1 = require("./inventario/inventario.module");
 const recursos_module_1 = require("./recursos/recursos.module");
 const contabilidad_module_1 = require("./contabilidad/contabilidad.module");
 const impresoras_pos_module_1 = require("./impresoras-pos/impresoras-pos.module");
+const tienda_module_1 = require("./tienda/tienda.module");
 const lugares_mesa_module_1 = require("./lugares-mesa/lugares-mesa.module");
 const mesas_module_1 = require("./mesas/mesas.module");
 const meseros_operativos_module_1 = require("./meseros-operativos/meseros-operativos.module");
@@ -71,6 +72,7 @@ exports.AppModule = AppModule = __decorate([
             impresoras_pos_module_1.ImpresorasPosModule,
             productos_module_1.ProductosModule,
             categorias_module_1.CategoriasModule,
+            tienda_module_1.TiendaModule,
             usuarios_module_1.UsuariosModule,
             meseros_operativos_module_1.MeserosOperativosModule,
             permisos_module_1.PermisosModule,

@@ -31,6 +31,8 @@ function moduloActivo(cfg, key) {
             return cfg.moduloCreditosActivo;
         case 'odoo':
             return cfg.moduloOdooActivo;
+        case 'retail':
+            return cfg.moduloRetailActivo;
         default:
             return false;
     }

@@ -89,6 +89,11 @@ let ProductoComboService = class ProductoComboService {
                     })),
                 });
             }
+            const cantidadFija = Math.max(1, ids.length);
+            await tx.producto.update({
+                where: { idProducto: idProductoCombo },
+                data: { comboMin: cantidadFija, comboMax: cantidadFija },
+            });
         });
         (0, menu_hoy_cache_1.invalidateMenuHoyCache)();
         this.gateway.emitConfigActualizada('menu', tenantId);

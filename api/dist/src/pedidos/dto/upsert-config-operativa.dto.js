@@ -27,6 +27,8 @@ class UpsertConfigOperativaDto {
     soda_almuerzo_descontar_stock;
     prioridad_cocina_automatica;
     prioridad_cocina_modo;
+    redondeo_paso;
+    redondeo_umbral;
 }
 exports.UpsertConfigOperativaDto = UpsertConfigOperativaDto;
 __decorate([
@@ -117,4 +119,19 @@ __decorate([
     (0, class_validator_1.IsIn)(['fifo', 'por_reglas', 'solo_manual']),
     __metadata("design:type", String)
 ], UpsertConfigOperativaDto.prototype, "prioridad_cocina_modo", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsInt)(),
+    (0, class_validator_1.Min)(2),
+    (0, class_validator_1.Max)(100_000),
+    __metadata("design:type", Number)
+], UpsertConfigOperativaDto.prototype, "redondeo_paso", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsInt)(),
+    (0, class_validator_1.Min)(0),
+    __metadata("design:type", Number)
+], UpsertConfigOperativaDto.prototype, "redondeo_umbral", void 0);
 //# sourceMappingURL=upsert-config-operativa.dto.js.map

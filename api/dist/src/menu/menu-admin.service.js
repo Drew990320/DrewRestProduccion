@@ -209,6 +209,79 @@ let MenuAdminService = class MenuAdminService {
         this.emitMenu(tenantId);
         return { ok: true };
     }
+    async clonar(idOrigen, dto = {}, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
+        const origen = await this.prisma.menu.findFirst({
+            where: { idMenu: idOrigen, idRestaurante: tenantId },
+            include: { productos: true },
+        });
+        if (!origen)
+            throw new common_2.NotFoundException('Menú no encontrado');
+        const nombrePedido = dto.nombre?.trim();
+        const nombre = nombrePedido
+            ? nombrePedido
+            : await this.nombreCopiaUnico(origen.nombre, tenantId);
+        if (!nombre)
+            throw new common_2.BadRequestException('Nombre requerido');
+        try {
+            const created = await this.prisma.$transaction(async (tx) => {
+                const menu = await tx.menu.create({
+                    data: {
+                        idRestaurante: tenantId,
+                        nombre,
+                        activo: origen.activo,
+                        prioridad: origen.prioridad,
+                        esDefault: false,
+                        horaInicio: origen.horaInicio,
+                        horaFin: origen.horaFin,
+                        disponibleLunes: origen.disponibleLunes,
+                        disponibleMartes: origen.disponibleMartes,
+                        disponibleMiercoles: origen.disponibleMiercoles,
+                        disponibleJueves: origen.disponibleJueves,
+                        disponibleViernes: origen.disponibleViernes,
+                        disponibleSabado: origen.disponibleSabado,
+                        disponibleDomingo: origen.disponibleDomingo,
+                    },
+                });
+                if (origen.productos.length > 0) {
+                    await tx.menuProducto.createMany({
+                        data: origen.productos.map((p) => ({
+                            idMenu: menu.idMenu,
+                            idProducto: p.idProducto,
+                            precio: p.precio,
+                            activo: p.activo,
+                        })),
+                    });
+                }
+                return tx.menu.findUniqueOrThrow({
+                    where: { idMenu: menu.idMenu },
+                    include: { _count: { select: { productos: true } } },
+                });
+            });
+            this.emitMenu(tenantId);
+            return mapMenu(created);
+        }
+        catch (e) {
+            if (e instanceof client_1.Prisma.PrismaClientKnownRequestError &&
+                e.code === 'P2002') {
+                throw new common_2.BadRequestException('Ya existe un menú con ese nombre');
+            }
+            throw e;
+        }
+    }
+    async nombreCopiaUnico(origenNombre, tenantId) {
+        const existentes = await this.prisma.menu.findMany({
+            where: { idRestaurante: tenantId },
+            select: { nombre: true },
+        });
+        const usados = new Set(existentes.map((m) => m.nombre));
+        const base = `${origenNombre} (copia)`;
+        if (!usados.has(base))
+            return base;
+        let n = 2;
+        while (usados.has(`${origenNombre} (copia ${n})`))
+            n += 1;
+        return `${origenNombre} (copia ${n})`;
+    }
     async listarProductos(idMenu, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
         const menu = await this.prisma.menu.findFirst({
             where: { idMenu, idRestaurante: tenantId },
