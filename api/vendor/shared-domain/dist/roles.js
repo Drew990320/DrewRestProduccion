@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.ROL_SUPERADMIN = exports.ROL_ADMIN = exports.ROL_CHEF = exports.ROL_MESERO = void 0;
 exports.esRolSuperadmin = esRolSuperadmin;
 exports.esRolAdmin = esRolAdmin;
+exports.rolCumpleRequeridos = rolCumpleRequeridos;
 exports.esRolOcultoEnUsuarios = esRolOcultoEnUsuarios;
 exports.ROL_MESERO = 'mesero';
 exports.ROL_CHEF = 'chef';
@@ -13,6 +14,21 @@ function esRolSuperadmin(rol) {
 }
 function esRolAdmin(rol) {
     return rol === exports.ROL_ADMIN;
+}
+/**
+ * ¿El rol del usuario satisface alguno de los roles requeridos?
+ * Superadmin cubre `admin` (soporte opera pantallas de administración).
+ */
+function rolCumpleRequeridos(rolUsuario, rolesRequeridos) {
+    if (!rolUsuario || !rolesRequeridos.length)
+        return false;
+    if (rolesRequeridos.includes(rolUsuario))
+        return true;
+    if (esRolSuperadmin(rolUsuario) &&
+        rolesRequeridos.includes(exports.ROL_ADMIN)) {
+        return true;
+    }
+    return false;
 }
 /** Cuentas ocultas en listados de usuarios del restaurante. */
 function esRolOcultoEnUsuarios(rol) {
