@@ -56,9 +56,6 @@ function buildFacturaEmailText(ticket) {
     if (ticket.descuento_promociones > 0) {
         lines.push(`Desc. promociones: -${formatCop(ticket.descuento_promociones)}`);
     }
-    if ((ticket.monto_redondeo ?? 0) > 0) {
-        lines.push(`Redondeo: ${formatCop(ticket.monto_redondeo ?? 0)}`);
-    }
     lines.push(`TOTAL: ${formatCop(ticket.total)}`);
     if (!ticket.es_precuenta &&
         !ticket.es_total_pedido &&
@@ -126,9 +123,6 @@ function buildFacturaEmailHtml(ticket) {
     }
     if (ticket.descuento_promociones > 0) {
         descuentos.push(`<tr><td>Desc. promociones</td><td style="text-align:right">-${formatCop(ticket.descuento_promociones)}</td></tr>`);
-    }
-    if ((ticket.monto_redondeo ?? 0) > 0) {
-        descuentos.push(`<tr><td>Redondeo</td><td style="text-align:right">${formatCop(ticket.monto_redondeo ?? 0)}</td></tr>`);
     }
     const vueltoHtml = !ticket.es_precuenta &&
         !ticket.es_total_pedido &&

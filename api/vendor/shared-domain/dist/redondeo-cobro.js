@@ -37,8 +37,9 @@ function aplicaRedondeo(monto, cfg) {
     return montoRedondeo(m, paso) > 0;
 }
 /**
- * Resuelve el total cobrado y el diferencial de redondeo.
+ * Resuelve el total cobrado y el diferencial de redondeo (interno).
  * Si no aplica, total = monto base y monto_redondeo = 0.
+ * El diferencial no debe mostrarse al cliente en ticket/correo.
  */
 function resolverRedondeoCobro(montoBase, cfg, aplicar) {
     const base = enterosCop(montoBase);

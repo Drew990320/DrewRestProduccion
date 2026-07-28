@@ -63,6 +63,12 @@ let InventarioController = class InventarioController {
     listarRecetas(tenantId) {
         return this.recetas.listar(tenantId);
     }
+    costosProduccion(tenantId, margenObjetivo) {
+        const n = margenObjetivo != null && margenObjetivo !== ''
+            ? Number(margenObjetivo)
+            : undefined;
+        return this.recetas.listarCostosProduccion(tenantId, Number.isFinite(n) ? n : undefined);
+    }
     recetaPorProducto(idProducto, tenantId) {
         return this.recetas.obtenerPorProducto(idProducto, tenantId);
     }
@@ -158,6 +164,15 @@ __decorate([
     __metadata("design:paramtypes", [Number]),
     __metadata("design:returntype", void 0)
 ], InventarioController.prototype, "listarRecetas", null);
+__decorate([
+    (0, common_1.Get)('costos-produccion'),
+    (0, roles_decorator_1.Roles)('admin'),
+    __param(0, (0, current_tenant_decorator_1.CurrentTenantId)()),
+    __param(1, (0, common_1.Query)('margen_objetivo')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number, String]),
+    __metadata("design:returntype", void 0)
+], InventarioController.prototype, "costosProduccion", null);
 __decorate([
     (0, common_1.Get)('recetas/producto/:idProducto'),
     (0, roles_decorator_1.Roles)('admin'),

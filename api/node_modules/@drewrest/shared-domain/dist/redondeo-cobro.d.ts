@@ -15,8 +15,9 @@ export declare function montoRedondeo(monto: number, paso: number): number;
 /** ¿Se puede ofrecer / aplicar redondeo a este monto con la config? */
 export declare function aplicaRedondeo(monto: number, cfg: RedondeoCobroConfig | null | undefined): boolean;
 /**
- * Resuelve el total cobrado y el diferencial de redondeo.
+ * Resuelve el total cobrado y el diferencial de redondeo (interno).
  * Si no aplica, total = monto base y monto_redondeo = 0.
+ * El diferencial no debe mostrarse al cliente en ticket/correo.
  */
 export declare function resolverRedondeoCobro(montoBase: number, cfg: RedondeoCobroConfig | null | undefined, aplicar: boolean): {
     total: number;
