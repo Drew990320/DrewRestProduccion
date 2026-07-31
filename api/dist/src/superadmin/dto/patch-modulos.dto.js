@@ -14,6 +14,8 @@ const class_validator_1 = require("class-validator");
 class PatchModulosSuperadminDto {
     modulo_retail_activo;
     modulo_redondeo_cobro_activo;
+    modulo_login_pin_activo;
+    modulo_autoservicio_activo;
 }
 exports.PatchModulosSuperadminDto = PatchModulosSuperadminDto;
 __decorate([
@@ -26,4 +28,14 @@ __decorate([
     (0, class_validator_1.IsBoolean)(),
     __metadata("design:type", Boolean)
 ], PatchModulosSuperadminDto.prototype, "modulo_redondeo_cobro_activo", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], PatchModulosSuperadminDto.prototype, "modulo_login_pin_activo", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], PatchModulosSuperadminDto.prototype, "modulo_autoservicio_activo", void 0);
 //# sourceMappingURL=patch-modulos.dto.js.map

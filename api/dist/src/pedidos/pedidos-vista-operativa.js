@@ -148,6 +148,8 @@ function serializarPedidoVistaOperativa(p, opts) {
         prioridad_cocina_origen: prioridadCocinaOrigen,
         prioridad_cocina_auto: prioridadAuto,
         prioridad_cocina_override: override === null ? null : override,
+        origen_autoservicio: Boolean(p.origenAutoservicio),
+        listo_para_cobro_autoservicio: Boolean(p.listoParaCobroAutoservicio),
         mesero: {
             id: p.usuario.idUsuario,
             nombre: p.usuario.nombre,

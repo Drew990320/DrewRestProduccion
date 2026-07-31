@@ -138,6 +138,158 @@ let PedidosService = class PedidosService {
             return;
         await this.permisos.assertPermiso(actor, permiso, opts);
     }
+    async exigirCorreccionAutoservicioMesero(actor, idPedido) {
+        if (!actor || actor.rol.nombre !== 'autoservicio')
+            return;
+        const row = await this.prisma.pedido.findUnique({
+            where: { idPedido },
+            select: {
+                idUsuario: true,
+                origenAutoservicio: true,
+                detalles: {
+                    where: { enviadoCocina: true },
+                    select: { idDetalle: true },
+                    take: 1,
+                },
+            },
+        });
+        if (!row?.origenAutoservicio)
+            return;
+        if (row.idUsuario !== actor.idUsuario) {
+            throw new common_1.ForbiddenException('No puedes modificar este pedido');
+        }
+        if (row.detalles.length === 0)
+            return;
+        throw new common_1.ForbiddenException('El pedido ya fue enviado a caja. Un mesero o administrador puede ayudarte.');
+    }
+    assertPedidoPropioAutoservicio(actor, pedido) {
+        if (!actor || actor.rol.nombre !== 'autoservicio')
+            return;
+        if (pedido.idUsuario !== actor.idUsuario) {
+            throw new common_1.ForbiddenException('No puedes modificar este pedido');
+        }
+    }
+    async marcarCocinaAutoservicioTrasCobroEnTx(tx, params) {
+        if (!params.origenAutoservicio)
+            return null;
+        const dets = await tx.detallePedido.findMany({
+            where: { idPedido: params.idPedido },
+            include: detalleInclude,
+            orderBy: { idDetalle: 'asc' },
+        });
+        const pendientes = dets.filter((d) => productoDebePasarCocina(d.producto) && !d.enviadoCocina);
+        if (pendientes.length === 0)
+            return null;
+        const esAdicional = dets.some((d) => productoDebePasarCocina(d.producto) && d.enviadoCocina);
+        const emitidaEn = new Date();
+        const idsDetalle = pendientes.map((d) => d.idDetalle);
+        await tx.detallePedido.updateMany({
+            where: { idDetalle: { in: idsDetalle } },
+            data: { enviadoCocina: true, enviadoCocinaEn: emitidaEn },
+        });
+        const invCfg = await this.inventarioDeduccion.obtenerConfig(params.idRestaurante);
+        await this.inventarioDeduccion.aplicarEventoLineasEnTx(tx, {
+            tenantId: params.idRestaurante,
+            evento: invCfg.evento_deduccion_receta,
+            idPedido: params.idPedido,
+            lineas: pendientes.map((d) => ({
+                id_detalle_pedido: d.idDetalle,
+                id_producto: d.idProducto,
+                cantidad: d.cantidad,
+                nombre_producto: d.producto.nombre,
+            })),
+            idUsuario: params.idUsuario,
+        });
+        return { idsDetalle, esAdicional, emitidaEn };
+    }
+    async cerrarOEnviarCocinaAutoservicioEnTx(tx, params) {
+        const cocina = await this.marcarCocinaAutoservicioTrasCobroEnTx(tx, params);
+        if (params.origenAutoservicio && cocina) {
+            await tx.pedido.update({
+                where: { idPedido: params.idPedido },
+                data: { estado: 'en_cocina', cerradoEn: null },
+            });
+            return cocina;
+        }
+        await tx.pedido.update({
+            where: { idPedido: params.idPedido },
+            data: {
+                estado: 'facturado',
+                cerradoEn: new Date(),
+            },
+        });
+        const abiertosRest = await tx.pedido.count({
+            where: { idMesa: params.idMesa, estado: { in: ABIERTOS } },
+        });
+        if (abiertosRest === 0) {
+            await this.liberarMesasAnexasDePedidoTx(tx, params.idPedido);
+            await tx.mesa.update({
+                where: { idMesa: params.idMesa },
+                data: { estado: 'libre' },
+            });
+        }
+        return null;
+    }
+    async cerrarAutoservicioSiCocinaLista(idPedido) {
+        const p = await this.prisma.pedido.findUnique({
+            where: { idPedido },
+            include: {
+                detalles: {
+                    include: { producto: { include: { categoria: true } } },
+                },
+            },
+        });
+        if (!p?.origenAutoservicio || p.estado !== 'en_cocina')
+            return;
+        const cocinaPendiente = p.detalles.some((d) => productoDebePasarCocina(d.producto) &&
+            d.enviadoCocina &&
+            !d.listoCocina);
+        if (cocinaPendiente)
+            return;
+        const cobroPendiente = p.detalles.some((d) => d.idFactura == null);
+        if (cobroPendiente)
+            return;
+        await this.prisma.$transaction(async (tx) => {
+            await tx.pedido.update({
+                where: { idPedido },
+                data: { estado: 'facturado', cerradoEn: new Date() },
+            });
+            const abiertosRest = await tx.pedido.count({
+                where: { idMesa: p.idMesa, estado: { in: ABIERTOS } },
+            });
+            if (abiertosRest === 0) {
+                await this.liberarMesasAnexasDePedidoTx(tx, idPedido);
+                await tx.mesa.update({
+                    where: { idMesa: p.idMesa },
+                    data: { estado: 'libre' },
+                });
+            }
+        });
+        this.emit(idPedido, p.idMesa, p.idUsuario, p.idRestaurante);
+    }
+    async imprimirComandaAutoservicioTrasCobro(idPedido, cocina) {
+        const pedido = await this.prisma.pedido.findUnique({
+            where: { idPedido },
+            include: {
+                mesa: true,
+                usuario: true,
+                detalles: {
+                    include: detalleInclude,
+                    orderBy: { idDetalle: 'asc' },
+                },
+            },
+        });
+        if (!pedido)
+            return null;
+        const lineas = pedido.detalles.filter((d) => cocina.idsDetalle.includes(d.idDetalle));
+        if (lineas.length === 0)
+            return null;
+        const comanda = this.construirTicketComanda(pedido, lineas, {
+            esAdicional: cocina.esAdicional,
+            emitidaEn: cocina.emitidaEn,
+        });
+        return this.encolarImpresionComanda(comanda, idPedido);
+    }
     emit(pedidoId, mesaId, idUsuario, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
         this.gateway.emitPedidoActualizado(pedidoId, mesaId, idUsuario, tenantId);
     }
@@ -2572,10 +2724,32 @@ let PedidosService = class PedidosService {
         }
         return this.imprimirFacturaPorId(ultima.idFactura);
     }
-    async crear(dto, idUsuario, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
+    async crear(dto, idUsuario, tenantId = tenant_constants_1.DEFAULT_TENANT_ID, actor) {
         const mesa = await (0, tenant_scope_1.assertMesaDelTenant)(this.prisma, dto.id_mesa, tenantId);
         if (!(0, mesa_dia_1.mesaDisponibleHoyBogota)(mesa)) {
             throw new common_1.ConflictException('Esta mesa no está disponible hoy');
+        }
+        const origenAutoservicio = actor?.rol.nombre === 'autoservicio'
+            ? true
+            : Boolean(dto.origen_autoservicio);
+        if (actor?.rol.nombre === 'autoservicio' && !origenAutoservicio) {
+            throw new common_1.BadRequestException('Pedido de autoservicio inválido');
+        }
+        if (actor?.rol.nombre === 'autoservicio') {
+            const activo = await this.prisma.pedido.findFirst({
+                where: {
+                    idRestaurante: tenantId,
+                    idUsuario,
+                    origenAutoservicio: true,
+                    listoParaCobroAutoservicio: false,
+                    estado: { in: ABIERTOS },
+                },
+                orderBy: { creadoEn: 'desc' },
+                select: { idPedido: true, idMesa: true },
+            });
+            if (activo) {
+                throw new common_1.ConflictException(`Ya tienes un pedido en curso (#${activo.idPedido}). Continúalo o envíalo a caja antes de abrir otro.`);
+            }
         }
         const [virtual, opRow, op] = await Promise.all([
             this.esMesaVirtualNumero(mesa.numero, tenantId),
@@ -2612,6 +2786,7 @@ let PedidosService = class PedidosService {
                     numComensales: dto.num_comensales,
                     estado: 'abierto',
                     modoServicio,
+                    origenAutoservicio,
                 },
             });
             if (!virtual) {
@@ -2682,6 +2857,93 @@ let PedidosService = class PedidosService {
         const serializados = rows.map((p) => (0, pedidos_vista_operativa_1.serializarPedidoVistaOperativa)(p, this.prioridadOptsFromOperativa(op)));
         const todos = (0, cocina_vista_1.ordenarPedidosCocinaPorLlegada)(serializados);
         return { pedidos: todos };
+    }
+    async pedidoAutoservicioActivo(actor) {
+        if (actor.rol.nombre !== 'autoservicio') {
+            return { pedido: null };
+        }
+        const tenantId = actor.idRestaurante ?? tenant_constants_1.DEFAULT_TENANT_ID;
+        const row = await this.prisma.pedido.findFirst({
+            where: {
+                idRestaurante: tenantId,
+                idUsuario: actor.idUsuario,
+                origenAutoservicio: true,
+                listoParaCobroAutoservicio: false,
+                estado: { in: ABIERTOS },
+            },
+            orderBy: { creadoEn: 'desc' },
+            select: {
+                idPedido: true,
+                idMesa: true,
+                estado: true,
+                modoServicio: true,
+                mesa: { select: { numero: true } },
+            },
+        });
+        if (!row)
+            return { pedido: null };
+        return {
+            pedido: {
+                id_pedido: row.idPedido,
+                id_mesa: row.idMesa,
+                mesa_numero: row.mesa.numero,
+                estado: row.estado,
+                modo_servicio: row.modoServicio,
+            },
+        };
+    }
+    async limpiarPedidosAutoservicioAbandonados(idUsuario, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
+        const rows = await this.prisma.pedido.findMany({
+            where: {
+                idRestaurante: tenantId,
+                idUsuario,
+                origenAutoservicio: true,
+                listoParaCobroAutoservicio: false,
+                estado: { in: ABIERTOS },
+            },
+            select: { idPedido: true },
+        });
+        for (const row of rows) {
+            try {
+                await this.cancelar(row.idPedido, {
+                    idUsuario,
+                    rol: { nombre: 'autoservicio' },
+                });
+            }
+            catch {
+            }
+        }
+        return { cancelados: rows.length };
+    }
+    async marcarListoParaCobroAutoservicio(idPedido, actor) {
+        if (actor.rol.nombre !== 'autoservicio') {
+            throw new common_1.ForbiddenException('Solo la sesión de autoservicio puede marcar listo para caja');
+        }
+        const pedido = await this.prisma.pedido.findUnique({
+            where: { idPedido },
+            include: { detalles: { select: { idDetalle: true }, take: 1 } },
+        });
+        if (!pedido)
+            throw new common_1.NotFoundException('Pedido no encontrado');
+        this.assertPedidoPropioAutoservicio(actor, pedido);
+        if (!pedido.origenAutoservicio) {
+            throw new common_1.BadRequestException('No es un pedido de autoservicio');
+        }
+        if (!ABIERTOS.includes(pedido.estado)) {
+            throw new common_1.ConflictException('El pedido ya no admite envío a caja');
+        }
+        if (pedido.listoParaCobroAutoservicio) {
+            return { ok: true, id_pedido: idPedido, ya_listo: true };
+        }
+        if (pedido.detalles.length === 0) {
+            throw new common_1.BadRequestException('Agrega al menos un producto antes de enviar a caja');
+        }
+        await this.prisma.pedido.update({
+            where: { idPedido },
+            data: { listoParaCobroAutoservicio: true },
+        });
+        this.emit(idPedido, pedido.idMesa, pedido.idUsuario, pedido.idRestaurante);
+        return { ok: true, id_pedido: idPedido, ya_listo: false };
     }
     async listarMisActivos(actor) {
         const tenantId = actor.idRestaurante ?? tenant_constants_1.DEFAULT_TENANT_ID;
@@ -3018,6 +3280,9 @@ let PedidosService = class PedidosService {
             });
         }
         this.emit(det.pedido.idPedido, det.pedido.idMesa, det.pedido.idUsuario, det.pedido.idRestaurante);
+        if (dto.listo_cocina) {
+            await this.cerrarAutoservicioSiCocinaLista(det.pedido.idPedido);
+        }
         return {
             id_detalle: idDetalle,
             id_pedido: det.pedido.idPedido,
@@ -3547,10 +3812,11 @@ let PedidosService = class PedidosService {
         this.emit(idPedido, pedido.idMesa, pedido.idUsuario, pedido.idRestaurante);
         return this.obtenerPorIdTrasEscritura(idPedido);
     }
-    async actualizarComensalesPedido(idPedido, dto) {
+    async actualizarComensalesPedido(idPedido, dto, actor) {
         if (dto.num_comensales == null) {
             throw new common_1.BadRequestException('Indica num_comensales');
         }
+        await this.exigirCorreccionAutoservicioMesero(actor, idPedido);
         const pedido = await this.prisma.pedido.findUnique({
             where: { idPedido },
             include: { mesa: { select: { numero: true } } },
@@ -3582,6 +3848,7 @@ let PedidosService = class PedidosService {
     }
     async agregarDetalle(idPedido, dto, actor) {
         await this.exigirPermisoMesero(actor, 'agregar_items');
+        await this.exigirCorreccionAutoservicioMesero(actor, idPedido);
         const idUsuario = actor.idUsuario;
         const pedido = await this.prisma.pedido.findUnique({
             where: { idPedido },
@@ -3589,6 +3856,7 @@ let PedidosService = class PedidosService {
         if (!pedido) {
             throw new common_1.NotFoundException('Pedido no encontrado');
         }
+        this.assertPedidoPropioAutoservicio(actor, pedido);
         if (!ABIERTOS.includes(pedido.estado)) {
             throw new common_1.ConflictException('El pedido no admite más ítems');
         }
@@ -4044,6 +4312,7 @@ let PedidosService = class PedidosService {
             ? 'editar_cantidades'
             : 'quitar_lineas';
         await this.exigirPermisoMesero(actor, permisoQuitar);
+        await this.exigirCorreccionAutoservicioMesero(actor, det.pedido.idPedido);
         if (!ABIERTOS.includes(det.pedido.estado)) {
             throw new common_1.ConflictException('El pedido no admite cambios en las líneas');
         }
@@ -4150,6 +4419,7 @@ let PedidosService = class PedidosService {
         if (!det) {
             throw new common_1.NotFoundException('Línea no encontrada');
         }
+        await this.exigirCorreccionAutoservicioMesero(actor, det.pedido.idPedido);
         if (!ABIERTOS.includes(det.pedido.estado)) {
             throw new common_1.ConflictException('El pedido no admite cambios en las líneas');
         }
@@ -4278,6 +4548,7 @@ let PedidosService = class PedidosService {
         if (!det) {
             throw new common_1.NotFoundException('Línea no encontrada');
         }
+        await this.exigirCorreccionAutoservicioMesero(actor, det.pedido.idPedido);
         if (!ABIERTOS.includes(det.pedido.estado)) {
             throw new common_1.ConflictException('El pedido no admite cambios en las líneas');
         }
@@ -4570,6 +4841,7 @@ let PedidosService = class PedidosService {
         if (!det) {
             throw new common_1.NotFoundException('Detalle no encontrado');
         }
+        await this.exigirCorreccionAutoservicioMesero(actor, det.pedido.idPedido);
         const op = await this.ctxOperativa(det.pedido.idRestaurante);
         let creado = false;
         await this.prisma.$transaction(async (tx) => {
@@ -4585,6 +4857,7 @@ let PedidosService = class PedidosService {
     }
     async sincronizarEmpaquesParaLlevar(idPedido, actor) {
         await this.exigirPermisoMesero(actor, 'editar_cantidades');
+        await this.exigirCorreccionAutoservicioMesero(actor, idPedido);
         const idUsuario = actor?.idUsuario ?? 0;
         const pedido = await this.prisma.pedido.findUnique({
             where: { idPedido },
@@ -4742,11 +5015,15 @@ let PedidosService = class PedidosService {
         if (!pedido) {
             throw new common_1.NotFoundException('Pedido no encontrado');
         }
+        this.assertPedidoPropioAutoservicio(actor, pedido);
         if (pedido.estado === 'facturado') {
             throw new common_1.ConflictException('El pedido ya fue facturado');
         }
         if (!ABIERTOS.includes(pedido.estado)) {
             throw new common_1.ConflictException('El pedido no admite envío a cocina');
+        }
+        if (pedido.origenAutoservicio) {
+            throw new common_1.BadRequestException('En autoservicio la comanda se envía automáticamente al cobrar el pedido completo.');
         }
         if (pedido.detalles.length === 0) {
             throw new common_1.BadRequestException('Agrega ítems al pedido antes de enviar a cocina');
@@ -6049,6 +6326,7 @@ let PedidosService = class PedidosService {
             ? pedidoParaCobro.detalles.some((d) => d.idFactura == null && (0, saldo_restante_1.esNotaSaldoRestantePendiente)(d.notaCocina))
             : (0, cobro_parcial_1.quedaPendienteTrasCobro)(detallesSerial, solicitudes);
         let idFacturaCreada = 0;
+        let cocinaAutoservicioTrasCobro = null;
         if (dto.cobro_mixto_grupo != null &&
             (dto.cobro_mixto_grupo < 1 || dto.cobro_mixto_grupo > 2_147_483_647)) {
             throw new common_1.BadRequestException('cobro_mixto_grupo inválido. Recarga la app (F5 en el navegador) e intenta de nuevo.');
@@ -6185,23 +6463,14 @@ let PedidosService = class PedidosService {
                     data: { esParcial },
                 });
                 if (!esParcial) {
-                    await tx.pedido.update({
-                        where: { idPedido },
-                        data: {
-                            estado: 'facturado',
-                            cerradoEn: new Date(),
-                        },
-                    });
-                    const abiertosRest = await tx.pedido.count({
-                        where: { idMesa: pedidoTx.idMesa, estado: { in: ABIERTOS } },
-                    });
-                    if (abiertosRest === 0) {
-                        await this.liberarMesasAnexasDePedidoTx(tx, idPedido);
-                        await tx.mesa.update({
-                            where: { idMesa: pedidoTx.idMesa },
-                            data: { estado: 'libre' },
+                    cocinaAutoservicioTrasCobro =
+                        await this.cerrarOEnviarCocinaAutoservicioEnTx(tx, {
+                            idPedido,
+                            idMesa: pedidoTx.idMesa,
+                            idRestaurante: pedido.idRestaurante,
+                            origenAutoservicio: Boolean(pedido.origenAutoservicio),
+                            idUsuario,
                         });
-                    }
                 }
             });
         }
@@ -6220,6 +6489,11 @@ let PedidosService = class PedidosService {
         const conCopia = imprimir && dto.factura_con_copia === true;
         if (abrirCajon) {
             this.encolarAperturaCajonSiAplica(true, idPedido);
+        }
+        let impresionComandaAutoservicio = null;
+        if (cocinaAutoservicioTrasCobro) {
+            impresionComandaAutoservicio =
+                await this.imprimirComandaAutoservicioTrasCobro(idPedido, cocinaAutoservicioTrasCobro);
         }
         const completo = await this.obtenerPorIdTrasEscritura(idPedido);
         let impresionFactura = { impreso: false, omitido: true };
@@ -6244,6 +6518,9 @@ let PedidosService = class PedidosService {
             cobro_completo: !esParcial,
             impresion_factura: impresionFactura,
             factura_con_copia: conCopia,
+            ...(impresionComandaAutoservicio
+                ? { impresion_comanda: impresionComandaAutoservicio }
+                : {}),
         };
     }
     async facturarMixto(idPedido, dto, actor) {
@@ -6428,6 +6705,7 @@ let PedidosService = class PedidosService {
             ? pedidoParaCobro.detalles.some((d) => d.idFactura == null && (0, saldo_restante_1.esNotaSaldoRestantePendiente)(d.notaCocina))
             : (0, cobro_parcial_1.quedaPendienteTrasCobro)(detallesSerial, solicitudes);
         const idsFacturas = [];
+        let cocinaAutoservicioTrasCobro = null;
         const crearEnTx = async (tx, sol, metodo, grupo, importesForzados, montoRedondeoLeg = 0) => {
             const factura = await tx.factura.create({
                 data: {
@@ -6619,23 +6897,14 @@ let PedidosService = class PedidosService {
                     });
                 }
                 if (!esParcial) {
-                    await tx.pedido.update({
-                        where: { idPedido },
-                        data: {
-                            estado: 'facturado',
-                            cerradoEn: new Date(),
-                        },
-                    });
-                    const abiertosRest = await tx.pedido.count({
-                        where: { idMesa: pedidoEnTx.idMesa, estado: { in: ABIERTOS } },
-                    });
-                    if (abiertosRest === 0) {
-                        await this.liberarMesasAnexasDePedidoTx(tx, idPedido);
-                        await tx.mesa.update({
-                            where: { idMesa: pedidoEnTx.idMesa },
-                            data: { estado: 'libre' },
+                    cocinaAutoservicioTrasCobro =
+                        await this.cerrarOEnviarCocinaAutoservicioEnTx(tx, {
+                            idPedido,
+                            idMesa: pedidoEnTx.idMesa,
+                            idRestaurante: pedido.idRestaurante,
+                            origenAutoservicio: Boolean(pedido.origenAutoservicio),
+                            idUsuario,
                         });
-                    }
                 }
             });
         }
@@ -6658,6 +6927,11 @@ let PedidosService = class PedidosService {
         if (abrirCajon) {
             this.encolarAperturaCajonSiAplica(true, idPedido);
         }
+        let impresionComandaAutoservicio = null;
+        if (cocinaAutoservicioTrasCobro) {
+            impresionComandaAutoservicio =
+                await this.imprimirComandaAutoservicioTrasCobro(idPedido, cocinaAutoservicioTrasCobro);
+        }
         const completo = await this.obtenerPorIdTrasEscritura(idPedido);
         let impresionFactura = { impreso: false, omitido: true };
         if (imprimir) {
@@ -6676,6 +6950,9 @@ let PedidosService = class PedidosService {
             impresion_factura: impresionFactura,
             factura_con_copia: conCopia,
             cobro_mixto_grupo: cobroMixtoGrupo,
+            ...(impresionComandaAutoservicio
+                ? { impresion_comanda: impresionComandaAutoservicio }
+                : {}),
         };
     }
     calcularImportesFactura(pedido, solicitudes, config) {
@@ -7131,6 +7408,7 @@ let PedidosService = class PedidosService {
     }
     async cancelar(idPedido, actor) {
         await this.exigirPermisoMesero(actor, 'cancelar_pedido');
+        await this.exigirCorreccionAutoservicioMesero(actor, idPedido);
         const pedido = await this.prisma.pedido.findUnique({
             where: { idPedido },
             include: { facturas: facturasInclude },
@@ -7176,6 +7454,7 @@ let PedidosService = class PedidosService {
     }
     async agruparMesa(idPedido, dto, actor) {
         await this.exigirPermisoMesero(actor, 'agrupar_mesas');
+        await this.exigirCorreccionAutoservicioMesero(actor, idPedido);
         const pedido = await this.prisma.pedido.findUnique({
             where: { idPedido },
             include: {
@@ -7249,6 +7528,7 @@ let PedidosService = class PedidosService {
     }
     async desagruparMesa(idPedido, dto, actor) {
         await this.exigirPermisoMesero(actor, 'agrupar_mesas');
+        await this.exigirCorreccionAutoservicioMesero(actor, idPedido);
         const pedido = await this.prisma.pedido.findUnique({
             where: { idPedido },
             include: {
@@ -7306,6 +7586,7 @@ let PedidosService = class PedidosService {
     }
     async transferir(idPedido, dto, actor) {
         await this.exigirPermisoMesero(actor, 'transferir_mesa');
+        await this.exigirCorreccionAutoservicioMesero(actor, idPedido);
         const mesaNumero = dto.mesa_numero_nuevo;
         const idMesaFromDto = dto.id_mesa_nueva;
         if (mesaNumero == null && idMesaFromDto == null) {
@@ -7661,6 +7942,8 @@ let PedidosService = class PedidosService {
             prioridad_cocina_auto: prioridadAuto,
             prioridad_cocina_override: override === null ? null : override,
             cliente_mulero: p.clienteMulero,
+            origen_autoservicio: Boolean(p.origenAutoservicio),
+            listo_para_cobro_autoservicio: Boolean(p.listoParaCobroAutoservicio),
             etiquetas_promocion: this.etiquetasPromocionPedido(p),
             mesero: {
                 id: p.usuario.idUsuario,

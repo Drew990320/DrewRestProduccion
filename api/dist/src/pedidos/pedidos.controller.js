@@ -66,7 +66,7 @@ let PedidosController = class PedidosController {
         return this.pedidos.pruebaImpresora();
     }
     crear(dto, req) {
-        return this.pedidos.crear(dto, req.user.idUsuario, req.user.idRestaurante);
+        return this.pedidos.crear(dto, req.user.idUsuario, req.user.idRestaurante, req.user);
     }
     activosPorMesa(mesaId, req) {
         return this.pedidos.pedidosActivosPorMesa(mesaId, req.user.idRestaurante);
@@ -76,6 +76,12 @@ let PedidosController = class PedidosController {
     }
     listarCocina(req) {
         return this.pedidos.listarCocina(req.user);
+    }
+    autoservicioActivo(req) {
+        return this.pedidos.pedidoAutoservicioActivo(req.user);
+    }
+    enviarCajaAutoservicio(id, req) {
+        return this.pedidos.marcarListoParaCobroAutoservicio(id, req.user);
     }
     listarMisActivosResumen(req) {
         return this.pedidos.listarMisActivosResumen(req.user);
@@ -168,8 +174,8 @@ let PedidosController = class PedidosController {
     setEtiquetasPromocion(id, dto) {
         return this.pedidos.setEtiquetasPromocion(id, dto);
     }
-    actualizarComensales(id, dto) {
-        return this.pedidos.actualizarComensalesPedido(id, dto);
+    actualizarComensales(id, dto, req) {
+        return this.pedidos.actualizarComensalesPedido(id, dto, req.user);
     }
     marcarDetalleCocina(idDetalle, dto) {
         return this.pedidos.marcarDetalleRecogido(idDetalle, dto);
@@ -295,7 +301,7 @@ __decorate([
 __decorate([
     (0, common_1.Post)(),
     (0, common_1.UseGuards)(pedido_tenant_guard_1.PedidoTenantGuard, roles_guard_1.RolesGuard),
-    (0, roles_decorator_1.Roles)('admin', 'mesero'),
+    (0, roles_decorator_1.Roles)('admin', 'mesero', 'autoservicio'),
     __param(0, (0, common_1.Body)()),
     __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
@@ -330,6 +336,26 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], PedidosController.prototype, "listarCocina", null);
+__decorate([
+    (0, throttler_1.SkipThrottle)(),
+    (0, common_1.Get)('autoservicio/activo'),
+    (0, common_1.UseGuards)(pedido_tenant_guard_1.PedidoTenantGuard, roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)('autoservicio'),
+    __param(0, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], PedidosController.prototype, "autoservicioActivo", null);
+__decorate([
+    (0, common_1.Post)(':id/enviar-caja-autoservicio'),
+    (0, common_1.UseGuards)(pedido_tenant_guard_1.PedidoTenantGuard, roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)('autoservicio'),
+    __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
+    __param(1, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number, Object]),
+    __metadata("design:returntype", void 0)
+], PedidosController.prototype, "enviarCajaAutoservicio", null);
 __decorate([
     (0, throttler_1.SkipThrottle)(),
     (0, common_1.Get)('mis-activos/resumen'),
@@ -589,8 +615,9 @@ __decorate([
     (0, roles_decorator_1.Roles)('admin', 'mesero'),
     __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
     __param(1, (0, common_1.Body)()),
+    __param(2, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Number, patch_mazorcas_pedido_dto_1.PatchMazorcasPedidoDto]),
+    __metadata("design:paramtypes", [Number, patch_mazorcas_pedido_dto_1.PatchMazorcasPedidoDto, Object]),
     __metadata("design:returntype", void 0)
 ], PedidosController.prototype, "actualizarComensales", null);
 __decorate([
@@ -636,7 +663,7 @@ __decorate([
 __decorate([
     (0, common_1.Patch)('detalles/:idDetalle/cantidad'),
     (0, common_1.UseGuards)(detalle_tenant_guard_1.DetalleTenantGuard, roles_guard_1.RolesGuard),
-    (0, roles_decorator_1.Roles)('admin', 'mesero'),
+    (0, roles_decorator_1.Roles)('admin', 'mesero', 'autoservicio'),
     __param(0, (0, common_1.Param)('idDetalle', common_1.ParseIntPipe)),
     __param(1, (0, common_1.Body)()),
     __param(2, (0, common_1.Req)()),
@@ -669,7 +696,7 @@ __decorate([
 __decorate([
     (0, common_1.Delete)('detalles/:idDetalle'),
     (0, common_1.UseGuards)(detalle_tenant_guard_1.DetalleTenantGuard, roles_guard_1.RolesGuard),
-    (0, roles_decorator_1.Roles)('admin', 'mesero'),
+    (0, roles_decorator_1.Roles)('admin', 'mesero', 'autoservicio'),
     __param(0, (0, common_1.Param)('idDetalle', common_1.ParseIntPipe)),
     __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
@@ -718,7 +745,7 @@ __decorate([
 __decorate([
     (0, common_1.Post)(':id/detalles'),
     (0, common_1.UseGuards)(pedido_tenant_guard_1.PedidoTenantGuard, roles_guard_1.RolesGuard),
-    (0, roles_decorator_1.Roles)('admin', 'mesero'),
+    (0, roles_decorator_1.Roles)('admin', 'mesero', 'autoservicio'),
     __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
     __param(1, (0, common_1.Body)()),
     __param(2, (0, common_1.Req)()),
@@ -729,7 +756,7 @@ __decorate([
 __decorate([
     (0, common_1.Post)(':id/pasar-cocina'),
     (0, common_1.UseGuards)(pedido_tenant_guard_1.PedidoTenantGuard, roles_guard_1.RolesGuard),
-    (0, roles_decorator_1.Roles)('admin', 'mesero'),
+    (0, roles_decorator_1.Roles)('admin', 'mesero', 'autoservicio'),
     __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
     __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
@@ -834,7 +861,7 @@ __decorate([
 __decorate([
     (0, common_1.Post)(':id/cancelar'),
     (0, common_1.UseGuards)(pedido_tenant_guard_1.PedidoTenantGuard, roles_guard_1.RolesGuard),
-    (0, roles_decorator_1.Roles)('admin', 'mesero'),
+    (0, roles_decorator_1.Roles)('admin', 'mesero', 'autoservicio'),
     __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
     __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),

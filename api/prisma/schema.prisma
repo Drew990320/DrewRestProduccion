@@ -566,6 +566,10 @@ model Pedido {
   prioridadCocinaOverride    PrioridadCocina?  @map("prioridad_cocina_override")
   /// Cliente camionero (mulero): aplica descuento por plato principal si la regla global está activa.
   clienteMulero                Boolean           @default(false) @map("cliente_mulero")
+  /// Pedido armado en flujo de autoservicio (login cliente).
+  origenAutoservicio           Boolean           @default(false) @map("origen_autoservicio")
+  /// Cliente ya pulsó «Enviar a caja»; queda pendiente de cobro (no bloquea nueva sesión).
+  listoParaCobroAutoservicio   Boolean           @default(false) @map("listo_para_cobro_autoservicio")
   /// Etiquetas de promoción activas en el pedido (ids del catálogo en config_descuento).
   etiquetasPromocion           Json              @default("[]") @map("etiquetas_promocion")
   mesa                       Mesa              @relation(fields: [idMesa], references: [idMesa])
@@ -847,6 +851,14 @@ model ConfigRestaurante {
   moduloRetailActivo         Boolean  @default(false) @map("modulo_retail_activo")
   /// Redondeo hacia arriba en cobro. Solo superadmin lo activa; admin configura paso/umbral.
   moduloRedondeoCobroActivo  Boolean  @default(false) @map("modulo_redondeo_cobro_activo")
+  /// Login con PIN compartido (pantallas de equipo). Solo superadmin lo activa.
+  moduloLoginPinActivo       Boolean  @default(false) @map("modulo_login_pin_activo")
+  /// Autoservicio desde el login (cliente arma pedido sin sesión de mesero). Solo superadmin.
+  moduloAutoservicioActivo   Boolean  @default(false) @map("modulo_autoservicio_activo")
+  /// Admin: usar PIN en login de pantallas compartidas (requiere módulo + hash).
+  loginPinCompartidoActivo   Boolean  @default(false) @map("login_pin_compartido_activo")
+  /// bcrypt del PIN de 4 dígitos; nunca se expone.
+  loginPinHash               String?  @map("login_pin_hash") @db.VarChar(255)
   actualizadoEn              DateTime @updatedAt @map("actualizado_en")
   restaurante                Restaurante @relation(fields: [idRestaurante], references: [idRestaurante])
 

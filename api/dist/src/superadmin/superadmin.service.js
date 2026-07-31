@@ -41,6 +41,7 @@ var __importStar = (this && this.__importStar) || (function () {
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
+var SuperadminService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SuperadminService = void 0;
 const common_1 = require("@nestjs/common");
@@ -70,6 +71,7 @@ function assertHttpUrlOrEmpty(label, raw) {
     }
 }
 let SuperadminService = class SuperadminService {
+    static { SuperadminService_1 = this; }
     prisma;
     gateway;
     constructor(prisma, gateway) {
@@ -131,6 +133,8 @@ let SuperadminService = class SuperadminService {
                 select: {
                     moduloRetailActivo: true,
                     moduloRedondeoCobroActivo: true,
+                    moduloLoginPinActivo: true,
+                    moduloAutoservicioActivo: true,
                 },
             }),
         ]);
@@ -146,6 +150,8 @@ let SuperadminService = class SuperadminService {
             modulos: {
                 modulo_retail_activo: cfg?.moduloRetailActivo ?? false,
                 modulo_redondeo_cobro_activo: cfg?.moduloRedondeoCobroActivo ?? false,
+                modulo_login_pin_activo: cfg?.moduloLoginPinActivo ?? false,
+                modulo_autoservicio_activo: cfg?.moduloAutoservicioActivo ?? false,
             },
             admin_registrado: adminCount > 0,
             totales: {
@@ -191,23 +197,66 @@ let SuperadminService = class SuperadminService {
         });
         return this.obtenerDistribucionEnlaces();
     }
-    async crearUsuario(tenantId, dto) {
-        const rolNombre = dto.rol;
-        const rol = await this.prisma.rol.findFirst({ where: { nombre: rolNombre } });
-        if (!rol) {
-            throw new common_1.NotFoundException(`Rol ${rolNombre} no configurado`);
+    static ROLES_EQUIPO = [roles_1.ROL_ADMIN, roles_1.ROL_CHEF, roles_1.ROL_MESERO];
+    async listarUsuarios(tenantId) {
+        const rows = await this.prisma.usuario.findMany({
+            where: {
+                idRestaurante: tenantId,
+                activo: true,
+                rol: { nombre: { in: [...SuperadminService_1.ROLES_EQUIPO] } },
+            },
+            include: { rol: true },
+            orderBy: [{ rol: { nombre: 'asc' } }, { nombre: 'asc' }],
+        });
+        return rows.map((u) => ({
+            id: u.idUsuario,
+            nombre: u.nombre,
+            apellido: u.apellido,
+            email: u.email,
+            rol: u.rol.nombre,
+            activo: u.activo,
+        }));
+    }
+    async eliminarUsuario(tenantId, idUsuario) {
+        const u = await this.prisma.usuario.findFirst({
+            where: { idUsuario, idRestaurante: tenantId },
+            include: { rol: true },
+        });
+        if (!u || !u.activo) {
+            throw new common_1.NotFoundException('Usuario no encontrado');
         }
-        if (rolNombre === roles_1.ROL_ADMIN) {
-            const existentes = await this.prisma.usuario.count({
+        if (u.rol.nombre === roles_1.ROL_SUPERADMIN) {
+            throw new common_1.BadRequestException('No se puede eliminar la cuenta superadmin');
+        }
+        if (!SuperadminService_1.ROLES_EQUIPO.includes(u.rol.nombre)) {
+            throw new common_1.BadRequestException('Rol no gestionable desde superadmin');
+        }
+        if (u.rol.nombre === roles_1.ROL_ADMIN) {
+            const adminCount = await this.prisma.usuario.count({
                 where: {
                     idRestaurante: tenantId,
                     rol: { nombre: roles_1.ROL_ADMIN },
                     activo: true,
                 },
             });
-            if (existentes > 0) {
-                throw new common_1.ConflictException('Ya hay un administrador activo. Elimínalo primero si quieres crear otro.');
+            if (adminCount <= 1) {
+                throw new common_1.BadRequestException('Debe quedar al menos un administrador activo');
             }
+        }
+        const modo = await this.quitarCuentaEquipo(u.idUsuario, tenantId);
+        return {
+            ok: true,
+            id: idUsuario,
+            modo,
+            eliminados: modo === 'deleted' ? 1 : 0,
+            desactivados: modo === 'deactivated' ? 1 : 0,
+        };
+    }
+    async crearUsuario(tenantId, dto) {
+        const rolNombre = dto.rol;
+        const rol = await this.prisma.rol.findFirst({ where: { nombre: rolNombre } });
+        if (!rol) {
+            throw new common_1.NotFoundException(`Rol ${rolNombre} no configurado`);
         }
         const nombre = dto.nombre.trim();
         const apellido = (dto.apellido ?? '').trim();
@@ -336,7 +385,9 @@ let SuperadminService = class SuperadminService {
     }
     async patchModulos(tenantId, dto) {
         if (dto.modulo_retail_activo === undefined &&
-            dto.modulo_redondeo_cobro_activo === undefined) {
+            dto.modulo_redondeo_cobro_activo === undefined &&
+            dto.modulo_login_pin_activo === undefined &&
+            dto.modulo_autoservicio_activo === undefined) {
             throw new common_1.BadRequestException('Nada que actualizar');
         }
         await this.prisma.restaurante.upsert({
@@ -358,6 +409,12 @@ let SuperadminService = class SuperadminService {
                 ...(dto.modulo_redondeo_cobro_activo !== undefined
                     ? { moduloRedondeoCobroActivo: dto.modulo_redondeo_cobro_activo }
                     : {}),
+                ...(dto.modulo_login_pin_activo !== undefined
+                    ? { moduloLoginPinActivo: dto.modulo_login_pin_activo }
+                    : {}),
+                ...(dto.modulo_autoservicio_activo !== undefined
+                    ? { moduloAutoservicioActivo: dto.modulo_autoservicio_activo }
+                    : {}),
             },
             update: {
                 ...(dto.modulo_retail_activo !== undefined
@@ -365,6 +422,12 @@ let SuperadminService = class SuperadminService {
                     : {}),
                 ...(dto.modulo_redondeo_cobro_activo !== undefined
                     ? { moduloRedondeoCobroActivo: dto.modulo_redondeo_cobro_activo }
+                    : {}),
+                ...(dto.modulo_login_pin_activo !== undefined
+                    ? { moduloLoginPinActivo: dto.modulo_login_pin_activo }
+                    : {}),
+                ...(dto.modulo_autoservicio_activo !== undefined
+                    ? { moduloAutoservicioActivo: dto.modulo_autoservicio_activo }
                     : {}),
             },
         });
@@ -376,6 +439,8 @@ let SuperadminService = class SuperadminService {
             ok: true,
             modulo_retail_activo: row.moduloRetailActivo,
             modulo_redondeo_cobro_activo: row.moduloRedondeoCobroActivo,
+            modulo_login_pin_activo: row.moduloLoginPinActivo,
+            modulo_autoservicio_activo: row.moduloAutoservicioActivo,
         };
     }
     async asegurarMesaBoutique(tenantId) {
@@ -420,7 +485,7 @@ let SuperadminService = class SuperadminService {
         let eliminados = 0;
         let desactivados = 0;
         for (const admin of admins) {
-            const liberado = await this.quitarAdminCuenta(admin.idUsuario, tenantId);
+            const liberado = await this.quitarCuentaEquipo(admin.idUsuario, tenantId);
             if (liberado === 'deleted')
                 eliminados += 1;
             else
@@ -428,13 +493,13 @@ let SuperadminService = class SuperadminService {
         }
         return { ok: true, eliminados, desactivados };
     }
-    async quitarAdminCuenta(idUsuario, tenantId) {
-        const tieneHistorial = await this.adminTieneHistorial(idUsuario);
+    async quitarCuentaEquipo(idUsuario, tenantId) {
+        const tieneHistorial = await this.usuarioTieneHistorial(idUsuario);
         if (!tieneHistorial) {
             try {
                 await this.prisma.usuario.delete({ where: { idUsuario } });
                 (0, auth_user_cache_1.invalidateAuthUser)(idUsuario);
-                this.gateway.emitAuthSesionInvalidada(idUsuario, 'credenciales', 'La cuenta de administrador fue eliminada.', tenantId);
+                this.gateway.emitAuthSesionInvalidada(idUsuario, 'credenciales', 'La cuenta fue eliminada.', tenantId);
                 return 'deleted';
             }
             catch {
@@ -450,10 +515,10 @@ let SuperadminService = class SuperadminService {
             },
         });
         (0, auth_user_cache_1.invalidateAuthUser)(idUsuario);
-        this.gateway.emitAuthSesionInvalidada(idUsuario, 'credenciales', 'La cuenta de administrador fue desactivada.', tenantId);
+        this.gateway.emitAuthSesionInvalidada(idUsuario, 'credenciales', 'La cuenta fue desactivada.', tenantId);
         return 'deactivated';
     }
-    async adminTieneHistorial(idUsuario) {
+    async usuarioTieneHistorial(idUsuario) {
         const [pedidos, facturas, historial, caja, creditos, asientos,] = await Promise.all([
             this.prisma.pedido.count({ where: { idUsuario } }),
             this.prisma.factura.count({ where: { idUsuario } }),
@@ -738,7 +803,7 @@ let SuperadminService = class SuperadminService {
     }
 };
 exports.SuperadminService = SuperadminService;
-exports.SuperadminService = SuperadminService = __decorate([
+exports.SuperadminService = SuperadminService = SuperadminService_1 = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [prisma_service_1.PrismaService,
         pedidos_gateway_1.PedidosGateway])

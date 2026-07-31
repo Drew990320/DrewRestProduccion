@@ -1,16 +1,50 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
 var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ConfigRestauranteService = void 0;
 const common_1 = require("@nestjs/common");
+const bcrypt = __importStar(require("bcrypt"));
 const restaurant_branding_1 = require("../common/restaurant-branding");
 const prisma_service_1 = require("../prisma/prisma.service");
 const tenant_constants_1 = require("../tenant/tenant.constants");
@@ -61,8 +95,35 @@ let ConfigRestauranteService = class ConfigRestauranteService {
             modulo_odoo_activo: row.moduloOdooActivo,
             modulo_retail_activo: row.moduloRetailActivo,
             modulo_redondeo_cobro_activo: row.moduloRedondeoCobroActivo,
+            modulo_login_pin_activo: row.moduloLoginPinActivo,
+            modulo_autoservicio_activo: row.moduloAutoservicioActivo,
+            login_pin_compartido_activo: row.loginPinCompartidoActivo,
+            login_pin_definido: Boolean(row.loginPinHash?.trim()),
             actualizado_en: row.actualizadoEn.toISOString(),
         };
+    }
+    loginPinDisponible(row) {
+        return (row.moduloLoginPinActivo &&
+            row.loginPinCompartidoActivo &&
+            Boolean(row.loginPinHash?.trim()));
+    }
+    async loginPinDisponibleAhora(tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
+        const row = await this.prisma.configRestaurante.findUnique({
+            where: { idRestaurante: tenantId },
+            select: {
+                moduloLoginPinActivo: true,
+                loginPinCompartidoActivo: true,
+                loginPinHash: true,
+            },
+        });
+        return row ? this.loginPinDisponible(row) : false;
+    }
+    async loginAutoservicioDisponibleAhora(tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
+        const row = await this.prisma.configRestaurante.findUnique({
+            where: { idRestaurante: tenantId },
+            select: { moduloAutoservicioActivo: true },
+        });
+        return Boolean(row?.moduloAutoservicioActivo);
     }
     async obtenerRow(tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
         const cached = (0, config_restaurante_cache_1.getCachedConfigRestaurante)(tenantId);
@@ -98,6 +159,23 @@ let ConfigRestauranteService = class ConfigRestauranteService {
         return this.mapRow(await this.obtenerRow(tenantId));
     }
     async actualizar(dto, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
+        const actual = await this.obtenerRow(tenantId);
+        const tocaPin = dto.login_pin !== undefined ||
+            dto.login_pin_compartido_activo !== undefined;
+        if (tocaPin && !actual.moduloLoginPinActivo) {
+            throw new common_1.BadRequestException('El login con PIN no está habilitado para este restaurante. Contacta al superadmin.');
+        }
+        let loginPinHash;
+        if (dto.login_pin !== undefined) {
+            loginPinHash = await bcrypt.hash(dto.login_pin, 10);
+        }
+        const pinHashTras = loginPinHash ?? actual.loginPinHash ?? null;
+        const pinActivoTras = dto.login_pin_compartido_activo !== undefined
+            ? dto.login_pin_compartido_activo
+            : actual.loginPinCompartidoActivo;
+        if (pinActivoTras && !pinHashTras?.trim()) {
+            throw new common_1.BadRequestException('Define un PIN de 4 dígitos antes de activar el login con PIN.');
+        }
         const row = await this.prisma.configRestaurante.upsert({
             where: { idRestaurante: tenantId },
             create: {
@@ -125,6 +203,10 @@ let ConfigRestauranteService = class ConfigRestauranteService {
                 moduloContabilidadActivo: dto.modulo_contabilidad_activo ?? false,
                 moduloCreditosActivo: dto.modulo_creditos_activo ?? false,
                 moduloOdooActivo: dto.modulo_odoo_activo ?? false,
+                ...(dto.login_pin_compartido_activo !== undefined
+                    ? { loginPinCompartidoActivo: dto.login_pin_compartido_activo }
+                    : {}),
+                ...(loginPinHash !== undefined ? { loginPinHash } : {}),
             },
             update: {
                 ...(dto.nombre_comercial !== undefined
@@ -198,6 +280,10 @@ let ConfigRestauranteService = class ConfigRestauranteService {
                 ...(dto.modulo_odoo_activo !== undefined
                     ? { moduloOdooActivo: dto.modulo_odoo_activo }
                     : {}),
+                ...(dto.login_pin_compartido_activo !== undefined
+                    ? { loginPinCompartidoActivo: dto.login_pin_compartido_activo }
+                    : {}),
+                ...(loginPinHash !== undefined ? { loginPinHash } : {}),
             },
         });
         (0, config_restaurante_cache_1.invalidateConfigRestauranteCache)(tenantId);

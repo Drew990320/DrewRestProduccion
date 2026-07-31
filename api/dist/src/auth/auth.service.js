@@ -44,10 +44,12 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AuthService = void 0;
 const common_1 = require("@nestjs/common");
+const core_1 = require("@nestjs/core");
 const jwt_1 = require("@nestjs/jwt");
 const bcrypt = __importStar(require("bcrypt"));
 const crypto_1 = require("crypto");
 const mail_service_1 = require("../mail/mail.service");
+const pedidos_service_1 = require("../pedidos/pedidos.service");
 const prisma_service_1 = require("../prisma/prisma.service");
 const tenant_constants_1 = require("../tenant/tenant.constants");
 const tenant_access_1 = require("../tenant/tenant-access");
@@ -60,12 +62,14 @@ let AuthService = class AuthService {
     jwt;
     tenant;
     mail;
+    moduleRef;
     passwordResetOtps = new Map();
-    constructor(prisma, jwt, tenant, mail) {
+    constructor(prisma, jwt, tenant, mail, moduleRef) {
         this.prisma = prisma;
         this.jwt = jwt;
         this.tenant = tenant;
         this.mail = mail;
+        this.moduleRef = moduleRef;
     }
     async setupStatus() {
         const count = await this.prisma.usuario.count({
@@ -231,12 +235,136 @@ let AuthService = class AuthService {
         if (!user?.activo) {
             throw new common_1.UnauthorizedException('Credenciales inválidas');
         }
+        if (user.rol.nombre === 'autoservicio') {
+            throw new common_1.UnauthorizedException('Credenciales inválidas');
+        }
         const ok = await bcrypt.compare(dto.password, user.passwordHash);
         if (!ok) {
             throw new common_1.UnauthorizedException('Credenciales inválidas');
         }
         await (0, tenant_access_1.assertTenantAccessForUser)(this.prisma, user);
         return this.issueSession(user);
+    }
+    async assertPinLoginHabilitado(tenantId, pin) {
+        const cfg = await this.prisma.configRestaurante.findUnique({
+            where: { idRestaurante: tenantId },
+        });
+        const hash = cfg?.loginPinHash?.trim();
+        if (!cfg?.moduloLoginPinActivo ||
+            !cfg.loginPinCompartidoActivo ||
+            !hash) {
+            throw new common_1.UnauthorizedException('PIN o usuario inválido');
+        }
+        const ok = await bcrypt.compare(pin, hash);
+        if (!ok) {
+            throw new common_1.UnauthorizedException('PIN o usuario inválido');
+        }
+    }
+    async listarMeserosPorPin(dto) {
+        const tenantId = dto.tenant_slug?.trim()
+            ? await this.tenant.resolveIdBySlug(dto.tenant_slug)
+            : tenant_constants_1.DEFAULT_TENANT_ID;
+        await this.assertPinLoginHabilitado(tenantId, dto.pin);
+        const rows = await this.prisma.usuario.findMany({
+            where: {
+                idRestaurante: tenantId,
+                activo: true,
+                rol: { nombre: 'mesero' },
+            },
+            include: { rol: true },
+            orderBy: [{ nombre: 'asc' }, { apellido: 'asc' }],
+        });
+        return rows.map((u) => {
+            const { nombre, apellido } = (0, usuario_display_1.nombreUsuarioPublico)(u.nombre, u.apellido, u.rol.nombre);
+            return { id: u.idUsuario, nombre, apellido };
+        });
+    }
+    async loginConPin(dto) {
+        const tenantId = dto.tenant_slug?.trim()
+            ? await this.tenant.resolveIdBySlug(dto.tenant_slug)
+            : tenant_constants_1.DEFAULT_TENANT_ID;
+        await this.assertPinLoginHabilitado(tenantId, dto.pin);
+        const user = await this.prisma.usuario.findFirst({
+            where: {
+                idUsuario: dto.user_id,
+                idRestaurante: tenantId,
+                activo: true,
+                rol: { nombre: 'mesero' },
+            },
+            include: { rol: true },
+        });
+        if (!user) {
+            throw new common_1.UnauthorizedException('PIN o usuario inválido');
+        }
+        await (0, tenant_access_1.assertTenantAccessForUser)(this.prisma, user);
+        return this.issueSession(user);
+    }
+    async iniciarSesionAutoservicio(dto) {
+        const tenantId = dto?.tenant_slug?.trim()
+            ? await this.tenant.resolveIdBySlug(dto.tenant_slug)
+            : tenant_constants_1.DEFAULT_TENANT_ID;
+        const cfg = await this.prisma.configRestaurante.findUnique({
+            where: { idRestaurante: tenantId },
+            select: { moduloAutoservicioActivo: true },
+        });
+        if (!cfg?.moduloAutoservicioActivo) {
+            throw new common_1.UnauthorizedException('Autoservicio no está habilitado');
+        }
+        const user = await this.ensureUsuarioAutoservicio(tenantId);
+        await (0, tenant_access_1.assertTenantAccessForUser)(this.prisma, user);
+        const pedidos = this.moduleRef.get(pedidos_service_1.PedidosService, { strict: false });
+        await pedidos.limpiarPedidosAutoservicioAbandonados(user.idUsuario, tenantId);
+        return this.issueSession(user, { expiresIn: '45m' });
+    }
+    async ensureUsuarioAutoservicio(tenantId) {
+        const rol = await this.prisma.rol.upsert({
+            where: { nombre: 'autoservicio' },
+            create: {
+                nombre: 'autoservicio',
+                descripcion: 'Cliente en login: solo arma su pedido',
+            },
+            update: {},
+        });
+        const email = 'autoservicio@drewrest.local';
+        const existing = await this.prisma.usuario.findUnique({
+            where: {
+                idRestaurante_email: { idRestaurante: tenantId, email },
+            },
+            include: { rol: true },
+        });
+        if (existing) {
+            if (!existing.activo || existing.idRol !== rol.idRol) {
+                return this.prisma.usuario.update({
+                    where: { idUsuario: existing.idUsuario },
+                    data: { activo: true, idRol: rol.idRol },
+                    include: { rol: true },
+                });
+            }
+            return existing;
+        }
+        await this.prisma.restaurante.upsert({
+            where: { idRestaurante: tenantId },
+            create: {
+                idRestaurante: tenantId,
+                slug: tenantId === tenant_constants_1.DEFAULT_TENANT_ID ? 'principal' : `tenant-${tenantId}`,
+                nombre: 'Restaurante',
+            },
+            update: {},
+        });
+        const passwordHash = await bcrypt.hash(`autoservicio-no-login-${tenantId}-${Date.now()}`, 10);
+        return this.prisma.usuario.create({
+            data: {
+                idRestaurante: tenantId,
+                idRol: rol.idRol,
+                nombre: 'Autoservicio',
+                apellido: '',
+                email,
+                passwordHash,
+                passwordCambiadoEn: new Date(),
+                activo: true,
+            },
+            include: { rol: true },
+        });
     }
     async refresh(actor) {
         const user = await this.prisma.usuario.findUnique({
@@ -246,6 +374,9 @@ let AuthService = class AuthService {
         if (!user?.activo) {
             throw new common_1.UnauthorizedException('Sesión inválida');
         }
+        if (user.rol.nombre === 'autoservicio') {
+            throw new common_1.UnauthorizedException('Sesión de autoservicio no renovable');
+        }
         await (0, tenant_access_1.assertTenantAccessForUser)(this.prisma, user);
         const session = await this.issueSession(user);
         return {
@@ -253,7 +384,7 @@ let AuthService = class AuthService {
             expires_in: session.expires_in,
         };
     }
-    async issueSession(user) {
+    async issueSession(user, opts) {
         const pwdAt = (user.passwordCambiadoEn ?? user.creadoEn).getTime();
         const payload = {
             sub: user.idUsuario,
@@ -263,9 +394,16 @@ let AuthService = class AuthService {
             tid: user.idRestaurante,
         };
         const { nombre, apellido } = (0, usuario_display_1.nombreUsuarioPublico)(user.nombre, user.apellido, user.rol.nombre);
+        const expiresIn = opts?.expiresIn;
+        const expiresSec = expiresIn
+            ? this.parseExpiresToSeconds(expiresIn)
+            : undefined;
+        const access_token = expiresSec
+            ? await this.jwt.signAsync(payload, { expiresIn: expiresSec })
+            : await this.jwt.signAsync(payload);
         return {
-            access_token: await this.jwt.signAsync(payload),
-            expires_in: this.jwtExpiresSeconds(),
+            access_token,
+            expires_in: expiresSec ?? this.jwtExpiresSeconds(),
             user: {
                 id: user.idUsuario,
                 nombre,
@@ -276,15 +414,18 @@ let AuthService = class AuthService {
             },
         };
     }
-    jwtExpiresSeconds() {
-        const raw = process.env.JWT_EXPIRES_IN?.trim() ?? '24h';
-        const m = /^(\d+)([smhd])$/i.exec(raw);
+    parseExpiresToSeconds(raw) {
+        const m = /^(\d+)([smhd])$/i.exec(raw.trim());
         if (!m)
-            return 86_400;
+            return 2700;
         const n = Number(m[1]);
         const unit = m[2].toLowerCase();
         const mult = unit === 's' ? 1 : unit === 'm' ? 60 : unit === 'h' ? 3600 : 86_400;
         return n * mult;
+    }
+    jwtExpiresSeconds() {
+        const raw = process.env.JWT_EXPIRES_IN?.trim() ?? '24h';
+        return this.parseExpiresToSeconds(raw);
     }
     async verifyPassword(user, password) {
         const row = await this.prisma.usuario.findUnique({
@@ -329,6 +470,7 @@ exports.AuthService = AuthService = __decorate([
     __metadata("design:paramtypes", [prisma_service_1.PrismaService,
         jwt_1.JwtService,
         tenant_service_1.TenantService,
-        mail_service_1.MailService])
+        mail_service_1.MailService,
+        core_1.ModuleRef])
 ], AuthService);
 //# sourceMappingURL=auth.service.js.map

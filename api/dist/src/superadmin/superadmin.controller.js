@@ -47,8 +47,14 @@ let SuperadminController = class SuperadminController {
     eliminarAdmin(tenantId) {
         return this.superadmin.eliminarAdmin(tenantId ?? 1);
     }
+    listarUsuarios(tenantId) {
+        return this.superadmin.listarUsuarios(tenantId ?? 1);
+    }
     crearUsuario(dto, tenantId) {
         return this.superadmin.crearUsuario(tenantId ?? 1, dto);
+    }
+    eliminarUsuario(id, tenantId) {
+        return this.superadmin.eliminarUsuario(tenantId ?? 1, id);
     }
     purgarMenu(dto, tenantId) {
         return this.superadmin.purgarMenu(tenantId ?? 1, dto.confirmar);
@@ -108,6 +114,13 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], SuperadminController.prototype, "eliminarAdmin", null);
 __decorate([
+    (0, common_1.Get)('usuarios'),
+    __param(0, (0, current_tenant_decorator_1.CurrentTenantId)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], SuperadminController.prototype, "listarUsuarios", null);
+__decorate([
     (0, common_1.Post)('usuarios'),
     __param(0, (0, common_1.Body)()),
     __param(1, (0, current_tenant_decorator_1.CurrentTenantId)()),
@@ -115,6 +128,14 @@ __decorate([
     __metadata("design:paramtypes", [crear_usuario_dto_1.CrearUsuarioSuperadminDto, Object]),
     __metadata("design:returntype", void 0)
 ], SuperadminController.prototype, "crearUsuario", null);
+__decorate([
+    (0, common_1.Delete)('usuarios/:id'),
+    __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
+    __param(1, (0, current_tenant_decorator_1.CurrentTenantId)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number, Object]),
+    __metadata("design:returntype", void 0)
+], SuperadminController.prototype, "eliminarUsuario", null);
 __decorate([
     (0, common_1.Post)('purgar/menu'),
     __param(0, (0, common_1.Body)()),

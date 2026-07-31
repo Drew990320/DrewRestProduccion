@@ -27,8 +27,8 @@ exports.PedidosModule = PedidosModule;
 exports.PedidosModule = PedidosModule = __decorate([
     (0, common_1.Module)({
         imports: [
-            auth_module_1.AuthModule,
-            permisos_module_1.PermisosModule,
+            (0, common_1.forwardRef)(() => auth_module_1.AuthModule),
+            (0, common_1.forwardRef)(() => permisos_module_1.PermisosModule),
             inventario_module_1.InventarioModule,
             contabilidad_module_1.ContabilidadModule,
             (0, common_1.forwardRef)(() => impresoras_pos_module_1.ImpresorasPosModule),

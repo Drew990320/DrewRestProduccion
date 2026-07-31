@@ -11,6 +11,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.UpsertConfigRestauranteDto = void 0;
 const class_validator_1 = require("class-validator");
+const class_transformer_1 = require("class-transformer");
 class UpsertConfigRestauranteDto {
     nombre_comercial;
     telefono;
@@ -32,6 +33,8 @@ class UpsertConfigRestauranteDto {
     modulo_contabilidad_activo;
     modulo_creditos_activo;
     modulo_odoo_activo;
+    login_pin_compartido_activo;
+    login_pin;
 }
 exports.UpsertConfigRestauranteDto = UpsertConfigRestauranteDto;
 __decorate([
@@ -153,4 +156,22 @@ __decorate([
     (0, class_validator_1.IsBoolean)(),
     __metadata("design:type", Boolean)
 ], UpsertConfigRestauranteDto.prototype, "modulo_odoo_activo", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], UpsertConfigRestauranteDto.prototype, "login_pin_compartido_activo", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Transform)(({ value }) => {
+        if (value == null)
+            return undefined;
+        const digits = String(value).replace(/\D/g, '').slice(0, 4);
+        return digits === '' ? undefined : digits;
+    }),
+    (0, class_validator_1.ValidateIf)((_, v) => v !== undefined),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.Matches)(/^\d{4}$/, { message: 'El PIN debe tener exactamente 4 dígitos' }),
+    __metadata("design:type", String)
+], UpsertConfigRestauranteDto.prototype, "login_pin", void 0);
 //# sourceMappingURL=upsert-config-restaurante.dto.js.map
