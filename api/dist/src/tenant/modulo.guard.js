@@ -27,6 +27,8 @@ function moduloActivo(cfg, key) {
             return cfg.moduloResumenDiarioActivo;
         case 'contabilidad':
             return cfg.moduloContabilidadActivo;
+        case 'ganancias':
+            return cfg.moduloGananciasActivo;
         case 'creditos':
             return cfg.moduloCreditosActivo;
         case 'odoo':

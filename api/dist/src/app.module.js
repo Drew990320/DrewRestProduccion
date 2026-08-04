@@ -23,6 +23,7 @@ const integracion_module_1 = require("./integracion/integracion.module");
 const inventario_module_1 = require("./inventario/inventario.module");
 const recursos_module_1 = require("./recursos/recursos.module");
 const contabilidad_module_1 = require("./contabilidad/contabilidad.module");
+const ganancias_module_1 = require("./ganancias/ganancias.module");
 const impresoras_pos_module_1 = require("./impresoras-pos/impresoras-pos.module");
 const tienda_module_1 = require("./tienda/tienda.module");
 const lugares_mesa_module_1 = require("./lugares-mesa/lugares-mesa.module");
@@ -81,6 +82,7 @@ exports.AppModule = AppModule = __decorate([
             inventario_module_1.InventarioModule,
             recursos_module_1.RecursosModule,
             contabilidad_module_1.ContabilidadModule,
+            ganancias_module_1.GananciasModule,
             proveedores_module_1.ProveedoresModule,
             cuentas_por_pagar_module_1.CuentasPorPagarModule,
             integracion_module_1.IntegracionModule,

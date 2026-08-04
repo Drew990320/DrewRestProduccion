@@ -18,6 +18,7 @@ class UpdateProductoDto {
     nombre;
     descripcion;
     precio;
+    precio_costo;
     activo;
     es_plato_principal;
     es_empacable;
@@ -60,6 +61,13 @@ __decorate([
     (0, class_validator_1.Min)(0),
     __metadata("design:type", Number)
 ], UpdateProductoDto.prototype, "precio", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.Min)(0),
+    __metadata("design:type", Object)
+], UpdateProductoDto.prototype, "precio_costo", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsBoolean)(),

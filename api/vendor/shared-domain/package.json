@@ -225,6 +225,10 @@
                                               "types":  "./dist/resumen-periodo.d.ts",
                                               "default":  "./dist/resumen-periodo.js"
                                           },
+                    "./ganancias-periodo":  {
+                                                "types":  "./dist/ganancias-periodo.d.ts",
+                                                "default":  "./dist/ganancias-periodo.js"
+                                            },
                     "./stock-producto":  {
                                              "types":  "./dist/stock-producto.d.ts",
                                              "default":  "./dist/stock-producto.js"

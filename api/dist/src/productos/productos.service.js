@@ -65,6 +65,7 @@ function mapProducto(p) {
         nombre: p.nombre,
         descripcion: p.descripcion,
         precio: Number(p.precio),
+        precio_costo: p.precioCosto != null ? Number(p.precioCosto) : null,
         activo: p.activo,
         es_plato_principal: p.esPlatoPrincipal,
         es_empacable: p.esEmpacable,
@@ -268,6 +269,13 @@ let ProductosService = class ProductosService {
                     ? { descripcion: dto.descripcion?.trim() || null }
                     : {}),
                 ...(dto.precio != null ? { precio: dto.precio } : {}),
+                ...(dto.precio_costo !== undefined
+                    ? {
+                        precioCosto: dto.precio_costo === null
+                            ? null
+                            : Math.round(Number(dto.precio_costo)),
+                    }
+                    : {}),
                 ...(dto.activo != null ? { activo: dto.activo } : {}),
                 esPlatoPrincipal: esCombo ? false : flags.esPlatoPrincipal,
                 esEmpacable: esCombo ? false : flags.esEmpacable,

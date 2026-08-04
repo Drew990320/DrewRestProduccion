@@ -31,6 +31,7 @@ class UpsertConfigRestauranteDto {
     modulo_envio_correo_activo;
     modulo_resumen_diario_activo;
     modulo_contabilidad_activo;
+    modulo_ganancias_activo;
     modulo_creditos_activo;
     modulo_odoo_activo;
     login_pin_compartido_activo;
@@ -146,6 +147,11 @@ __decorate([
     (0, class_validator_1.IsBoolean)(),
     __metadata("design:type", Boolean)
 ], UpsertConfigRestauranteDto.prototype, "modulo_contabilidad_activo", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], UpsertConfigRestauranteDto.prototype, "modulo_ganancias_activo", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsBoolean)(),

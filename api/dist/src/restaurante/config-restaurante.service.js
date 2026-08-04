@@ -91,6 +91,7 @@ let ConfigRestauranteService = class ConfigRestauranteService {
             modulo_envio_correo_activo: row.moduloEnvioCorreoActivo,
             modulo_resumen_diario_activo: row.moduloResumenDiarioActivo,
             modulo_contabilidad_activo: row.moduloContabilidadActivo,
+            modulo_ganancias_activo: row.moduloGananciasActivo,
             modulo_creditos_activo: row.moduloCreditosActivo,
             modulo_odoo_activo: row.moduloOdooActivo,
             modulo_retail_activo: row.moduloRetailActivo,
@@ -201,6 +202,7 @@ let ConfigRestauranteService = class ConfigRestauranteService {
                 moduloEnvioCorreoActivo: dto.modulo_envio_correo_activo ?? false,
                 moduloResumenDiarioActivo: dto.modulo_resumen_diario_activo ?? true,
                 moduloContabilidadActivo: dto.modulo_contabilidad_activo ?? false,
+                moduloGananciasActivo: dto.modulo_ganancias_activo ?? false,
                 moduloCreditosActivo: dto.modulo_creditos_activo ?? false,
                 moduloOdooActivo: dto.modulo_odoo_activo ?? false,
                 ...(dto.login_pin_compartido_activo !== undefined
@@ -273,6 +275,9 @@ let ConfigRestauranteService = class ConfigRestauranteService {
                     : {}),
                 ...(dto.modulo_contabilidad_activo !== undefined
                     ? { moduloContabilidadActivo: dto.modulo_contabilidad_activo }
+                    : {}),
+                ...(dto.modulo_ganancias_activo !== undefined
+                    ? { moduloGananciasActivo: dto.modulo_ganancias_activo }
                     : {}),
                 ...(dto.modulo_creditos_activo !== undefined
                     ? { moduloCreditosActivo: dto.modulo_creditos_activo }

@@ -47,6 +47,8 @@ enum TipoMovimientoCaja {
 enum TipoRegistroBeneficioMesero {
   soda_almuerzo
   pago_turno
+  /// Descuento configurado sobre un producto del catálogo de beneficios del turno.
+  descuento_turno
 }
 
 enum EstadoCredito {
@@ -209,8 +211,45 @@ model Restaurante {
   reglasContables   ReglaContable[]
   asientosContables AsientoContable[]
   centrosCosto      CentroCosto[]
+  gastosFijosGanancia GastoFijoGanancia[]
+  gastosExtrasGanancia GastoExtraGanancia[]
+  beneficiosTurnoProducto BeneficioTurnoProducto[]
 
   @@map("restaurante")
+}
+
+/// Gasto recurrente mensual (arriendo, servicios, nómina fija, etc.) para el módulo Ganancias.
+model GastoFijoGanancia {
+  idGastoFijo    Int         @id @default(autoincrement()) @map("id_gasto_fijo")
+  idRestaurante  Int         @default(1) @map("id_restaurante")
+  nombre         String      @db.VarChar(120)
+  /// Monto total del mes; se prorratea por días del periodo consultado.
+  montoMensual   Decimal     @map("monto_mensual") @db.Decimal(12, 2)
+  activo         Boolean     @default(true)
+  notas          String?     @db.VarChar(500)
+  creadoEn       DateTime    @default(now()) @map("creado_en")
+  actualizadoEn  DateTime    @updatedAt @map("actualizado_en")
+  restaurante    Restaurante @relation(fields: [idRestaurante], references: [idRestaurante], onDelete: Cascade)
+
+  @@index([idRestaurante, activo])
+  @@map("gasto_fijo_ganancia")
+}
+
+/// Gasto puntual (reparación, compra imprevista, etc.) asociado a una fecha.
+model GastoExtraGanancia {
+  idGastoExtra   Int         @id @default(autoincrement()) @map("id_gasto_extra")
+  idRestaurante  Int         @default(1) @map("id_restaurante")
+  nombre         String      @db.VarChar(120)
+  monto          Decimal     @db.Decimal(12, 2)
+  /// Día calendario (Bogotá) en que aplica el gasto.
+  fecha          DateTime    @db.Date
+  notas          String?     @db.VarChar(500)
+  creadoEn       DateTime    @default(now()) @map("creado_en")
+  actualizadoEn  DateTime    @updatedAt @map("actualizado_en")
+  restaurante    Restaurante @relation(fields: [idRestaurante], references: [idRestaurante], onDelete: Cascade)
+
+  @@index([idRestaurante, fecha])
+  @@map("gasto_extra_ganancia")
 }
 
 enum RolImpresoraPos {
@@ -407,6 +446,8 @@ model Producto {
   nombre             String                  @db.VarChar(150)
   descripcion        String?                 @db.Text
   precio             Decimal                 @db.Decimal(10, 2)
+  /// Costo unitario registrado por admin (módulo Ganancias). Si null, se usa costo de receta.
+  precioCosto        Decimal?                @map("precio_costo") @db.Decimal(12, 2)
   activo             Boolean                 @default(true)
   esPlatoPrincipal   Boolean                 @default(false) @map("es_plato_principal")
   esEmpacable        Boolean                 @default(false) @map("es_empacable")
@@ -440,6 +481,7 @@ model Producto {
   configOperativaSoda      ConfigOperativa[]       @relation("ProductoSodaAlmuerzoConfig")
   configOperativaCuotaPendiente ConfigOperativa[]  @relation("ProductoCuotaPendienteConfig")
   registrosBeneficioMesero RegistroBeneficioMesero[]
+  beneficiosTurnoProducto  BeneficioTurnoProducto[]
   inventarioItems    Inventario[]
   recursos           Recurso[]
   receta             RecetaProducto?
@@ -800,14 +842,38 @@ model ConfigOperativa {
   @@map("config_operativa")
 }
 
-/// Registro de beneficios / pagos por turno del mesero (soda almuerzo, pago, etc.).
+/// Catálogo de beneficios del turno: 1+ productos con descuento en COP para meseros.
+model BeneficioTurnoProducto {
+  idBeneficioTurno Int         @id @default(autoincrement()) @map("id_beneficio_turno")
+  idRestaurante    Int         @map("id_restaurante")
+  idProducto       Int         @map("id_producto")
+  /// Monto del descuento en COP sobre ese producto.
+  montoDescuento   Decimal     @map("monto_descuento") @db.Decimal(12, 2)
+  descontarStock   Boolean     @default(true) @map("descontar_stock")
+  activo           Boolean     @default(true)
+  orden            Int         @default(0)
+  creadoEn         DateTime    @default(now()) @map("creado_en")
+  actualizadoEn    DateTime    @updatedAt @map("actualizado_en")
+  restaurante      Restaurante @relation(fields: [idRestaurante], references: [idRestaurante], onDelete: Cascade)
+  producto         Producto    @relation(fields: [idProducto], references: [idProducto], onDelete: Restrict)
+  registros        RegistroBeneficioMesero[]
+
+  @@unique([idRestaurante, idProducto])
+  @@index([idRestaurante, activo])
+  @@map("beneficio_turno_producto")
+}
+
+/// Registro de beneficios / pagos por turno del mesero.
 model RegistroBeneficioMesero {
   idRegistro        Int                         @id @default(autoincrement()) @map("id_registro")
   fecha             DateTime                    @db.Date @map("fecha")
   idUsuario         Int                         @map("id_usuario")
   tipo              TipoRegistroBeneficioMesero @map("tipo")
+  /// "pago" | "d:{idBeneficioTurno}" — permite varios descuentos + un pago por día.
+  claveUnica        String                      @map("clave_unica") @db.VarChar(40)
   monto             Decimal?                    @db.Decimal(12, 2)
   idProducto        Int?                        @map("id_producto")
+  idBeneficioTurno  Int?                        @map("id_beneficio_turno")
   cantidad          Int                         @default(1)
   descontoStock     Boolean                     @default(false) @map("desconto_stock")
   notas             String?                     @db.Text
@@ -816,9 +882,11 @@ model RegistroBeneficioMesero {
   mesero            Usuario                     @relation("BeneficioMesero", fields: [idUsuario], references: [idUsuario])
   registradoPor     Usuario                     @relation("BeneficioRegistradoPor", fields: [idUsuarioRegistro], references: [idUsuario])
   producto          Producto?                   @relation(fields: [idProducto], references: [idProducto], onDelete: SetNull)
+  beneficioTurno    BeneficioTurnoProducto?     @relation(fields: [idBeneficioTurno], references: [idBeneficioTurno], onDelete: SetNull)
 
-  @@unique([fecha, idUsuario, tipo])
+  @@unique([fecha, idUsuario, claveUnica])
   @@index([fecha])
+  @@index([fecha, tipo])
   @@map("registro_beneficio_mesero")
 }
 
@@ -855,6 +923,8 @@ model ConfigRestaurante {
   moduloLoginPinActivo       Boolean  @default(false) @map("modulo_login_pin_activo")
   /// Autoservicio desde el login (cliente arma pedido sin sesión de mesero). Solo superadmin.
   moduloAutoservicioActivo   Boolean  @default(false) @map("modulo_autoservicio_activo")
+  /// Ganancias: costos de menú, gastos fijos/extras y reporte por periodo.
+  moduloGananciasActivo      Boolean  @default(false) @map("modulo_ganancias_activo")
   /// Admin: usar PIN en login de pantallas compartidas (requiere módulo + hash).
   loginPinCompartidoActivo   Boolean  @default(false) @map("login_pin_compartido_activo")
   /// bcrypt del PIN de 4 dígitos; nunca se expone.
