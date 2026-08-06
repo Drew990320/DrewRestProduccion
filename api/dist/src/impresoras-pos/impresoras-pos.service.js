@@ -136,6 +136,9 @@ let ImpresorasPosService = ImpresorasPosService_1 = class ImpresorasPosService {
             orden: row.orden,
             baud_rate: row.baudRate,
             ancho_papel_mm: (0, impresora_papel_ancho_1.normalizarAnchoPapelMm)(row.anchoPapelMm ?? 58),
+            tamano_fuente: (0, impresora_papel_ancho_1.normalizarTamanoFuente)(row.tamanoFuente),
+            margen_inicio_lineas: (0, impresora_papel_ancho_1.normalizarMargenLineas)(row.margenInicioLineas, 0),
+            margen_fin_lineas: (0, impresora_papel_ancho_1.normalizarMargenLineas)(row.margenFinLineas, 2),
             roles: row.roles,
             es_cocina_maestra: row.esCocinaMaestra,
             reglas_cocina: (row.reglasCocina ?? []).map((r) => ({
@@ -202,6 +205,9 @@ let ImpresorasPosService = ImpresorasPosService_1 = class ImpresorasPosService {
                 orden: dto.orden ?? (maxOrden._max.orden ?? -1) + 1,
                 baudRate: dto.baud_rate ?? null,
                 anchoPapelMm: (0, impresora_papel_ancho_1.normalizarAnchoPapelMm)(dto.ancho_papel_mm ?? 58),
+                tamanoFuente: (0, impresora_papel_ancho_1.normalizarTamanoFuente)(dto.tamano_fuente),
+                margenInicioLineas: (0, impresora_papel_ancho_1.normalizarMargenLineas)(dto.margen_inicio_lineas, 0),
+                margenFinLineas: (0, impresora_papel_ancho_1.normalizarMargenLineas)(dto.margen_fin_lineas, 2),
                 roles: dto.roles,
                 esCocinaMaestra: dto.es_cocina_maestra ?? false,
             },
@@ -238,6 +244,19 @@ let ImpresorasPosService = ImpresorasPosService_1 = class ImpresorasPosService {
                 ...(dto.baud_rate !== undefined ? { baudRate: dto.baud_rate } : {}),
                 ...(dto.ancho_papel_mm !== undefined
                     ? { anchoPapelMm: (0, impresora_papel_ancho_1.normalizarAnchoPapelMm)(dto.ancho_papel_mm) }
+                    : {}),
+                ...(dto.tamano_fuente !== undefined
+                    ? { tamanoFuente: (0, impresora_papel_ancho_1.normalizarTamanoFuente)(dto.tamano_fuente) }
+                    : {}),
+                ...(dto.margen_inicio_lineas !== undefined
+                    ? {
+                        margenInicioLineas: (0, impresora_papel_ancho_1.normalizarMargenLineas)(dto.margen_inicio_lineas, 0),
+                    }
+                    : {}),
+                ...(dto.margen_fin_lineas !== undefined
+                    ? {
+                        margenFinLineas: (0, impresora_papel_ancho_1.normalizarMargenLineas)(dto.margen_fin_lineas, 2),
+                    }
                     : {}),
                 ...(dto.roles != null ? { roles: dto.roles } : {}),
                 ...(dto.es_cocina_maestra != null
@@ -355,6 +374,9 @@ let ImpresorasPosService = ImpresorasPosService_1 = class ImpresorasPosService {
                 destino: r.destino,
                 baud_rate: r.baudRate,
                 ancho_papel_mm: (0, impresora_papel_ancho_1.normalizarAnchoPapelMm)(r.anchoPapelMm),
+                tamano_fuente: (0, impresora_papel_ancho_1.normalizarTamanoFuente)(r.tamanoFuente),
+                margen_inicio_lineas: (0, impresora_papel_ancho_1.normalizarMargenLineas)(r.margenInicioLineas, 0),
+                margen_fin_lineas: (0, impresora_papel_ancho_1.normalizarMargenLineas)(r.margenFinLineas, 2),
                 es_cocina_maestra: r.esCocinaMaestra,
                 reglas: r.reglasCocina.map((regla) => ({
                     alcance: regla.alcance,
@@ -381,6 +403,9 @@ let ImpresorasPosService = ImpresorasPosService_1 = class ImpresorasPosService {
                     destino,
                     baud_rate: null,
                     ancho_papel_mm: anchoEnv,
+                    tamano_fuente: 1,
+                    margen_inicio_lineas: 0,
+                    margen_fin_lineas: 2,
                     es_cocina_maestra: i === 0,
                     reglas: [],
                 }));

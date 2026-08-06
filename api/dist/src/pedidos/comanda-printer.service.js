@@ -68,6 +68,14 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
     charWidthForDestino(destino) {
         return (0, impresora_papel_ancho_1.charsPorLineaParaPapelMm)(destino.ancho_papel_mm ?? (0, impresora_papel_ancho_1.papelMmDesdeChars)(this.charWidthLegacy()));
     }
+    layoutOptsForDestino(destino) {
+        return {
+            charWidth: this.charWidthForDestino(destino),
+            tamanoFuente: destino.tamano_fuente ?? 1,
+            margenInicioLineas: destino.margen_inicio_lineas ?? 0,
+            margenFinLineas: destino.margen_fin_lineas ?? 2,
+        };
+    }
     baudRateDefault() {
         const n = Number(this.config.get('PRINTER_BAUD_RATE') ?? 9600);
         return Number.isFinite(n) && n > 0 ? n : 9600;
@@ -221,15 +229,19 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
         const reglas = destino.reglas ?? [];
         if (reglas.length === 0)
             return null;
-        const lineas = ticket.lineas.filter((l) => reglas.some((r) => {
-            if (r.alcance === 'producto' && r.id_producto != null) {
-                return l.id_producto === r.id_producto;
-            }
-            if (r.alcance === 'categoria' && r.id_categoria != null) {
-                return l.id_categoria === r.id_categoria;
-            }
-            return false;
-        }));
+        const lineas = ticket.lineas.filter((l) => {
+            const idProd = l.id_producto != null ? Number(l.id_producto) : null;
+            const idCat = l.id_categoria != null ? Number(l.id_categoria) : null;
+            return reglas.some((r) => {
+                if (r.alcance === 'producto' && r.id_producto != null) {
+                    return idProd != null && idProd === Number(r.id_producto);
+                }
+                if (r.alcance === 'categoria' && r.id_categoria != null) {
+                    return idCat != null && idCat === Number(r.id_categoria);
+                }
+                return false;
+            });
+        });
         if (lineas.length === 0)
             return null;
         return { ...ticket, lineas };
@@ -282,7 +294,7 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
     async imprimirComandaEnDestino(ticket, destino) {
         let buffer;
         try {
-            buffer = await (0, comanda_escpos_builder_1.buildComandaEscPos)(ticket, this.charWidthForDestino(destino));
+            buffer = await (0, comanda_escpos_builder_1.buildComandaEscPos)(ticket, this.layoutOptsForDestino(destino));
         }
         catch (e) {
             const msg = e instanceof Error ? e.message : String(e);
@@ -292,7 +304,7 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
         return this.encolarEnDestino(destino.destino, () => this.enviarBufferATargets(buffer, 'comanda', [destino.destino], destino.baud_rate), { tipo: 'comanda' });
     }
     async imprimirFactura(ticket) {
-        return this.enviarPorRolConBuilder('factura', 'factura', (w) => (0, factura_escpos_builder_1.buildFacturaEscPos)(ticket, w));
+        return this.enviarPorRolConBuilder('factura', 'factura', (opts) => (0, factura_escpos_builder_1.buildFacturaEscPos)(ticket, opts));
     }
     async imprimirFacturaConCajon(ticket, opts = {}) {
         const abrirCajon = opts.abrirCajon === true;
@@ -331,7 +343,7 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
                 ticketBuf = await (0, factura_escpos_builder_1.buildFacturaEscPos)({
                     ...ticket,
                     copia_destinatario: conCopia ? 'negocio' : ticket.copia_destinatario,
-                }, this.charWidthForDestino(destino));
+                }, this.layoutOptsForDestino(destino));
             }
             catch (e) {
                 const msg = e instanceof Error ? e.message : String(e);
@@ -349,7 +361,7 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
                 }
                 if (!conCopia)
                     return result;
-                const cliente = await this.enviarPorRolConBuilder('factura', 'factura', (w) => (0, factura_escpos_builder_1.buildFacturaEscPos)({ ...ticket, copia_destinatario: 'cliente' }, w));
+                const cliente = await this.enviarPorRolConBuilder('factura', 'factura', (opts) => (0, factura_escpos_builder_1.buildFacturaEscPos)({ ...ticket, copia_destinatario: 'cliente' }, opts));
                 if (!cliente.impreso) {
                     return {
                         ...cliente,
@@ -407,19 +419,19 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
         };
     }
     async imprimirCierreCaja(ticket) {
-        return this.enviarPorRolConBuilder('cierre', 'caja', (w) => (0, cierre_caja_escpos_builder_1.buildCierreCajaEscPos)(ticket, w));
+        return this.enviarPorRolConBuilder('cierre', 'caja', (opts) => (0, cierre_caja_escpos_builder_1.buildCierreCajaEscPos)(ticket, opts.charWidth));
     }
     async imprimirCuentasDivididas(ticket) {
-        return this.enviarPorRolConBuilder('cierre', 'caja', (w) => (0, cuentas_divididas_escpos_builder_1.buildCuentasDivididasEscPos)(ticket, w));
+        return this.enviarPorRolConBuilder('cierre', 'caja', (opts) => (0, cuentas_divididas_escpos_builder_1.buildCuentasDivididasEscPos)(ticket, opts.charWidth));
     }
     async imprimirBaseCaja(ticket) {
-        return this.enviarPorRolConBuilder('cierre', 'caja', (w) => (0, cierre_caja_escpos_builder_1.buildBaseCajaEscPos)(ticket, w));
+        return this.enviarPorRolConBuilder('cierre', 'caja', (opts) => (0, cierre_caja_escpos_builder_1.buildBaseCajaEscPos)(ticket, opts.charWidth));
     }
     async imprimirBaseCajaCierre(ticket) {
-        return this.enviarPorRolConBuilder('cierre', 'caja', (w) => (0, cierre_caja_escpos_builder_1.buildBaseCajaCierreEscPos)(ticket, w));
+        return this.enviarPorRolConBuilder('cierre', 'caja', (opts) => (0, cierre_caja_escpos_builder_1.buildBaseCajaCierreEscPos)(ticket, opts.charWidth));
     }
     async imprimirMovimientoCaja(ticket) {
-        return this.enviarPorRolConBuilder('cierre', 'caja', (w) => (0, cierre_caja_escpos_builder_1.buildMovimientoCajaEscPos)(ticket, w));
+        return this.enviarPorRolConBuilder('cierre', 'caja', (opts) => (0, cierre_caja_escpos_builder_1.buildMovimientoCajaEscPos)(ticket, opts.charWidth));
     }
     async enviarPorRolConBuilder(tipo, rol, build) {
         const destinos = await this.impresorasPos.destinosParaRol(rol);
@@ -434,7 +446,7 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
         for (const destino of destinos) {
             let buffer;
             try {
-                buffer = await build(this.charWidthForDestino(destino));
+                buffer = await build(this.layoutOptsForDestino(destino));
             }
             catch (e) {
                 const msg = e instanceof Error ? e.message : String(e);
@@ -628,12 +640,17 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
         const destino = first?.destino ?? 'printer:POS';
         return this.imprimirPruebaADestino(destino, first?.baud_rate ?? null, first?.ancho_papel_mm);
     }
-    async imprimirPruebaADestino(destino, baudRate = null, anchoPapelMm = null) {
+    async imprimirPruebaADestino(destino, baudRate = null, anchoPapelMm = null, layout) {
         const mm = (0, impresora_papel_ancho_1.normalizarAnchoPapelMm)(anchoPapelMm ?? (0, impresora_papel_ancho_1.papelMmDesdeChars)(this.charWidthLegacy()));
         const charWidth = (0, impresora_papel_ancho_1.charsPorLineaParaPapelMm)(mm);
         let buffer;
         try {
-            buffer = await (0, prueba_impresora_escpos_builder_1.buildPruebaImpresoraEscPos)(destino, charWidth, mm);
+            buffer = await (0, prueba_impresora_escpos_builder_1.buildPruebaImpresoraEscPos)(destino, {
+                charWidth,
+                tamanoFuente: layout?.tamano_fuente ?? 1,
+                margenInicioLineas: layout?.margen_inicio_lineas ?? 0,
+                margenFinLineas: layout?.margen_fin_lineas ?? 2,
+            }, mm);
         }
         catch (e) {
             const msg = e instanceof Error ? e.message : String(e);

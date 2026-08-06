@@ -62,6 +62,7 @@ __decorate([
 class CategoriaPlantillaItemDto {
     nombre;
     icono_menu;
+    color_icono;
     activo;
     disponible_lunes;
     disponible_martes;
@@ -92,6 +93,11 @@ __decorate([
     (0, class_validator_1.MaxLength)(80),
     __metadata("design:type", Object)
 ], CategoriaPlantillaItemDto.prototype, "icono_menu", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.Matches)(/^#[0-9A-Fa-f]{6}$/),
+    __metadata("design:type", Object)
+], CategoriaPlantillaItemDto.prototype, "color_icono", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsBoolean)(),

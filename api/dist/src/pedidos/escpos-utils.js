@@ -34,9 +34,14 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.printEncabezadoDrewRest = exports.DREWTECH_CREDITO_LINEA = exports.DEFAULT_ESC_POS_WIDTH = exports.DREWTECH_TELEFONO_LABEL = exports.DREWTECH_TELEFONO = void 0;
+exports.resolveEscPosTicketOpts = resolveEscPosTicketOpts;
+exports.applyEscPosFontSize = applyEscPosFontSize;
+exports.applyEscPosTicketStart = applyEscPosTicketStart;
+exports.applyEscPosTicketEnd = applyEscPosTicketEnd;
 exports.ticketNombreLocal = ticketNombreLocal;
 exports.ticketTelefono = ticketTelefono;
 exports.ticketDireccion = ticketDireccion;
+exports.ticketNit = ticketNit;
 exports.dimensionesLogoContenidas = dimensionesLogoContenidas;
 exports.ticketLogoPngBufferForPreview = ticketLogoPngBufferForPreview;
 exports.printPieDrewTechFactura = printPieDrewTechFactura;
@@ -55,6 +60,55 @@ const restaurant_branding_1 = require("../common/restaurant-branding");
 const visual_assets_util_1 = require("../visual/visual-assets.util");
 const impresora_papel_ancho_1 = require("../impresoras-pos/impresora-papel-ancho");
 exports.DEFAULT_ESC_POS_WIDTH = 32;
+function resolveEscPosTicketOpts(charWidthOrOpts = exports.DEFAULT_ESC_POS_WIDTH) {
+    if (typeof charWidthOrOpts === 'number') {
+        return {
+            charWidth: charWidthOrOpts,
+            tamanoFuente: 1,
+            margenInicioLineas: 0,
+            margenFinLineas: 0,
+        };
+    }
+    const tamano = Math.min(3, Math.max(1, Math.round(Number(charWidthOrOpts.tamanoFuente) || 1)));
+    let charWidth = Math.round(Number(charWidthOrOpts.charWidth) || exports.DEFAULT_ESC_POS_WIDTH);
+    if (tamano >= 3) {
+        charWidth = Math.max(16, Math.floor(charWidth / 2));
+    }
+    return {
+        charWidth,
+        tamanoFuente: tamano,
+        margenInicioLineas: Math.min(20, Math.max(0, Math.round(Number(charWidthOrOpts.margenInicioLineas) || 0))),
+        margenFinLineas: Math.min(20, Math.max(0, Math.round(Number(charWidthOrOpts.margenFinLineas) || 0))),
+    };
+}
+async function applyEscPosFontSize(printer, tamanoFuente) {
+    if (tamanoFuente >= 3 && typeof printer.setTextQuadArea === 'function') {
+        await printer.setTextQuadArea();
+        return;
+    }
+    if (tamanoFuente >= 2 && typeof printer.setTextDoubleHeight === 'function') {
+        await printer.setTextDoubleHeight();
+        return;
+    }
+    if (typeof printer.setTextNormal === 'function') {
+        await printer.setTextNormal();
+    }
+}
+async function applyEscPosTicketStart(printer, opts) {
+    for (let i = 0; i < opts.margenInicioLineas; i++) {
+        await printer.newLine();
+    }
+    await applyEscPosFontSize(printer, opts.tamanoFuente);
+}
+async function applyEscPosTicketEnd(printer, opts) {
+    if (typeof printer.setTextNormal === 'function') {
+        await printer.setTextNormal();
+    }
+    for (let i = 0; i < opts.margenFinLineas; i++) {
+        await printer.newLine();
+    }
+    await printer.cut();
+}
 function ticketNombreLocal() {
     return (0, restaurant_branding_1.restaurantName)();
 }
@@ -63,6 +117,9 @@ function ticketTelefono() {
 }
 function ticketDireccion() {
     return (0, restaurant_branding_1.restaurantTicketAddress)();
+}
+function ticketNit() {
+    return (0, restaurant_branding_1.restaurantTicketNit)();
 }
 const TICKET_LOGO_ANCHO_PX = (() => {
     const n = Number(process.env.PRINTER_LOGO_WIDTH_PX ?? 384);
@@ -270,6 +327,11 @@ async function printEncabezadoRestaurante(printer, charWidth = exports.DEFAULT_E
         await printer.bold(true);
         await printer.println((0, restaurant_branding_1.restaurantName)().toUpperCase());
         await printer.bold(false);
+    }
+    if (ticketNit()) {
+        for (const line of wrapEscPos(`NIT: ${ticketNit()}`, charWidth)) {
+            await printer.println(line);
+        }
     }
     if (ticketTelefono()) {
         for (const line of wrapEscPos(`Tel: ${ticketTelefono()}`, charWidth)) {

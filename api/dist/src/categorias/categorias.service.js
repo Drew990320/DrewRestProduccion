@@ -13,6 +13,7 @@ exports.CategoriasService = void 0;
 const common_1 = require("@nestjs/common");
 const categoria_reglas_1 = require("@drewrest/shared-domain/categoria-reglas");
 const categoria_menu_icon_1 = require("@drewrest/shared-domain/categoria-menu-icon");
+const nav_app_icon_1 = require("@drewrest/shared-domain/nav-app-icon");
 const empaque_para_llevar_1 = require("@drewrest/shared-domain/empaque-para-llevar");
 const cocina_producto_1 = require("@drewrest/shared-domain/cocina-producto");
 const prisma_service_1 = require("../prisma/prisma.service");
@@ -32,11 +33,18 @@ let CategoriasService = class CategoriasService {
             return null;
         return (0, categoria_menu_icon_1.normalizarIconoMenuGuardado)(raw ?? null, nombreFallback);
     }
+    normalizeColorIcono(raw) {
+        if (raw == null || raw === '')
+            return null;
+        const hex = raw.trim();
+        return (0, nav_app_icon_1.esColorHexValido)(hex) ? hex.toUpperCase() : null;
+    }
     mapCategoriaAdmin(c, stats) {
         return {
             id_categoria: c.idCategoria,
             nombre: c.nombre,
             icono_menu: this.normalizeIconoMenu(c.iconoMenu, c.nombre),
+            color_icono: this.normalizeColorIcono(c.colorIcono),
             activo: c.activo,
             disponible_lunes: c.disponibleLunes,
             disponible_martes: c.disponibleMartes,
@@ -121,6 +129,7 @@ let CategoriasService = class CategoriasService {
                 esPlatoPrincipalDefault: dto.es_plato_principal_default ?? defaults.es_plato_principal_default,
                 prioridadCocinaBaja: dto.prioridad_cocina_baja ?? defaults.prioridad_cocina_baja,
                 iconoMenu: this.normalizeIconoMenu(dto.icono_menu, nombre),
+                colorIcono: this.normalizeColorIcono(dto.color_icono),
                 canal: 'restaurante',
             },
         });
@@ -200,6 +209,9 @@ let CategoriasService = class CategoriasService {
                         iconoMenu: this.normalizeIconoMenu(dto.icono_menu, existing.nombre),
                     }
                     : {}),
+                ...(dto.color_icono !== undefined
+                    ? { colorIcono: this.normalizeColorIcono(dto.color_icono) }
+                    : {}),
             },
         });
         this.gateway.emitConfigActualizada('categorias', tenantId);
@@ -256,6 +268,7 @@ let CategoriasService = class CategoriasService {
         return {
             nombre: c.nombre,
             icono_menu: this.normalizeIconoMenu(c.iconoMenu, c.nombre),
+            color_icono: this.normalizeColorIcono(c.colorIcono),
             activo: c.activo,
             disponible_lunes: c.disponibleLunes,
             disponible_martes: c.disponibleMartes,
@@ -394,6 +407,9 @@ let CategoriasService = class CategoriasService {
                                     iconoMenu: this.normalizeIconoMenu(item.icono_menu, nombre),
                                 }
                                 : {}),
+                            ...(item.color_icono !== undefined
+                                ? { colorIcono: this.normalizeColorIcono(item.color_icono) }
+                                : {}),
                         },
                     });
                     actualizadas += 1;
@@ -428,6 +444,7 @@ let CategoriasService = class CategoriasService {
                             defaults.es_plato_principal_default,
                         prioridadCocinaBaja: item.prioridad_cocina_baja ?? defaults.prioridad_cocina_baja,
                         iconoMenu: this.normalizeIconoMenu(item.icono_menu, nombre),
+                        colorIcono: this.normalizeColorIcono(item.color_icono),
                         activo: item.activo ?? true,
                     },
                 });

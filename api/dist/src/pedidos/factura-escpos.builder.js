@@ -16,10 +16,12 @@ function ticketLlevaLogoCliente(ticket) {
         return false;
     return ticket.es_precuenta === true || esTicketParaCliente(ticket);
 }
-async function buildFacturaEscPos(ticket, charWidth = escpos_utils_1.DEFAULT_ESC_POS_WIDTH) {
-    const printer = (0, escpos_utils_1.createEscPosPrinter)(charWidth);
-    const w = charWidth;
+async function buildFacturaEscPos(ticket, charWidthOrOpts = escpos_utils_1.DEFAULT_ESC_POS_WIDTH) {
+    const opts = (0, escpos_utils_1.resolveEscPosTicketOpts)(charWidthOrOpts);
+    const printer = (0, escpos_utils_1.createEscPosPrinter)(opts.charWidth);
+    const w = opts.charWidth;
     const sep = '-'.repeat(w);
+    await (0, escpos_utils_1.applyEscPosTicketStart)(printer, opts);
     if (ticketLlevaLogoCliente(ticket)) {
         await (0, escpos_utils_1.printEncabezadoRestaurante)(printer, w);
     }
@@ -218,7 +220,7 @@ async function buildFacturaEscPos(ticket, charWidth = escpos_utils_1.DEFAULT_ESC
     if (ticketLlevaLogoCliente(ticket)) {
         await (0, escpos_utils_1.printPieDrewTechFactura)(printer, w);
     }
-    await printer.cut();
+    await (0, escpos_utils_1.applyEscPosTicketEnd)(printer, opts);
     return (0, escpos_utils_1.bufferFromPrinter)(printer);
 }
 //# sourceMappingURL=factura-escpos.builder.js.map

@@ -36,6 +36,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.restaurantName = restaurantName;
 exports.restaurantTicketPhone = restaurantTicketPhone;
 exports.restaurantTicketAddress = restaurantTicketAddress;
+exports.restaurantTicketNit = restaurantTicketNit;
 exports.restaurantEmailDomain = restaurantEmailDomain;
 exports.restaurantEmailSuffix = restaurantEmailSuffix;
 exports.restaurantTextoGraciasTicket = restaurantTextoGraciasTicket;
@@ -81,6 +82,12 @@ function restaurantTicketAddress() {
     if (row?.direccion?.trim())
         return row.direccion.trim();
     return process.env.RESTAURANT_TICKET_ADDRESS?.trim() || '';
+}
+function restaurantTicketNit() {
+    const row = rowOrNull();
+    if (row?.nit?.trim())
+        return row.nit.trim();
+    return process.env.RESTAURANT_TICKET_NIT?.trim() || '';
 }
 function restaurantEmailDomain() {
     const row = rowOrNull();

@@ -59,6 +59,9 @@ function envFallbackTelefono() {
 function envFallbackDireccion() {
     return process.env.RESTAURANT_TICKET_ADDRESS?.trim() || undefined;
 }
+function envFallbackNit() {
+    return process.env.RESTAURANT_TICKET_NIT?.trim() || undefined;
+}
 function envFallbackDominio() {
     return process.env.RESTAURANT_EMAIL_DOMAIN?.trim()?.replace(/^@/, '') || undefined;
 }
@@ -75,6 +78,7 @@ let ConfigRestauranteService = class ConfigRestauranteService {
             nombre_comercial: row.nombreComercial,
             telefono: row.telefono,
             direccion: row.direccion,
+            nit: row.nit,
             dominio_email_interno: row.dominioEmailInterno,
             logo_archivo: row.logoArchivo,
             tiene_logo: (0, restaurant_branding_1.restaurantHasLogo)(),
@@ -149,6 +153,7 @@ let ConfigRestauranteService = class ConfigRestauranteService {
                     nombreComercial: envFallbackNombre() ?? 'Restaurante',
                     telefono: envFallbackTelefono() ?? null,
                     direccion: envFallbackDireccion() ?? null,
+                    nit: envFallbackNit() ?? null,
                     dominioEmailInterno: envFallbackDominio() ?? 'drewrest.local',
                 },
             });
@@ -184,6 +189,7 @@ let ConfigRestauranteService = class ConfigRestauranteService {
                 nombreComercial: dto.nombre_comercial?.trim() || 'Restaurante',
                 telefono: dto.telefono?.trim() || null,
                 direccion: dto.direccion?.trim() || null,
+                nit: dto.nit?.trim() || null,
                 dominioEmailInterno: dto.dominio_email_interno?.trim().replace(/^@/, '') ||
                     'drewrest.local',
                 logoArchivo: dto.logo_archivo?.trim() || null,
@@ -220,6 +226,7 @@ let ConfigRestauranteService = class ConfigRestauranteService {
                 ...(dto.direccion !== undefined
                     ? { direccion: dto.direccion?.trim() || null }
                     : {}),
+                ...(dto.nit !== undefined ? { nit: dto.nit?.trim() || null } : {}),
                 ...(dto.dominio_email_interno !== undefined
                     ? {
                         dominioEmailInterno: dto.dominio_email_interno.trim().replace(/^@/, '') ||

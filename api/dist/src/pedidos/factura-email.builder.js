@@ -31,6 +31,8 @@ function fechaTicket(iso) {
 }
 function buildFacturaEmailText(ticket) {
     const lines = [(0, escpos_utils_1.ticketNombreLocal)()];
+    if ((0, escpos_utils_1.ticketNit)())
+        lines.push(`NIT: ${(0, escpos_utils_1.ticketNit)()}`);
     if ((0, escpos_utils_1.ticketTelefono)())
         lines.push(`Tel: ${(0, escpos_utils_1.ticketTelefono)()}`);
     if ((0, escpos_utils_1.ticketDireccion)())
@@ -166,6 +168,9 @@ function buildFacturaEmailHtml(ticket) {
 <body style="margin:0;padding:0;background:#f6f4f1;font-family:Segoe UI,Arial,sans-serif;color:#2c241c">
   <div style="max-width:520px;margin:24px auto;background:#fff;border-radius:12px;padding:24px;border:1px solid #e8e0d8">
     <h1 style="margin:0 0 4px;font-size:22px;color:#8b3a2b">${escapeHtml((0, escpos_utils_1.ticketNombreLocal)())}</h1>
+    ${(0, escpos_utils_1.ticketNit)()
+        ? `<p style="margin:0 0 2px;color:#555;font-size:14px">NIT: ${escapeHtml((0, escpos_utils_1.ticketNit)())}</p>`
+        : ''}
     ${(0, escpos_utils_1.ticketTelefono)()
         ? `<p style="margin:0 0 2px;color:#555;font-size:14px">Tel: ${escapeHtml((0, escpos_utils_1.ticketTelefono)())}</p>`
         : ''}

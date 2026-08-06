@@ -104,6 +104,7 @@ let MenuService = class MenuService {
             id_categoria: c.idCategoria,
             nombre: c.nombre,
             icono_menu: (0, categoria_menu_icon_1.normalizarIconoMenuGuardado)(c.iconoMenu, c.nombre),
+            color_icono: c.colorIcono?.trim() || null,
             es_bebida: c.esBebida,
             visible_en_mostrador: c.visibleEnMostrador,
             productos: c.productos

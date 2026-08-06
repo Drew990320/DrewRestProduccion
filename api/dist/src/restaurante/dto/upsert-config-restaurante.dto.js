@@ -16,6 +16,7 @@ class UpsertConfigRestauranteDto {
     nombre_comercial;
     telefono;
     direccion;
+    nit;
     dominio_email_interno;
     logo_archivo;
     texto_gracias_ticket;
@@ -57,6 +58,12 @@ __decorate([
     (0, class_validator_1.MaxLength)(255),
     __metadata("design:type", Object)
 ], UpsertConfigRestauranteDto.prototype, "direccion", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(40),
+    __metadata("design:type", Object)
+], UpsertConfigRestauranteDto.prototype, "nit", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),

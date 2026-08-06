@@ -249,7 +249,7 @@ let ConfigVisualService = class ConfigVisualService {
         (0, config_restaurante_cache_1.invalidateConfigRestauranteCache)(tenantId);
         await this.prisma.categoria.updateMany({
             where: { idRestaurante: tenantId },
-            data: { iconoMenu: null },
+            data: { iconoMenu: null, colorIcono: null },
         });
         this.invalidateCache(tenantId);
         const row = await this.prisma.configVisual.update({

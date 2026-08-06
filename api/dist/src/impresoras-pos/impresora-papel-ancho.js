@@ -6,6 +6,8 @@ exports.charsPorLineaParaPapelMm = charsPorLineaParaPapelMm;
 exports.logoAnchoPxParaPapelMm = logoAnchoPxParaPapelMm;
 exports.papelMmDesdeChars = papelMmDesdeChars;
 exports.clampCharsPorLinea = clampCharsPorLinea;
+exports.normalizarTamanoFuente = normalizarTamanoFuente;
+exports.normalizarMargenLineas = normalizarMargenLineas;
 exports.ANCHOS_PAPEL_MM = [58, 80];
 function normalizarAnchoPapelMm(value) {
     const n = Number(value);
@@ -26,5 +28,17 @@ function clampCharsPorLinea(chars, fallback = 32) {
     return Number.isFinite(chars) && chars >= 24 && chars <= 48
         ? Math.round(chars)
         : fallback;
+}
+function normalizarTamanoFuente(value, fallback = 1) {
+    const n = Math.round(Number(value));
+    if (!Number.isFinite(n))
+        return fallback;
+    return Math.min(3, Math.max(1, n));
+}
+function normalizarMargenLineas(value, fallback = 0) {
+    const n = Math.round(Number(value));
+    if (!Number.isFinite(n))
+        return fallback;
+    return Math.min(20, Math.max(0, n));
 }
 //# sourceMappingURL=impresora-papel-ancho.js.map
