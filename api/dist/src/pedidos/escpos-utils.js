@@ -260,7 +260,7 @@ function formatCopEscPos(value) {
     const sign = n < 0 ? '-' : '';
     const abs = Math.abs(n);
     const grouped = abs.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-    return `${sign}$ ${grouped}`;
+    return `${sign}$${grouped}`;
 }
 function wrapEscPos(text, width) {
     const words = text.replace(/\s+/g, ' ').trim().split(' ');
@@ -282,17 +282,21 @@ function wrapEscPos(text, width) {
     return lines.length ? lines : [''];
 }
 function lineaConPrecio(etiqueta, precio, width) {
+    const w = Math.max(8, Math.floor(Number(width) || exports.DEFAULT_ESC_POS_WIDTH));
+    const p = precio.length > w ? precio.slice(precio.length - w) : precio;
     if (!etiqueta.trim()) {
-        return precio.padStart(width);
+        return p.padStart(w);
     }
-    const gap = width - etiqueta.length - precio.length;
-    if (gap >= 1) {
-        return etiqueta + ' '.repeat(gap) + precio;
+    const maxLeft = w - p.length - 1;
+    if (maxLeft < 1) {
+        return p.padStart(w);
     }
-    return `${etiqueta.slice(0, Math.max(1, width - precio.length - 1))} ${precio}`;
+    const left = etiqueta.length <= maxLeft ? etiqueta : etiqueta.slice(0, maxLeft);
+    const gap = w - left.length - p.length;
+    return left + ' '.repeat(Math.max(1, gap)) + p;
 }
 function createEscPosPrinter(charWidth) {
-    const { ThermalPrinter, PrinterTypes, CharacterSet } = require('node-thermal-printer');
+    const { ThermalPrinter, PrinterTypes, CharacterSet, BreakLine, } = require('node-thermal-printer');
     const dummyIface = path.join(os.tmpdir(), `pos-escpos-dummy-${process.pid}.bin`);
     return new ThermalPrinter({
         type: PrinterTypes.EPSON,
@@ -301,6 +305,7 @@ function createEscPosPrinter(charWidth) {
         removeSpecialCharacters: false,
         lineCharacter: '-',
         width: charWidth,
+        breakLine: BreakLine.NONE,
     });
 }
 async function printEncabezadoRestaurante(printer, charWidth = exports.DEFAULT_ESC_POS_WIDTH) {

@@ -93,20 +93,19 @@ async function buildFacturaEscPos(ticket, charWidthOrOpts = escpos_utils_1.DEFAU
     await printer.println(sep);
     for (const linea of ticket.lineas) {
         const titulo = `${linea.cantidad}x ${linea.nombre_producto}`;
-        const tituloLines = (0, escpos_utils_1.wrapEscPos)(titulo, w);
         const sinPrecioLinea = ticket.es_cuota_personas || ticket.es_cuota_combinado;
         if (sinPrecioLinea) {
-            for (const tl of tituloLines) {
+            for (const tl of (0, escpos_utils_1.wrapEscPos)(titulo, w)) {
                 await printer.println(tl);
             }
         }
         else {
             const precio = (0, escpos_utils_1.formatCopEscPos)(linea.subtotal_linea);
-            if (tituloLines.length === 1) {
-                await printer.println((0, escpos_utils_1.lineaConPrecio)(tituloLines[0], precio, w));
+            if (titulo.length + 1 + precio.length <= w) {
+                await printer.println((0, escpos_utils_1.lineaConPrecio)(titulo, precio, w));
             }
             else {
-                for (const tl of tituloLines) {
+                for (const tl of (0, escpos_utils_1.wrapEscPos)(titulo, w)) {
                     await printer.println(tl);
                 }
                 await printer.println((0, escpos_utils_1.lineaConPrecio)('', precio, w));

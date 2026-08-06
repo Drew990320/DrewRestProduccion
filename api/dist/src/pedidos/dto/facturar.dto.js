@@ -36,7 +36,7 @@ class FacturarDto {
 }
 exports.FacturarDto = FacturarDto;
 __decorate([
-    (0, class_validator_1.IsIn)(['efectivo', 'transferencia', 'fiado']),
+    (0, class_validator_1.IsIn)(['efectivo', 'transferencia', 'tarjeta', 'fiado']),
     __metadata("design:type", String)
 ], FacturarDto.prototype, "metodo_pago", void 0);
 __decorate([

@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ANCHOS_PAPEL_MM = void 0;
+exports.CHARS_80MM = exports.CHARS_58MM = exports.ANCHOS_PAPEL_MM = void 0;
 exports.normalizarAnchoPapelMm = normalizarAnchoPapelMm;
 exports.charsPorLineaParaPapelMm = charsPorLineaParaPapelMm;
 exports.logoAnchoPxParaPapelMm = logoAnchoPxParaPapelMm;
@@ -9,6 +9,8 @@ exports.clampCharsPorLinea = clampCharsPorLinea;
 exports.normalizarTamanoFuente = normalizarTamanoFuente;
 exports.normalizarMargenLineas = normalizarMargenLineas;
 exports.ANCHOS_PAPEL_MM = [58, 80];
+exports.CHARS_58MM = 32;
+exports.CHARS_80MM = 42;
 function normalizarAnchoPapelMm(value) {
     const n = Number(value);
     if (n >= 80)
@@ -16,7 +18,7 @@ function normalizarAnchoPapelMm(value) {
     return 58;
 }
 function charsPorLineaParaPapelMm(mm) {
-    return normalizarAnchoPapelMm(mm) === 80 ? 48 : 32;
+    return normalizarAnchoPapelMm(mm) === 80 ? exports.CHARS_80MM : exports.CHARS_58MM;
 }
 function logoAnchoPxParaPapelMm(mm) {
     return normalizarAnchoPapelMm(mm) === 80 ? 576 : 384;

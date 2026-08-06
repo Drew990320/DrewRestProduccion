@@ -1137,7 +1137,7 @@ let PedidosService = class PedidosService {
             descuento_promociones: Number(f.descuentoPromociones),
             monto_redondeo: Number(f.montoRedondeo ?? 0),
             total: Number(f.total),
-            metodo_pago: f.metodoPago === 'tarjeta' ? 'transferencia' : f.metodoPago,
+            metodo_pago: f.metodoPago,
             emitida_en: f.emitidaEn,
             es_parcial: f.esParcial,
             persona_plan_indice: f.personaPlanIndice ?? null,
@@ -1683,6 +1683,7 @@ let PedidosService = class PedidosService {
         const totalesPorMetodo = {
             efectivo: 0,
             transferencia: 0,
+            tarjeta: 0,
             fiado: 0,
         };
         const byMesa = new Map();
@@ -1692,9 +1693,11 @@ let PedidosService = class PedidosService {
             totalFacturado += t;
             if (f.metodoPago === 'efectivo')
                 totalesPorMetodo.efectivo += t;
-            else if (f.metodoPago === 'transferencia' ||
-                f.metodoPago === 'tarjeta') {
+            else if (f.metodoPago === 'transferencia') {
                 totalesPorMetodo.transferencia += t;
+            }
+            else if (f.metodoPago === 'tarjeta') {
+                totalesPorMetodo.tarjeta += t;
             }
             else if (f.metodoPago === 'fiado') {
                 totalesPorMetodo.fiado += t;
@@ -6308,7 +6311,7 @@ let PedidosService = class PedidosService {
         const excesoTransferencia = dto.metodo_pago === 'transferencia'
             ? this.validarExcesoTransferenciaFactura(Number(total), dto.monto_transferencia, dto.devolucion_exceso_metodo)
             : 0;
-        const detalleExcesoCobro = esFiado
+        const detalleExcesoCobro = esFiado || dto.metodo_pago === 'tarjeta'
             ? null
             : (0, factura_vuelto_1.calcularDetalleExcesoCobro)({
                 total: Number(total),
