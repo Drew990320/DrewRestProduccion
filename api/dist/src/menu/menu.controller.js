@@ -24,6 +24,7 @@ const menu_admin_service_1 = require("./menu-admin.service");
 const create_menu_dto_1 = require("./dto/create-menu.dto");
 const update_menu_dto_1 = require("./dto/update-menu.dto");
 const upsert_menu_producto_dto_1 = require("./dto/upsert-menu-producto.dto");
+const asignar_productos_menus_dto_1 = require("./dto/asignar-productos-menus.dto");
 const set_menu_activo_dto_1 = require("./dto/set-menu-activo.dto");
 const clonar_menu_dto_1 = require("./dto/clonar-menu.dto");
 const menu_precios_foto_service_1 = require("./menu-precios-foto.service");
@@ -59,6 +60,9 @@ let MenuController = class MenuController {
             throw new common_1.BadRequestException('id_menu inválido');
         }
         return this.preciosFoto.analizar(file, idMenu, tenantId);
+    }
+    asignarProductos(dto, tenantId) {
+        return this.menuAdmin.asignarProductos(dto, tenantId);
     }
     actualizar(id, dto, tenantId) {
         return this.menuAdmin.actualizar(id, dto, tenantId);
@@ -139,6 +143,16 @@ __decorate([
     __metadata("design:paramtypes", [Object, Object, Number, Object, Object]),
     __metadata("design:returntype", void 0)
 ], MenuController.prototype, "preciosDesdeFoto", null);
+__decorate([
+    (0, common_1.Post)('admin/asignar-productos'),
+    (0, common_1.UseGuards)(roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)('admin', 'superadmin'),
+    __param(0, (0, common_1.Body)()),
+    __param(1, (0, current_tenant_decorator_1.CurrentTenantId)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [asignar_productos_menus_dto_1.AsignarProductosMenusDto, Number]),
+    __metadata("design:returntype", void 0)
+], MenuController.prototype, "asignarProductos", null);
 __decorate([
     (0, common_1.Patch)('admin/:id'),
     (0, common_1.UseGuards)(roles_guard_1.RolesGuard),

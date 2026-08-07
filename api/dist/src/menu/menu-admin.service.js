@@ -360,6 +360,77 @@ let MenuAdminService = class MenuAdminService {
             producto_activo: row.producto.activo,
         };
     }
+    async asignarProductos(dto, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
+        const idProductos = [...new Set(dto.id_productos.map((n) => Number(n)))].filter((n) => Number.isFinite(n) && n >= 1);
+        const idMenus = [...new Set(dto.id_menus.map((n) => Number(n)))].filter((n) => Number.isFinite(n) && n >= 1);
+        if (idProductos.length === 0 || idMenus.length === 0) {
+            throw new common_2.BadRequestException('Indica al menos un producto y un menú');
+        }
+        const menus = await this.prisma.menu.findMany({
+            where: { idRestaurante: tenantId, idMenu: { in: idMenus } },
+            select: { idMenu: true, nombre: true },
+        });
+        if (menus.length !== idMenus.length) {
+            throw new common_2.NotFoundException('Uno o más menús no existen');
+        }
+        const productos = await this.prisma.producto.findMany({
+            where: {
+                idProducto: { in: idProductos },
+                categoria: { idRestaurante: tenantId, canal: 'restaurante' },
+            },
+            select: { idProducto: true, nombre: true, precio: true, activo: true },
+        });
+        if (productos.length !== idProductos.length) {
+            throw new common_2.NotFoundException('Uno o más productos no existen');
+        }
+        const precioFijo = dto.precio != null && Number.isFinite(Number(dto.precio))
+            ? Math.max(0, Number(dto.precio))
+            : null;
+        let creados = 0;
+        let yaEstaban = 0;
+        await this.prisma.$transaction(async (tx) => {
+            for (const menu of menus) {
+                for (const prod of productos) {
+                    const precio = precioFijo ?? Number(prod.precio);
+                    const existente = await tx.menuProducto.findUnique({
+                        where: {
+                            idMenu_idProducto: {
+                                idMenu: menu.idMenu,
+                                idProducto: prod.idProducto,
+                            },
+                        },
+                    });
+                    if (existente) {
+                        if (!existente.activo) {
+                            await tx.menuProducto.update({
+                                where: { idMenuProducto: existente.idMenuProducto },
+                                data: { activo: true },
+                            });
+                        }
+                        yaEstaban += 1;
+                        continue;
+                    }
+                    await tx.menuProducto.create({
+                        data: {
+                            idMenu: menu.idMenu,
+                            idProducto: prod.idProducto,
+                            precio,
+                            activo: true,
+                        },
+                    });
+                    creados += 1;
+                }
+            }
+        });
+        this.emitMenu(tenantId);
+        return {
+            ok: true,
+            creados,
+            ya_estaban: yaEstaban,
+            menus: menus.map((m) => m.nombre),
+            productos: productos.map((p) => p.nombre),
+        };
+    }
     async quitarProducto(idMenu, idProducto, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
         const menu = await this.prisma.menu.findFirst({
             where: { idMenu, idRestaurante: tenantId },

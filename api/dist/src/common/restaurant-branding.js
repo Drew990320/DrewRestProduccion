@@ -45,6 +45,7 @@ exports.restaurantTextoAvisoNoDian = restaurantTextoAvisoNoDian;
 exports.restaurantTextoPieCorreo = restaurantTextoPieCorreo;
 exports.restaurantPrefijoAsuntoCorreo = restaurantPrefijoAsuntoCorreo;
 exports.restaurantMostrarCreditoDrewTech = restaurantMostrarCreditoDrewTech;
+exports.restaurantFacturaMostrarFlags = restaurantFacturaMostrarFlags;
 exports.restaurantModuloEnvioCorreoActivo = restaurantModuloEnvioCorreoActivo;
 exports.restaurantModuloResumenDiarioActivo = restaurantModuloResumenDiarioActivo;
 exports.restaurantModuloMeserosOperativosActivo = restaurantModuloMeserosOperativosActivo;
@@ -126,6 +127,20 @@ function restaurantMostrarCreditoDrewTech() {
     if (row)
         return row.mostrarCreditoDrewTech;
     return true;
+}
+function restaurantFacturaMostrarFlags() {
+    const row = rowOrNull();
+    return {
+        logo: row?.facturaMostrarLogo !== false,
+        mesero: row?.facturaMostrarMesero !== false,
+        comensales: row?.facturaMostrarComensales !== false,
+        detalleItems: row?.facturaMostrarDetalleItems !== false,
+        descuentos: row?.facturaMostrarDescuentos !== false,
+        metodoPago: row?.facturaMostrarMetodoPago !== false,
+        vuelto: row?.facturaMostrarVuelto !== false,
+        propina: row?.facturaMostrarPropina !== false,
+        gracias: row?.facturaMostrarGracias !== false,
+    };
 }
 function restaurantModuloEnvioCorreoActivo() {
     const row = rowOrNull();

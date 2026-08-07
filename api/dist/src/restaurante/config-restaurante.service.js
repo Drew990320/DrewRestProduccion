@@ -88,6 +88,15 @@ let ConfigRestauranteService = class ConfigRestauranteService {
             texto_pie_correo: row.textoPieCorreo,
             prefijo_asunto_correo: row.prefijoAsuntoCorreo,
             mostrar_credito_drewtech: row.mostrarCreditoDrewTech,
+            factura_mostrar_logo: row.facturaMostrarLogo,
+            factura_mostrar_mesero: row.facturaMostrarMesero,
+            factura_mostrar_comensales: row.facturaMostrarComensales,
+            factura_mostrar_detalle_items: row.facturaMostrarDetalleItems,
+            factura_mostrar_descuentos: row.facturaMostrarDescuentos,
+            factura_mostrar_metodo_pago: row.facturaMostrarMetodoPago,
+            factura_mostrar_vuelto: row.facturaMostrarVuelto,
+            factura_mostrar_propina: row.facturaMostrarPropina,
+            factura_mostrar_gracias: row.facturaMostrarGracias,
             etiqueta_descuento_sopas: row.etiquetaDescuentoSopas,
             etiqueta_descuento_muleros: row.etiquetaDescuentoMuleros,
             modulo_inventario_activo: row.moduloInventarioActivo,
@@ -200,6 +209,15 @@ let ConfigRestauranteService = class ConfigRestauranteService {
                 textoPieCorreo: dto.texto_pie_correo?.trim() || null,
                 prefijoAsuntoCorreo: dto.prefijo_asunto_correo?.trim() || null,
                 mostrarCreditoDrewTech: dto.mostrar_credito_drewtech ?? true,
+                facturaMostrarLogo: dto.factura_mostrar_logo ?? true,
+                facturaMostrarMesero: dto.factura_mostrar_mesero ?? true,
+                facturaMostrarComensales: dto.factura_mostrar_comensales ?? true,
+                facturaMostrarDetalleItems: dto.factura_mostrar_detalle_items ?? true,
+                facturaMostrarDescuentos: dto.factura_mostrar_descuentos ?? true,
+                facturaMostrarMetodoPago: dto.factura_mostrar_metodo_pago ?? true,
+                facturaMostrarVuelto: dto.factura_mostrar_vuelto ?? true,
+                facturaMostrarPropina: dto.factura_mostrar_propina ?? true,
+                facturaMostrarGracias: dto.factura_mostrar_gracias ?? true,
                 etiquetaDescuentoSopas: dto.etiqueta_descuento_sopas?.trim() || 'Descuento sopas',
                 etiquetaDescuentoMuleros: dto.etiqueta_descuento_muleros?.trim() ||
                     'Descuento clientes especiales',
@@ -259,6 +277,33 @@ let ConfigRestauranteService = class ConfigRestauranteService {
                     : {}),
                 ...(dto.mostrar_credito_drewtech !== undefined
                     ? { mostrarCreditoDrewTech: dto.mostrar_credito_drewtech }
+                    : {}),
+                ...(dto.factura_mostrar_logo !== undefined
+                    ? { facturaMostrarLogo: dto.factura_mostrar_logo }
+                    : {}),
+                ...(dto.factura_mostrar_mesero !== undefined
+                    ? { facturaMostrarMesero: dto.factura_mostrar_mesero }
+                    : {}),
+                ...(dto.factura_mostrar_comensales !== undefined
+                    ? { facturaMostrarComensales: dto.factura_mostrar_comensales }
+                    : {}),
+                ...(dto.factura_mostrar_detalle_items !== undefined
+                    ? { facturaMostrarDetalleItems: dto.factura_mostrar_detalle_items }
+                    : {}),
+                ...(dto.factura_mostrar_descuentos !== undefined
+                    ? { facturaMostrarDescuentos: dto.factura_mostrar_descuentos }
+                    : {}),
+                ...(dto.factura_mostrar_metodo_pago !== undefined
+                    ? { facturaMostrarMetodoPago: dto.factura_mostrar_metodo_pago }
+                    : {}),
+                ...(dto.factura_mostrar_vuelto !== undefined
+                    ? { facturaMostrarVuelto: dto.factura_mostrar_vuelto }
+                    : {}),
+                ...(dto.factura_mostrar_propina !== undefined
+                    ? { facturaMostrarPropina: dto.factura_mostrar_propina }
+                    : {}),
+                ...(dto.factura_mostrar_gracias !== undefined
+                    ? { facturaMostrarGracias: dto.factura_mostrar_gracias }
                     : {}),
                 ...(dto.etiqueta_descuento_sopas !== undefined
                     ? { etiquetaDescuentoSopas: dto.etiqueta_descuento_sopas.trim() }

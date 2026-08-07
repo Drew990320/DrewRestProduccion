@@ -36,6 +36,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.printEncabezadoDrewRest = exports.DREWTECH_CREDITO_LINEA = exports.DEFAULT_ESC_POS_WIDTH = exports.DREWTECH_TELEFONO_LABEL = exports.DREWTECH_TELEFONO = void 0;
 exports.resolveEscPosTicketOpts = resolveEscPosTicketOpts;
 exports.applyEscPosFontSize = applyEscPosFontSize;
+exports.applyEscPosBeep = applyEscPosBeep;
 exports.applyEscPosTicketStart = applyEscPosTicketStart;
 exports.applyEscPosTicketEnd = applyEscPosTicketEnd;
 exports.ticketNombreLocal = ticketNombreLocal;
@@ -69,8 +70,12 @@ function resolveEscPosTicketOpts(charWidthOrOpts = exports.DEFAULT_ESC_POS_WIDTH
             margenFinLineas: 0,
         };
     }
-    const tamano = Math.min(3, Math.max(1, Math.round(Number(charWidthOrOpts.tamanoFuente) || 1)));
+    const tamano = (0, impresora_papel_ancho_1.normalizarTamanoFuente)(charWidthOrOpts.tamanoFuente, 1);
     let charWidth = Math.round(Number(charWidthOrOpts.charWidth) || exports.DEFAULT_ESC_POS_WIDTH);
+    if (tamano <= 0) {
+        const factor = (0, impresora_papel_ancho_1.factorColumnasPorTamanoFuente)(tamano);
+        charWidth = Math.min(56, Math.max(24, Math.round(charWidth * factor)));
+    }
     if (tamano >= 3) {
         charWidth = Math.max(16, Math.floor(charWidth / 2));
     }
@@ -82,11 +87,24 @@ function resolveEscPosTicketOpts(charWidthOrOpts = exports.DEFAULT_ESC_POS_WIDTH
     };
 }
 async function applyEscPosFontSize(printer, tamanoFuente) {
-    if (tamanoFuente >= 3 && typeof printer.setTextQuadArea === 'function') {
+    const t = (0, impresora_papel_ancho_1.normalizarTamanoFuente)(tamanoFuente, 1);
+    if (t <= 0) {
+        if (typeof printer.setTypeFontB === 'function') {
+            await printer.setTypeFontB();
+        }
+        if (typeof printer.setTextNormal === 'function') {
+            await printer.setTextNormal();
+        }
+        return;
+    }
+    if (typeof printer.setTypeFontA === 'function') {
+        await printer.setTypeFontA();
+    }
+    if (t >= 3 && typeof printer.setTextQuadArea === 'function') {
         await printer.setTextQuadArea();
         return;
     }
-    if (tamanoFuente >= 2 && typeof printer.setTextDoubleHeight === 'function') {
+    if (t >= 2 && typeof printer.setTextDoubleHeight === 'function') {
         await printer.setTextDoubleHeight();
         return;
     }
@@ -94,7 +112,29 @@ async function applyEscPosFontSize(printer, tamanoFuente) {
         await printer.setTextNormal();
     }
 }
+function beepEscPosHabilitado() {
+    const raw = String(process.env.PRINTER_BEEP ?? '1').trim().toLowerCase();
+    return raw !== '0' && raw !== 'false' && raw !== 'off' && raw !== 'no';
+}
+function beepEscPosParams() {
+    const times = Math.min(9, Math.max(1, Math.round(Number(process.env.PRINTER_BEEP_TIMES) || 2)));
+    const length = Math.min(9, Math.max(1, Math.round(Number(process.env.PRINTER_BEEP_LENGTH) || 2)));
+    return { times, length };
+}
+async function applyEscPosBeep(printer) {
+    if (!beepEscPosHabilitado())
+        return;
+    if (typeof printer.beep !== 'function')
+        return;
+    const { times, length } = beepEscPosParams();
+    try {
+        await printer.beep(times, length);
+    }
+    catch {
+    }
+}
 async function applyEscPosTicketStart(printer, opts) {
+    await applyEscPosBeep(printer);
     for (let i = 0; i < opts.margenInicioLineas; i++) {
         await printer.newLine();
     }

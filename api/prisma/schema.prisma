@@ -916,6 +916,17 @@ model ConfigRestaurante {
   textoPieCorreo             String?  @map("texto_pie_correo") @db.Text
   prefijoAsuntoCorreo        String?  @map("prefijo_asunto_correo") @db.VarChar(80)
   mostrarCreditoDrewTech     Boolean  @default(true) @map("mostrar_credito_drewtech")
+  /// Factura impresa (cliente/precuenta): mostrar logo + NIT/tel/dir del branding.
+  facturaMostrarLogo         Boolean  @default(true) @map("factura_mostrar_logo")
+  facturaMostrarMesero       Boolean  @default(true) @map("factura_mostrar_mesero")
+  facturaMostrarComensales   Boolean  @default(true) @map("factura_mostrar_comensales")
+  /// Si off: no lista de platos; sí subtotal/total.
+  facturaMostrarDetalleItems Boolean  @default(true) @map("factura_mostrar_detalle_items")
+  facturaMostrarDescuentos   Boolean  @default(true) @map("factura_mostrar_descuentos")
+  facturaMostrarMetodoPago   Boolean  @default(true) @map("factura_mostrar_metodo_pago")
+  facturaMostrarVuelto       Boolean  @default(true) @map("factura_mostrar_vuelto")
+  facturaMostrarPropina      Boolean  @default(true) @map("factura_mostrar_propina")
+  facturaMostrarGracias      Boolean  @default(true) @map("factura_mostrar_gracias")
   etiquetaDescuentoSopas     String   @default("Descuento sopas") @map("etiqueta_descuento_sopas") @db.VarChar(80)
   etiquetaDescuentoMuleros   String   @default("Descuento clientes especiales") @map("etiqueta_descuento_muleros") @db.VarChar(80)
   moduloInventarioActivo     Boolean  @default(true) @map("modulo_inventario_activo")

@@ -7,6 +7,7 @@ exports.logoAnchoPxParaPapelMm = logoAnchoPxParaPapelMm;
 exports.papelMmDesdeChars = papelMmDesdeChars;
 exports.clampCharsPorLinea = clampCharsPorLinea;
 exports.normalizarTamanoFuente = normalizarTamanoFuente;
+exports.factorColumnasPorTamanoFuente = factorColumnasPorTamanoFuente;
 exports.normalizarMargenLineas = normalizarMargenLineas;
 exports.ANCHOS_PAPEL_MM = [58, 80];
 exports.CHARS_58MM = 32;
@@ -35,7 +36,15 @@ function normalizarTamanoFuente(value, fallback = 1) {
     const n = Math.round(Number(value));
     if (!Number.isFinite(n))
         return fallback;
-    return Math.min(3, Math.max(1, n));
+    return Math.min(3, Math.max(-1, n));
+}
+function factorColumnasPorTamanoFuente(tamanoFuente) {
+    const t = normalizarTamanoFuente(tamanoFuente);
+    if (t <= -1)
+        return 1.45;
+    if (t === 0)
+        return 1.32;
+    return 1;
 }
 function normalizarMargenLineas(value, fallback = 0) {
     const n = Math.round(Number(value));

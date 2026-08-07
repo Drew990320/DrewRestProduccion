@@ -9,6 +9,7 @@ async function buildCierreCajaEscPos(ticket, charWidth = escpos_utils_1.DEFAULT_
     const printer = (0, escpos_utils_1.createEscPosPrinter)(charWidth);
     const w = charWidth;
     const sep = '-'.repeat(w);
+    await (0, escpos_utils_1.applyEscPosBeep)(printer);
     await printer.alignCenter();
     await printer.println('CIERRE DE CAJA');
     await printer.println(ticket.fecha);
@@ -76,6 +77,7 @@ async function buildBaseCajaEscPos(ticket, charWidth = escpos_utils_1.DEFAULT_ES
     const printer = (0, escpos_utils_1.createEscPosPrinter)(charWidth);
     const w = charWidth;
     const sep = '-'.repeat(w);
+    await (0, escpos_utils_1.applyEscPosBeep)(printer);
     await printer.alignCenter();
     await printer.println('CAJA INICIAL');
     await printer.println(ticket.fecha);
@@ -98,6 +100,7 @@ async function buildBaseCajaCierreEscPos(ticket, charWidth = escpos_utils_1.DEFA
     const printer = (0, escpos_utils_1.createEscPosPrinter)(charWidth);
     const w = charWidth;
     const sep = '-'.repeat(w);
+    await (0, escpos_utils_1.applyEscPosBeep)(printer);
     await printer.alignCenter();
     await printer.println('CAJA CIERRE');
     await printer.println(ticket.fecha);
@@ -128,6 +131,7 @@ async function buildMovimientoCajaEscPos(ticket, charWidth = escpos_utils_1.DEFA
     const sep = '-'.repeat(w);
     const titulo = ticket.tipo === 'entrada_manual' ? 'ENTRADA DE CAJA' : 'SALIDA DE CAJA';
     const prefijoMonto = ticket.tipo === 'entrada_manual' ? '+' : '-';
+    await (0, escpos_utils_1.applyEscPosBeep)(printer);
     await printer.alignCenter();
     await printer.println(titulo);
     await printer.println(ticket.fecha);
