@@ -14,18 +14,27 @@ const class_transformer_1 = require("class-transformer");
 const class_validator_1 = require("class-validator");
 class AsignarProductosMenusDto {
     id_productos;
+    id_categorias;
     id_menus;
     precio;
 }
 exports.AsignarProductosMenusDto = AsignarProductosMenusDto;
 __decorate([
+    (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsArray)(),
-    (0, class_validator_1.ArrayMinSize)(1),
     (0, class_transformer_1.Type)(() => Number),
     (0, class_validator_1.IsInt)({ each: true }),
     (0, class_validator_1.Min)(1, { each: true }),
     __metadata("design:type", Array)
 ], AsignarProductosMenusDto.prototype, "id_productos", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsArray)(),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsInt)({ each: true }),
+    (0, class_validator_1.Min)(1, { each: true }),
+    __metadata("design:type", Array)
+], AsignarProductosMenusDto.prototype, "id_categorias", void 0);
 __decorate([
     (0, class_validator_1.IsArray)(),
     (0, class_validator_1.ArrayMinSize)(1),

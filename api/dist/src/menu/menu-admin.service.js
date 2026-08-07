@@ -361,10 +361,18 @@ let MenuAdminService = class MenuAdminService {
         };
     }
     async asignarProductos(dto, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
-        const idProductos = [...new Set(dto.id_productos.map((n) => Number(n)))].filter((n) => Number.isFinite(n) && n >= 1);
         const idMenus = [...new Set(dto.id_menus.map((n) => Number(n)))].filter((n) => Number.isFinite(n) && n >= 1);
-        if (idProductos.length === 0 || idMenus.length === 0) {
-            throw new common_2.BadRequestException('Indica al menos un producto y un menú');
+        if (idMenus.length === 0) {
+            throw new common_2.BadRequestException('Indica al menos un menú');
+        }
+        const idProductosDirectos = [
+            ...new Set((dto.id_productos ?? []).map((n) => Number(n))),
+        ].filter((n) => Number.isFinite(n) && n >= 1);
+        const idCategorias = [
+            ...new Set((dto.id_categorias ?? []).map((n) => Number(n))),
+        ].filter((n) => Number.isFinite(n) && n >= 1);
+        if (idProductosDirectos.length === 0 && idCategorias.length === 0) {
+            throw new common_2.BadRequestException('Indica al menos un producto o una categoría');
         }
         const menus = await this.prisma.menu.findMany({
             where: { idRestaurante: tenantId, idMenu: { in: idMenus } },
@@ -373,15 +381,42 @@ let MenuAdminService = class MenuAdminService {
         if (menus.length !== idMenus.length) {
             throw new common_2.NotFoundException('Uno o más menús no existen');
         }
+        if (idCategorias.length > 0) {
+            const cats = await this.prisma.categoria.findMany({
+                where: {
+                    idCategoria: { in: idCategorias },
+                    idRestaurante: tenantId,
+                    canal: 'restaurante',
+                },
+                select: { idCategoria: true },
+            });
+            if (cats.length !== idCategorias.length) {
+                throw new common_2.NotFoundException('Una o más categorías no existen');
+            }
+        }
         const productos = await this.prisma.producto.findMany({
             where: {
-                idProducto: { in: idProductos },
                 categoria: { idRestaurante: tenantId, canal: 'restaurante' },
+                OR: [
+                    ...(idProductosDirectos.length > 0
+                        ? [{ idProducto: { in: idProductosDirectos } }]
+                        : []),
+                    ...(idCategorias.length > 0
+                        ? [{ idCategoria: { in: idCategorias }, activo: true }]
+                        : []),
+                ],
             },
             select: { idProducto: true, nombre: true, precio: true, activo: true },
         });
-        if (productos.length !== idProductos.length) {
-            throw new common_2.NotFoundException('Uno o más productos no existen');
+        if (idProductosDirectos.length > 0) {
+            const found = new Set(productos.map((p) => p.idProducto));
+            const missing = idProductosDirectos.filter((id) => !found.has(id));
+            if (missing.length > 0) {
+                throw new common_2.NotFoundException('Uno o más productos no existen');
+            }
+        }
+        if (productos.length === 0) {
+            throw new common_2.BadRequestException('No hay productos activos en las categorías indicadas');
         }
         const precioFijo = dto.precio != null && Number.isFinite(Number(dto.precio))
             ? Math.max(0, Number(dto.precio))
