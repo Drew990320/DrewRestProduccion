@@ -19,6 +19,8 @@ const cocina_producto_1 = require("@drewrest/shared-domain/cocina-producto");
 const prisma_service_1 = require("../prisma/prisma.service");
 const menu_activo_service_1 = require("../menu/menu-activo.service");
 const pedidos_gateway_1 = require("../pedidos/pedidos.gateway");
+const limpiar_reglas_impresion_cocina_1 = require("../impresoras-pos/limpiar-reglas-impresion-cocina");
+const destinos_impresora_cache_1 = require("../impresoras-pos/destinos-impresora-cache");
 let CategoriasService = class CategoriasService {
     prisma;
     gateway;
@@ -214,6 +216,9 @@ let CategoriasService = class CategoriasService {
                     : {}),
             },
         });
+        if (dto.activo === false) {
+            await (0, limpiar_reglas_impresion_cocina_1.limpiarReglasImpresionPorCategoria)(this.prisma, idCategoria, tenantId);
+        }
         this.gateway.emitConfigActualizada('categorias', tenantId);
         const stats = await this.contadoresPorCategoria(tenantId);
         return this.mapCategoriaAdmin(updated, stats.get(idCategoria));
@@ -260,6 +265,7 @@ let CategoriasService = class CategoriasService {
             this.prisma.producto.deleteMany({ where: { idCategoria } }),
             this.prisma.categoria.delete({ where: { idCategoria } }),
         ]);
+        (0, destinos_impresora_cache_1.invalidateDestinosImpresoraCache)(tenantId);
         this.gateway.emitConfigActualizada('categorias', tenantId);
         this.gateway.emitConfigActualizada('menu', tenantId);
         return { ok: true, id_categoria: idCategoria };

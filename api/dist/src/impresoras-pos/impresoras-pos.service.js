@@ -19,6 +19,7 @@ const prisma_service_1 = require("../prisma/prisma.service");
 const tenant_constants_1 = require("../tenant/tenant.constants");
 const impresoras_pos_detect_1 = require("./impresoras-pos.detect");
 const destinos_impresora_cache_1 = require("./destinos-impresora-cache");
+const limpiar_reglas_impresion_cocina_1 = require("./limpiar-reglas-impresion-cocina");
 const impresora_papel_ancho_1 = require("./impresora-papel-ancho");
 let ImpresorasPosService = ImpresorasPosService_1 = class ImpresorasPosService {
     prisma;
@@ -155,6 +156,7 @@ let ImpresorasPosService = ImpresorasPosService_1 = class ImpresorasPosService {
     async listar(tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
         await this.asegurarMigracionEnv(tenantId);
         await this.aplicarPendientesLauncher(tenantId);
+        await (0, limpiar_reglas_impresion_cocina_1.purgarReglasImpresionMenuInactivo)(this.prisma, tenantId);
         const rows = await this.prisma.impresoraPos.findMany({
             where: { idRestaurante: tenantId },
             include: {
@@ -361,7 +363,18 @@ let ImpresorasPosService = ImpresorasPosService_1 = class ImpresorasPosService {
                 roles: { has: rol },
             },
             include: {
-                reglasCocina: { orderBy: { orden: 'asc' } },
+                reglasCocina: {
+                    orderBy: { orden: 'asc' },
+                    where: {
+                        OR: [
+                            { alcance: 'categoria', categoria: { activo: true } },
+                            {
+                                alcance: 'producto',
+                                producto: { activo: true, categoria: { activo: true } },
+                            },
+                        ],
+                    },
+                },
             },
             orderBy: [{ orden: 'asc' }, { idImpresora: 'asc' }],
         });

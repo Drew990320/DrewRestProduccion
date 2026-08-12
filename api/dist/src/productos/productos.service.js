@@ -20,6 +20,8 @@ const mazorca_linea_pedido_1 = require("../pedidos/mazorca-linea-pedido");
 const producto_inventario_vinculo_service_1 = require("../inventario/producto-inventario-vinculo.service");
 const menu_activo_service_1 = require("../menu/menu-activo.service");
 const producto_imagen_upload_util_1 = require("../menu/producto-imagen-upload.util");
+const limpiar_reglas_impresion_cocina_1 = require("../impresoras-pos/limpiar-reglas-impresion-cocina");
+const destinos_impresora_cache_1 = require("../impresoras-pos/destinos-impresora-cache");
 function resolverFlagsProducto(cat, explicit, existing) {
     const auto = (0, empaque_para_llevar_1.flagsProductoMenuPorCategoria)(cat);
     let esEmpacable;
@@ -353,6 +355,9 @@ let ProductosService = class ProductosService {
         if (dto.precio != null) {
             await this.menuActivo.sincronizarPrecioMenuDefault(idProducto, dto.precio, tenantId);
         }
+        if (dto.activo === false) {
+            await (0, limpiar_reglas_impresion_cocina_1.limpiarReglasImpresionPorProducto)(this.prisma, idProducto, tenantId);
+        }
         this.gateway.emitConfigActualizada('menu', tenantId);
         return mapProducto(updated);
     }
@@ -393,6 +398,7 @@ let ProductosService = class ProductosService {
             (0, mazorca_linea_pedido_1.invalidateMazorcaProductIdCache)(tenantId);
         }
         await this.prisma.producto.delete({ where: { idProducto } });
+        (0, destinos_impresora_cache_1.invalidateDestinosImpresoraCache)(tenantId);
         this.gateway.emitConfigActualizada('menu', tenantId);
         return { ok: true, id_producto: idProducto };
     }
