@@ -4,7 +4,7 @@ cd /d "%~dp0"
 
 if not exist "%~dp0DrewRest-Setup.exe" (
   echo No se encuentra DrewRest-Setup.exe en esta carpeta.
-  echo Descarga el Release de GitHub ^(archivo de unos 50 MB^).
+  echo Descarga el instalador oficial ^(archivo de unos 50 MB^).
   pause
   exit /b 1
 )

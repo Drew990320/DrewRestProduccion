@@ -32,6 +32,8 @@ class CreateProductoDto {
     es_combo;
     combo_min;
     combo_max;
+    usa_produccion_porciones;
+    porciones_por_entera;
 }
 exports.CreateProductoDto = CreateProductoDto;
 __decorate([
@@ -134,4 +136,16 @@ __decorate([
     (0, class_validator_1.Min)(1),
     __metadata("design:type", Number)
 ], CreateProductoDto.prototype, "combo_max", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], CreateProductoDto.prototype, "usa_produccion_porciones", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsInt)(),
+    (0, class_validator_1.Min)(1),
+    __metadata("design:type", Number)
+], CreateProductoDto.prototype, "porciones_por_entera", void 0);
 //# sourceMappingURL=create-producto.dto.js.map

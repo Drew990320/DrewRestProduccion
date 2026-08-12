@@ -667,6 +667,7 @@ let PedidosService = class PedidosService {
             throw new common_1.BadRequestException('Indica el motivo del movimiento');
         }
         const fechaStr = base.toFormat('yyyy-LL-dd');
+        const metodo = dto.metodo === 'transferencia' ? 'transferencia' : 'efectivo';
         const row = await this.prisma.$transaction(async (tx) => {
             const created = await tx.movimientoCaja.create({
                 data: {
@@ -674,6 +675,7 @@ let PedidosService = class PedidosService {
                     tipo: dto.tipo,
                     monto: dto.monto,
                     motivo,
+                    metodoDevolucion: metodo,
                     idUsuario: actor.idUsuario,
                 },
                 include: {
@@ -681,9 +683,13 @@ let PedidosService = class PedidosService {
                 },
             });
             const evento = dto.tipo === 'entrada_manual'
-                ? 'caja_entrada_manual'
+                ? metodo === 'transferencia'
+                    ? 'caja_entrada_transferencia'
+                    : 'caja_entrada_manual'
                 : dto.tipo === 'salida_manual'
-                    ? 'caja_salida_manual'
+                    ? metodo === 'transferencia'
+                        ? 'caja_salida_transferencia'
+                        : 'caja_salida_manual'
                     : dto.tipo === 'devolucion_exceso_transferencia'
                         ? 'exceso_devolucion'
                         : 'caja_salida_manual';
@@ -709,8 +715,13 @@ let PedidosService = class PedidosService {
             }
             return created;
         });
-        const impresion = await this.comandaPrinter.imprimirMovimientoCaja(this.ticketMovimientoCajaDesdeRow(row, fechaStr));
-        this.emitirAlertaImpresora(impresion, 'cierre');
+        const imprimir = await this.debeImprimirMovimientoCaja(dto.tipo);
+        const impresion = imprimir
+            ? await this.comandaPrinter.imprimirMovimientoCaja(this.ticketMovimientoCajaDesdeRow(row, fechaStr))
+            : this.impresionMovimientoCajaOmitida();
+        if (imprimir) {
+            this.emitirAlertaImpresora(impresion, 'cierre');
+        }
         return {
             fecha: fechaStr,
             movimiento: this.mapMovimientoCajaRow({ ...row, pedido: null }),
@@ -733,6 +744,14 @@ let PedidosService = class PedidosService {
         if (row.tipo !== 'entrada_manual' && row.tipo !== 'salida_manual') {
             throw new common_1.BadRequestException('Solo se pueden imprimir entradas o salidas manuales');
         }
+        const tipo = row.tipo;
+        const imprimir = await this.debeImprimirMovimientoCaja(tipo);
+        if (!imprimir) {
+            return {
+                ok: true,
+                impresion_movimiento: this.impresionMovimientoCajaOmitida(),
+            };
+        }
         const fechaStr = luxon_1.DateTime.fromJSDate(row.fecha, {
             zone: 'America/Bogota',
         }).toFormat('yyyy-LL-dd');
@@ -747,6 +766,7 @@ let PedidosService = class PedidosService {
             fecha,
             monto: Math.round(Number(row.monto)),
             motivo: row.motivo?.trim() || '-',
+            metodo: row.metodoDevolucion === 'transferencia' ? 'transferencia' : 'efectivo',
             registrado_por: `${row.usuario.nombre} ${row.usuario.apellido}`.trim(),
             creado_en: row.creadoEn.toISOString(),
             emitida_en: new Date().toISOString(),
@@ -864,7 +884,21 @@ let PedidosService = class PedidosService {
             soda_almuerzo_descontar_stock: row.sodaAlmuerzoDescontarStock,
             redondeo_paso: row.redondeoPaso,
             redondeo_umbral: row.redondeoUmbral,
+            imprimir_entrada_caja: row.imprimirEntradaCaja,
+            imprimir_salida_caja: row.imprimirSalidaCaja,
         };
+    }
+    impresionMovimientoCajaOmitida() {
+        return {
+            impreso: false,
+            codigo_error: 'impresion_desactivada',
+        };
+    }
+    async debeImprimirMovimientoCaja(tipo, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
+        const row = await this.obtenerConfigOperativaRow(tenantId);
+        return tipo === 'entrada_manual'
+            ? row.imprimirEntradaCaja
+            : row.imprimirSalidaCaja;
     }
     async obtenerConfigOperativaRow(tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
         const cached = (0, config_operativa_cache_1.getCachedConfigOperativaRow)(tenantId);
@@ -1037,6 +1071,12 @@ let PedidosService = class PedidosService {
                 ...(dto.redondeo_umbral != null
                     ? { redondeoUmbral: dto.redondeo_umbral }
                     : {}),
+                ...(dto.imprimir_entrada_caja != null
+                    ? { imprimirEntradaCaja: dto.imprimir_entrada_caja }
+                    : {}),
+                ...(dto.imprimir_salida_caja != null
+                    ? { imprimirSalidaCaja: dto.imprimir_salida_caja }
+                    : {}),
                 ...this.prioridadPatchFromDto(dto),
             },
             update: {
@@ -1085,6 +1125,12 @@ let PedidosService = class PedidosService {
                     : {}),
                 ...(dto.redondeo_umbral != null
                     ? { redondeoUmbral: dto.redondeo_umbral }
+                    : {}),
+                ...(dto.imprimir_entrada_caja != null
+                    ? { imprimirEntradaCaja: dto.imprimir_entrada_caja }
+                    : {}),
+                ...(dto.imprimir_salida_caja != null
+                    ? { imprimirSalidaCaja: dto.imprimir_salida_caja }
                     : {}),
                 ...this.prioridadPatchFromDto(dto),
             },
@@ -1733,6 +1779,7 @@ let PedidosService = class PedidosService {
                 emitida_en: f.emitidaEn.toISOString(),
                 es_parcial: f.esParcial,
                 cobro_mixto_grupo: f.cobroMixtoGrupo ?? null,
+                detalle_exceso_cobro: (0, factura_vuelto_1.parseDetalleExcesoCobro)(f.detalleExcesoCobro),
                 persona_plan_indice: f.personaPlanIndice ?? null,
             };
             if (!incluirLineas) {
@@ -1869,6 +1916,12 @@ let PedidosService = class PedidosService {
             monto_base_efectivo: montoBaseEfectivo,
             monto_base_cierre_efectivo: montoBaseCierreEfectivo,
             totales_por_metodo: totalesPorMetodo,
+            transferido_recibido: (0, factura_vuelto_1.totalTransferidoRecibido)(facturas.map((f) => ({
+                metodo_pago: f.metodoPago,
+                total: Number(f.total),
+                cobro_mixto_grupo: f.cobroMixtoGrupo,
+                detalle_exceso_cobro: f.detalleExcesoCobro,
+            }))),
             fiados_dia,
             total_fiados_dia: totalesPorMetodo.fiado,
             total_pagos_meseros,
@@ -1876,10 +1929,13 @@ let PedidosService = class PedidosService {
             movimientos_caja,
             devoluciones_exceso_transferencia,
             total_entradas_manual: cuadre.total_entradas_manual,
+            total_entradas_manual_transferencia: cuadre.total_entradas_manual_transferencia,
             total_salidas_manual: cuadre.total_salidas_manual,
+            total_salidas_manual_transferencia: cuadre.total_salidas_manual_transferencia,
             total_devoluciones_efectivo: cuadre.total_devoluciones_efectivo,
             total_pagos_domicilio: cuadre.total_pagos_domicilio,
             total_pagos_mesero_exceso: cuadre.total_pagos_mesero_exceso,
+            total_cuotas_gasto_fijo: cuadre.total_cuotas_gasto_fijo,
             subtotal_entradas_caja: cuadre.subtotal_entradas_caja,
             subtotal_salidas_caja: cuadre.subtotal_salidas_caja,
             efectivo_esperado_en_caja: usaCaja ? cuadre.efectivo_esperado_en_caja : null,
@@ -2646,14 +2702,18 @@ let PedidosService = class PedidosService {
             total_facturas: resumen.total_facturas,
             monto_base_efectivo: resumen.monto_base_efectivo,
             totales_por_metodo: resumen.totales_por_metodo,
+            transferido_recibido: resumen.transferido_recibido,
             fiados_dia: resumen.fiados_dia,
             total_fiados_dia: resumen.total_fiados_dia,
             total_pagos_meseros: resumen.total_pagos_meseros,
             total_entradas_manual: resumen.total_entradas_manual,
+            total_entradas_manual_transferencia: resumen.total_entradas_manual_transferencia,
             total_salidas_manual: resumen.total_salidas_manual,
+            total_salidas_manual_transferencia: resumen.total_salidas_manual_transferencia,
             total_devoluciones_efectivo: resumen.total_devoluciones_efectivo,
             total_pagos_domicilio: resumen.total_pagos_domicilio,
             total_pagos_mesero_exceso: resumen.total_pagos_mesero_exceso,
+            total_cuotas_gasto_fijo: resumen.total_cuotas_gasto_fijo,
             subtotal_entradas_caja: resumen.subtotal_entradas_caja,
             subtotal_salidas_caja: resumen.subtotal_salidas_caja,
             efectivo_esperado_en_caja: resumen.efectivo_esperado_en_caja ?? 0,
@@ -5314,14 +5374,18 @@ let PedidosService = class PedidosService {
             total_facturas: resumen.total_facturas,
             monto_base_efectivo: resumen.monto_base_efectivo,
             totales_por_metodo: resumen.totales_por_metodo,
+            transferido_recibido: resumen.transferido_recibido,
             fiados_dia: resumen.fiados_dia,
             total_fiados_dia: resumen.total_fiados_dia,
             total_pagos_meseros: resumen.total_pagos_meseros,
             total_entradas_manual: resumen.total_entradas_manual,
+            total_entradas_manual_transferencia: resumen.total_entradas_manual_transferencia,
             total_salidas_manual: resumen.total_salidas_manual,
+            total_salidas_manual_transferencia: resumen.total_salidas_manual_transferencia,
             total_devoluciones_efectivo: resumen.total_devoluciones_efectivo,
             total_pagos_domicilio: resumen.total_pagos_domicilio,
             total_pagos_mesero_exceso: resumen.total_pagos_mesero_exceso,
+            total_cuotas_gasto_fijo: resumen.total_cuotas_gasto_fijo,
             subtotal_entradas_caja: resumen.subtotal_entradas_caja,
             subtotal_salidas_caja: resumen.subtotal_salidas_caja,
             efectivo_esperado_en_caja: resumen.efectivo_esperado_en_caja ?? 0,

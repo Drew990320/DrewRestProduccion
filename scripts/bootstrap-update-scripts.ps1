@@ -12,7 +12,7 @@ $installRoot = Split-Path -Parent $here
 Write-Host "Carpeta: $installRoot" -ForegroundColor Cyan
 $ok = Install-DrewRestUpdateScriptsFromGithub -DrewRestRoot $installRoot
 if (-not $ok) {
-  Write-Host "No se pudieron refrescar los scripts. Revisa red a github.com." -ForegroundColor Red
+  Write-Host "No se pudieron refrescar los scripts. Revisa la conexión a internet." -ForegroundColor Red
   exit 1
 }
 

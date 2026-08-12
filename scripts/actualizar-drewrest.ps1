@@ -47,7 +47,6 @@ try {
 $check = Test-DrewRestUpdateAvailable -InstallRoot $installRoot
 $channel = $check.Channel
 Write-Host "Canal:   $($channel.branch)$(if ($channel.label) { " ($($channel.label))" })"
-Write-Host "Repo:    $($channel.repoUrl)"
 Write-Host ""
 
 Write-Host "Local : $(Format-DrewRestVersionLine -Manifest $check.Local)"
@@ -89,7 +88,7 @@ if (-not $check.Comparison.updateAvailable -and $Force) {
 }
 
 Write-Host ""
-Write-Host "Descargando paquete desde GitHub..." -ForegroundColor Cyan
+Write-Host "Descargando paquete de actualización..." -ForegroundColor Cyan
 
 # Primero scripts/VERSION (ligero): el PC remoto recupera el motor de update aunque el ZIP grande falle.
 try {

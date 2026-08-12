@@ -35,12 +35,15 @@ const platform_module_1 = require("./platform/platform.module");
 const prisma_module_1 = require("./prisma/prisma.module");
 const print_agent_module_1 = require("./print-agent/print-agent.module");
 const productos_module_1 = require("./productos/productos.module");
+const produccion_module_1 = require("./produccion/produccion.module");
 const proveedores_module_1 = require("./proveedores/proveedores.module");
 const restaurante_module_1 = require("./restaurante/restaurante.module");
 const tenant_module_1 = require("./tenant/tenant.module");
 const visual_module_1 = require("./visual/visual.module");
 const sistema_controller_1 = require("./sistema/sistema.controller");
 const rendimiento_controller_1 = require("./sistema/rendimiento.controller");
+const logs_controller_1 = require("./sistema/logs.controller");
+const logs_service_1 = require("./sistema/logs.service");
 const latency_metrics_interceptor_1 = require("./common/latency-metrics.interceptor");
 const superadmin_module_1 = require("./superadmin/superadmin.module");
 const usuarios_module_1 = require("./usuarios/usuarios.module");
@@ -72,6 +75,7 @@ exports.AppModule = AppModule = __decorate([
             pedidos_module_1.PedidosModule,
             impresoras_pos_module_1.ImpresorasPosModule,
             productos_module_1.ProductosModule,
+            produccion_module_1.ProduccionModule,
             categorias_module_1.CategoriasModule,
             tienda_module_1.TiendaModule,
             usuarios_module_1.UsuariosModule,
@@ -90,8 +94,9 @@ exports.AppModule = AppModule = __decorate([
             superadmin_module_1.SuperadminModule,
             print_agent_module_1.PrintAgentModule,
         ],
-        controllers: [app_controller_1.AppController, sistema_controller_1.SistemaController, rendimiento_controller_1.RendimientoController],
+        controllers: [app_controller_1.AppController, sistema_controller_1.SistemaController, rendimiento_controller_1.RendimientoController, logs_controller_1.LogsController],
         providers: [
+            logs_service_1.LogsService,
             { provide: core_1.APP_GUARD, useClass: throttler_1.ThrottlerGuard },
             { provide: core_1.APP_INTERCEPTOR, useClass: latency_metrics_interceptor_1.LatencyMetricsInterceptor },
         ],

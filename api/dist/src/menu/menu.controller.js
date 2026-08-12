@@ -82,6 +82,15 @@ let MenuController = class MenuController {
     quitarProducto(id, idProducto, tenantId) {
         return this.menuAdmin.quitarProducto(id, idProducto, tenantId);
     }
+    subirImagenProducto(id, file, tenantId) {
+        if (!file?.buffer?.length) {
+            throw new common_1.BadRequestException('Adjunta una imagen (campo imagen)');
+        }
+        return this.menu.guardarImagenProducto(id, file.buffer, file.mimetype, file.originalname, tenantId);
+    }
+    eliminarImagenProducto(id, tenantId) {
+        return this.menu.eliminarImagenProducto(id, tenantId);
+    }
 };
 exports.MenuController = MenuController;
 __decorate([
@@ -217,6 +226,30 @@ __decorate([
     __metadata("design:paramtypes", [Number, Number, Number]),
     __metadata("design:returntype", void 0)
 ], MenuController.prototype, "quitarProducto", null);
+__decorate([
+    (0, common_1.Post)('productos/:id/imagen'),
+    (0, common_1.UseGuards)(roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)('admin', 'superadmin'),
+    (0, common_1.UseInterceptors)((0, platform_express_1.FileInterceptor)('imagen', {
+        limits: { fileSize: 5 * 1024 * 1024, files: 1 },
+    })),
+    __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
+    __param(1, (0, common_1.UploadedFile)()),
+    __param(2, (0, current_tenant_decorator_1.CurrentTenantId)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number, Object, Number]),
+    __metadata("design:returntype", void 0)
+], MenuController.prototype, "subirImagenProducto", null);
+__decorate([
+    (0, common_1.Delete)('productos/:id/imagen'),
+    (0, common_1.UseGuards)(roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)('admin', 'superadmin'),
+    __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
+    __param(1, (0, current_tenant_decorator_1.CurrentTenantId)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number, Number]),
+    __metadata("design:returntype", void 0)
+], MenuController.prototype, "eliminarImagenProducto", null);
 exports.MenuController = MenuController = __decorate([
     (0, common_1.Controller)('menu'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),

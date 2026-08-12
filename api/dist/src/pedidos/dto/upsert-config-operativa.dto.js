@@ -29,6 +29,8 @@ class UpsertConfigOperativaDto {
     prioridad_cocina_modo;
     redondeo_paso;
     redondeo_umbral;
+    imprimir_entrada_caja;
+    imprimir_salida_caja;
 }
 exports.UpsertConfigOperativaDto = UpsertConfigOperativaDto;
 __decorate([
@@ -134,4 +136,14 @@ __decorate([
     (0, class_validator_1.Min)(0),
     __metadata("design:type", Number)
 ], UpsertConfigOperativaDto.prototype, "redondeo_umbral", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], UpsertConfigOperativaDto.prototype, "imprimir_entrada_caja", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], UpsertConfigOperativaDto.prototype, "imprimir_salida_caja", void 0);
 //# sourceMappingURL=upsert-config-operativa.dto.js.map

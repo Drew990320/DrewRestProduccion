@@ -9,7 +9,7 @@ USO DIARIO
       · Inicio         — Arrancar / Detener / Reparar / abrir en el navegador
       · Licencia       — ID de máquina y license.key
       · Base de datos  — Importar desde Postgres externo a la BD embebida
-      · Actualizar     — Comprobar e instalar desde GitHub
+      · Actualizar     — Comprobar e instalar actualizaciones
 
     También desde consola:
       DrewRest.exe actualizar

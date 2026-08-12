@@ -59,6 +59,7 @@ const restaurant_branding_1 = require("../common/restaurant-branding");
 const distribucion_enlaces_1 = require("../sistema/distribucion-enlaces");
 const instalacion_on_prem_1 = require("../sistema/instalacion-on-prem");
 const config_restaurante_cache_1 = require("../restaurante/config-restaurante-cache");
+const menu_hoy_cache_1 = require("../common/menu-hoy-cache");
 const PEDIDOS_ABIERTOS = ['abierto', 'en_cocina'];
 function assertHttpUrlOrEmpty(label, raw) {
     if (raw == null)
@@ -135,6 +136,8 @@ let SuperadminService = class SuperadminService {
                     moduloRedondeoCobroActivo: true,
                     moduloLoginPinActivo: true,
                     moduloAutoservicioActivo: true,
+                    moduloMenuImagenesActivo: true,
+                    moduloProduccionPorcionesActivo: true,
                 },
             }),
         ]);
@@ -152,6 +155,8 @@ let SuperadminService = class SuperadminService {
                 modulo_redondeo_cobro_activo: cfg?.moduloRedondeoCobroActivo ?? false,
                 modulo_login_pin_activo: cfg?.moduloLoginPinActivo ?? false,
                 modulo_autoservicio_activo: cfg?.moduloAutoservicioActivo ?? false,
+                modulo_menu_imagenes_activo: cfg?.moduloMenuImagenesActivo ?? false,
+                modulo_produccion_porciones_activo: cfg?.moduloProduccionPorcionesActivo ?? false,
             },
             admin_registrado: adminCount > 0,
             totales: {
@@ -387,7 +392,9 @@ let SuperadminService = class SuperadminService {
         if (dto.modulo_retail_activo === undefined &&
             dto.modulo_redondeo_cobro_activo === undefined &&
             dto.modulo_login_pin_activo === undefined &&
-            dto.modulo_autoservicio_activo === undefined) {
+            dto.modulo_autoservicio_activo === undefined &&
+            dto.modulo_menu_imagenes_activo === undefined &&
+            dto.modulo_produccion_porciones_activo === undefined) {
             throw new common_1.BadRequestException('Nada que actualizar');
         }
         await this.prisma.restaurante.upsert({
@@ -415,6 +422,14 @@ let SuperadminService = class SuperadminService {
                 ...(dto.modulo_autoservicio_activo !== undefined
                     ? { moduloAutoservicioActivo: dto.modulo_autoservicio_activo }
                     : {}),
+                ...(dto.modulo_menu_imagenes_activo !== undefined
+                    ? { moduloMenuImagenesActivo: dto.modulo_menu_imagenes_activo }
+                    : {}),
+                ...(dto.modulo_produccion_porciones_activo !== undefined
+                    ? {
+                        moduloProduccionPorcionesActivo: dto.modulo_produccion_porciones_activo,
+                    }
+                    : {}),
             },
             update: {
                 ...(dto.modulo_retail_activo !== undefined
@@ -429,9 +444,18 @@ let SuperadminService = class SuperadminService {
                 ...(dto.modulo_autoservicio_activo !== undefined
                     ? { moduloAutoservicioActivo: dto.modulo_autoservicio_activo }
                     : {}),
+                ...(dto.modulo_menu_imagenes_activo !== undefined
+                    ? { moduloMenuImagenesActivo: dto.modulo_menu_imagenes_activo }
+                    : {}),
+                ...(dto.modulo_produccion_porciones_activo !== undefined
+                    ? {
+                        moduloProduccionPorcionesActivo: dto.modulo_produccion_porciones_activo,
+                    }
+                    : {}),
             },
         });
         (0, config_restaurante_cache_1.invalidateConfigRestauranteCache)(tenantId);
+        (0, menu_hoy_cache_1.invalidateMenuHoyCache)();
         if (dto.modulo_retail_activo) {
             await this.asegurarMesaBoutique(tenantId);
         }
@@ -441,6 +465,8 @@ let SuperadminService = class SuperadminService {
             modulo_redondeo_cobro_activo: row.moduloRedondeoCobroActivo,
             modulo_login_pin_activo: row.moduloLoginPinActivo,
             modulo_autoservicio_activo: row.moduloAutoservicioActivo,
+            modulo_menu_imagenes_activo: row.moduloMenuImagenesActivo,
+            modulo_produccion_porciones_activo: row.moduloProduccionPorcionesActivo,
         };
     }
     async asegurarMesaBoutique(tenantId) {

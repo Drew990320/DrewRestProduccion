@@ -310,7 +310,7 @@ function Get-RemoteDrewRestVersionFromRelease {
   try {
     $manifest | Add-Member -NotePropertyName releaseTag -NotePropertyValue $release.tag_name -Force
     $manifest | Add-Member -NotePropertyName releaseUrl -NotePropertyValue $release.html_url -Force
-    $manifest | Add-Member -NotePropertyName updateChannel -NotePropertyValue "github-release" -Force
+    $manifest | Add-Member -NotePropertyName updateChannel -NotePropertyValue "release" -Force
   } catch {}
 
   return $manifest
@@ -485,7 +485,7 @@ function Compare-DrewRestVersions {
     return [ordered]@{
       status = "remote_only"
       updateAvailable = $true
-      message = "Instalacion sin VERSION.json. Hay paquete publicado en GitHub."
+      message = "Instalacion sin VERSION.json. Hay paquete publicado en el servidor de actualizaciones."
     }
   }
 
@@ -511,7 +511,7 @@ function Compare-DrewRestVersions {
     return [ordered]@{
       status = "update_available"
       updateAvailable = $true
-      message = "Hay una version mas reciente en DrewRestProduccion (v$($Remote.version) / build $($Remote.buildId))$channelHint."
+      message = "Hay una version mas reciente (v$($Remote.version) / build $($Remote.buildId))$channelHint."
     }
   }
 
@@ -528,7 +528,7 @@ function Compare-DrewRestVersions {
     return [ordered]@{
       status = "update_available"
       updateAvailable = $true
-      message = "Hay un paquete distinto en DrewRestProduccion (v$($Remote.version) / build $($Remote.buildId))$channelHint."
+      message = "Hay un paquete distinto disponible (v$($Remote.version) / build $($Remote.buildId))$channelHint."
     }
   }
 
@@ -790,7 +790,7 @@ function Install-DrewRestUpdateScriptsFromGithub {
   # Sin tip: usar la rama (main). En PCs sin Git sigue funcionando.
   $ref = if ($tipSha) { $tipSha } else { $Branch }
   $label = if ($tipSha) { $tipSha.Substring(0, [Math]::Min(7, $tipSha.Length)) } else { $Branch }
-  Write-Host "Actualizando scripts de update desde GitHub ($label)..." -ForegroundColor Cyan
+  Write-Host "Actualizando scripts de actualización ($label)..." -ForegroundColor Cyan
   $base = "https://raw.githubusercontent.com/$Owner/$Repo/$ref"
   $scriptsDst = Join-Path $DrewRestRoot "scripts"
   New-Item -ItemType Directory -Force -Path $scriptsDst | Out-Null
@@ -876,7 +876,7 @@ function Get-DrewRestUpdateSource {
   # 1) Preferir ZIP slim del GitHub Release (PCs sin Git; mucho mas pequeno).
   $releaseZipUrl = Get-DrewRestReleaseUpdateZipUrl
   if ($releaseZipUrl) {
-    Write-Host "Descargando DrewRest-update.zip desde GitHub Release..." -ForegroundColor Cyan
+    Write-Host "Descargando paquete de actualización..." -ForegroundColor Cyan
     $zipPath = Join-Path $WorkDir "DrewRest-update.zip"
     try {
       Invoke-WebRequest -Uri $releaseZipUrl -OutFile $zipPath -TimeoutSec 3600 -UseBasicParsing
@@ -885,9 +885,9 @@ function Get-DrewRestUpdateSource {
       if ($extracted) {
         return @{ ok = $true; path = $extracted; method = "release-zip" }
       }
-      Write-Host "ZIP del Release no tenia estructura esperada; se intenta otro metodo." -ForegroundColor Yellow
+      Write-Host "ZIP del paquete no tenia estructura esperada; se intenta otro metodo." -ForegroundColor Yellow
     } catch {
-      Write-Host "No se pudo bajar ZIP del Release: $($_.Exception.Message)" -ForegroundColor Yellow
+      Write-Host "No se pudo bajar el paquete remoto: $($_.Exception.Message)" -ForegroundColor Yellow
     }
   }
 
@@ -896,7 +896,7 @@ function Get-DrewRestUpdateSource {
   $prev = $ErrorActionPreference
   $ErrorActionPreference = "Continue"
   if (Get-Command git -ErrorAction SilentlyContinue) {
-    Write-Host "Clonando paquete desde GitHub (depth 1). Puede tardar varios minutos..." -ForegroundColor Cyan
+    Write-Host "Descargando paquete (puede tardar varios minutos)..." -ForegroundColor Cyan
     $env:GIT_TERMINAL_PROMPT = "0"
     $cloneDir = Join-Path $WorkDir "clone"
     New-Item -ItemType Directory -Force -Path $cloneDir | Out-Null

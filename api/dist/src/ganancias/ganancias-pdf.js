@@ -124,7 +124,7 @@ function buildGananciasPdf(data) {
         kv('Ventas', cop(r.ventas));
         kv('Costo de ventas', cop(r.costo_ventas));
         kv('Ganancia bruta', `${cop(r.ganancia_bruta)}${r.margen_bruto_pct != null ? ` (${r.margen_bruto_pct}%)` : ''}`, true);
-        kv('Gastos fijos (prorrateados)', cop(r.gastos_fijos));
+        kv('Gastos fijos', cop(r.gastos_fijos));
         kv('Gastos extras', cop(r.gastos_extras));
         kv('Pagos a meseros', cop(r.gastos_meseros ?? 0));
         kv('Total gastos', cop(r.gastos_total), true);
@@ -152,7 +152,7 @@ function buildGananciasPdf(data) {
             y += 14;
         }
         y = drawTableSection(doc, 'Gastos fijos', ['Concepto', 'Mensual', 'En periodo'], data.gastos_fijos.map((g) => [
-            g.nombre,
+            g.usa_fondo_diario ? `${g.nombre} (fondo)` : g.nombre,
             cop(g.monto_mensual),
             cop(g.monto_periodo),
         ]), [0.5, 0.25, 0.25], left, contentW, y, data.gastos_fijos.length === 0 ? 'Ninguno' : undefined);

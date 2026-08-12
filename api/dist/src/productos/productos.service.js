@@ -19,6 +19,7 @@ const cocina_producto_1 = require("@drewrest/shared-domain/cocina-producto");
 const mazorca_linea_pedido_1 = require("../pedidos/mazorca-linea-pedido");
 const producto_inventario_vinculo_service_1 = require("../inventario/producto-inventario-vinculo.service");
 const menu_activo_service_1 = require("../menu/menu-activo.service");
+const producto_imagen_upload_util_1 = require("../menu/producto-imagen-upload.util");
 function resolverFlagsProducto(cat, explicit, existing) {
     const auto = (0, empaque_para_llevar_1.flagsProductoMenuPorCategoria)(cat);
     let esEmpacable;
@@ -81,6 +82,10 @@ function mapProducto(p) {
         es_combo: p.esCombo,
         combo_min: Math.max(1, p.comboMin ?? 1),
         combo_max: Math.max(1, p.comboMax ?? 1),
+        usa_produccion_porciones: Boolean(p.usaProduccionPorciones),
+        porciones_por_entera: Math.max(1, p.porcionesPorEntera ?? 8),
+        imagen_archivo: p.imagenArchivo ?? null,
+        imagen_url: (0, producto_imagen_upload_util_1.productoImagenPublicUrl)(p.idProducto, p.imagenArchivo),
         es_bebida: p.categoria.esBebida ?? false,
         total_usos_pedido: p._count?.detalles ?? 0,
     };
@@ -196,7 +201,21 @@ let ProductosService = class ProductosService {
                 comboMin,
                 comboMax,
                 activo: true,
-                ...(dto.control_stock != null ? { controlStock: dto.control_stock } : {}),
+                ...(dto.usa_produccion_porciones != null
+                    ? { usaProduccionPorciones: dto.usa_produccion_porciones }
+                    : {}),
+                ...(dto.porciones_por_entera != null
+                    ? {
+                        porcionesPorEntera: Math.max(1, Math.round(dto.porciones_por_entera)),
+                    }
+                    : {}),
+                ...(dto.control_stock != null || dto.usa_produccion_porciones
+                    ? {
+                        controlStock: Boolean(dto.usa_produccion_porciones
+                            ? true
+                            : dto.control_stock),
+                    }
+                    : {}),
                 ...(dto.stock_disponible != null
                     ? { stockDisponible: Math.round(dto.stock_disponible) }
                     : {}),
@@ -298,7 +317,19 @@ let ProductosService = class ProductosService {
                 ...(dto.prioridad_cocina_baja !== undefined
                     ? { prioridadCocinaBaja: dto.prioridad_cocina_baja }
                     : {}),
-                ...(dto.control_stock != null ? { controlStock: dto.control_stock } : {}),
+                ...(dto.usa_produccion_porciones != null
+                    ? { usaProduccionPorciones: dto.usa_produccion_porciones }
+                    : {}),
+                ...(dto.porciones_por_entera != null
+                    ? {
+                        porcionesPorEntera: Math.max(1, Math.round(dto.porciones_por_entera)),
+                    }
+                    : {}),
+                ...(dto.usa_produccion_porciones === true
+                    ? { controlStock: true }
+                    : dto.control_stock != null
+                        ? { controlStock: dto.control_stock }
+                        : {}),
                 ...(dto.stock_disponible != null
                     ? { stockDisponible: Math.round(dto.stock_disponible) }
                     : {}),

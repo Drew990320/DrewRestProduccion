@@ -45,6 +45,24 @@ let GananciasController = class GananciasController {
     deleteFijo(id, tenantId) {
         return this.ganancias.eliminarGastoFijo(id, tenantId);
     }
+    listarCuotasDia(fecha, tenantId) {
+        return this.ganancias.listarCuotasDia(fecha, tenantId);
+    }
+    asegurarAutomaticas(dto, tenantId, req) {
+        return this.ganancias.asegurarCuotasAutomaticas(dto.fecha, tenantId, req.user.idUsuario);
+    }
+    aplicarCuota(dto, tenantId, req) {
+        return this.ganancias.aplicarCuotaDia(dto.id_gasto_fijo, dto.fecha, tenantId, req.user.idUsuario);
+    }
+    omitirCuota(dto, tenantId, req) {
+        return this.ganancias.omitirCuotaDia(dto.id_gasto_fijo, dto.fecha, tenantId, req.user.idUsuario);
+    }
+    registrarPagoFondo(dto, tenantId) {
+        return this.ganancias.registrarPagoFondo(dto, tenantId);
+    }
+    deletePagoFondo(id, tenantId) {
+        return this.ganancias.eliminarPagoFondo(id, tenantId);
+    }
     listarExtras(fecha_desde, fecha_hasta, tenantId) {
         return this.ganancias.listarGastosExtras({ fecha_desde, fecha_hasta }, tenantId);
     }
@@ -117,6 +135,60 @@ __decorate([
     __metadata("design:paramtypes", [Number, Number]),
     __metadata("design:returntype", void 0)
 ], GananciasController.prototype, "deleteFijo", null);
+__decorate([
+    (0, common_1.Get)('cuotas-dia'),
+    __param(0, (0, common_1.Query)('fecha')),
+    __param(1, (0, current_tenant_decorator_1.CurrentTenantId)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Number]),
+    __metadata("design:returntype", void 0)
+], GananciasController.prototype, "listarCuotasDia", null);
+__decorate([
+    (0, common_1.Post)('cuotas-dia/asegurar-automaticas'),
+    (0, common_1.HttpCode)(200),
+    __param(0, (0, common_1.Body)()),
+    __param(1, (0, current_tenant_decorator_1.CurrentTenantId)()),
+    __param(2, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [ganancias_dto_1.CuotaDiaFechaDto, Number, Object]),
+    __metadata("design:returntype", void 0)
+], GananciasController.prototype, "asegurarAutomaticas", null);
+__decorate([
+    (0, common_1.Post)('cuotas-dia/aplicar'),
+    (0, common_1.HttpCode)(200),
+    __param(0, (0, common_1.Body)()),
+    __param(1, (0, current_tenant_decorator_1.CurrentTenantId)()),
+    __param(2, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [ganancias_dto_1.CuotaDiaGastoDto, Number, Object]),
+    __metadata("design:returntype", void 0)
+], GananciasController.prototype, "aplicarCuota", null);
+__decorate([
+    (0, common_1.Post)('cuotas-dia/omitir'),
+    (0, common_1.HttpCode)(200),
+    __param(0, (0, common_1.Body)()),
+    __param(1, (0, current_tenant_decorator_1.CurrentTenantId)()),
+    __param(2, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [ganancias_dto_1.CuotaDiaGastoDto, Number, Object]),
+    __metadata("design:returntype", void 0)
+], GananciasController.prototype, "omitirCuota", null);
+__decorate([
+    (0, common_1.Post)('pagos-fondo'),
+    __param(0, (0, common_1.Body)()),
+    __param(1, (0, current_tenant_decorator_1.CurrentTenantId)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [ganancias_dto_1.RegistrarPagoFondoDto, Number]),
+    __metadata("design:returntype", void 0)
+], GananciasController.prototype, "registrarPagoFondo", null);
+__decorate([
+    (0, common_1.Delete)('pagos-fondo/:id'),
+    __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
+    __param(1, (0, current_tenant_decorator_1.CurrentTenantId)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number, Number]),
+    __metadata("design:returntype", void 0)
+], GananciasController.prototype, "deletePagoFondo", null);
 __decorate([
     (0, common_1.Get)('gastos-extras'),
     __param(0, (0, common_1.Query)('fecha_desde')),

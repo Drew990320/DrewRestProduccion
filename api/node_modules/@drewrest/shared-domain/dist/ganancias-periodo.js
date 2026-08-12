@@ -4,6 +4,14 @@
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.costoEfectivoProducto = costoEfectivoProducto;
+exports.cuotaDiariaSugerida = cuotaDiariaSugerida;
+exports.topeFondoAlcanzado = topeFondoAlcanzado;
+exports.disponibleFondo = disponibleFondo;
+exports.montoPagoFondoSugerido = montoPagoFondoSugerido;
+exports.rangoMesCalendario = rangoMesCalendario;
+exports.sumarCuotasAplicadas = sumarCuotasAplicadas;
+exports.debeAutoAplicarCuota = debeAutoAplicarCuota;
+exports.armarGastosFijosPeriodo = armarGastosFijosPeriodo;
 exports.prorratearGastosFijos = prorratearGastosFijos;
 exports.armarResumenGanancias = armarResumenGanancias;
 exports.consolidarLineasCostoVenta = consolidarLineasCostoVenta;
@@ -63,10 +71,126 @@ function eachYmdInclusive(desde, hasta) {
     }
     return out;
 }
+/** Cuota sugerida: monto mensual / 30, en pesos enteros. */
+function cuotaDiariaSugerida(montoMensual) {
+    return Math.max(0, Math.round((Number(montoMensual) || 0) / 30));
+}
+function topeFondoAlcanzado(acumuladoMes, montoMensual) {
+    return Math.round(Number(acumuladoMes) || 0) >= Math.round(Number(montoMensual) || 0);
+}
+/** Lo que queda en el sobre: cuotas aplicadas − pagos ya hechos con el fondo. */
+function disponibleFondo(acumulado, pagado) {
+    return Math.max(0, Math.round(Number(acumulado) || 0) - Math.round(Number(pagado) || 0));
+}
+/** Sugiere pagar lo que falta de la meta del mes, sin pasar el disponible. */
+function montoPagoFondoSugerido(input) {
+    const disp = Math.max(0, Math.round(Number(input.disponible) || 0));
+    const falta = Math.max(0, Math.round(Number(input.monto_mensual) || 0) -
+        Math.round(Number(input.pagado_mes) || 0));
+    if (falta <= 0)
+        return 0;
+    return Math.min(disp, falta);
+}
+function rangoMesCalendario(fechaYmd) {
+    const p = parseYmd(fechaYmd);
+    if (!p)
+        return null;
+    const dim = daysInMonth(p.y, p.m);
+    return { desde: ymd(p.y, p.m, 1), hasta: ymd(p.y, p.m, dim) };
+}
+function sumarCuotasAplicadas(cuotas, idGastoFijo, fechaDesdeYmd, fechaHastaYmd) {
+    let total = 0;
+    for (const c of cuotas) {
+        if (c.id_gasto_fijo !== idGastoFijo)
+            continue;
+        if (c.estado && c.estado !== 'aplicada')
+            continue;
+        if (!ymdEnRango(c.fecha, fechaDesdeYmd, fechaHastaYmd))
+            continue;
+        total += Math.max(0, Math.round(Number(c.monto) || 0));
+    }
+    return total;
+}
 /**
- * Prorratea gastos fijos mensuales día a día en el rango [desde, hasta].
- * Cada día aporta monto_mensual / días_del_mes.
+ * Auto-aplica solo si el fondo está on, modo automático, no hay decisión
+ * del día y el acumulado del mes aún no cubre la meta.
  */
+function debeAutoAplicarCuota(input) {
+    if (!input.usa_fondo_diario)
+        return false;
+    if (input.activo === false)
+        return false;
+    if (input.modo_registro_fondo !== 'automatico')
+        return false;
+    if (input.estado_hoy === 'aplicada' || input.estado_hoy === 'omitida') {
+        return false;
+    }
+    if (Math.round(Number(input.cuota_diaria) || 0) <= 0)
+        return false;
+    if (topeFondoAlcanzado(input.acumulado_mes, input.monto_mensual))
+        return false;
+    return true;
+}
+/**
+ * Gastos sin fondo: prorrateo mensual.
+ * Gastos con fondo: solo cuotas aplicadas del periodo (sin doble conteo).
+ */
+function armarGastosFijosPeriodo(gastos, cuotasAplicadas, fechaDesdeYmd, fechaHastaYmd) {
+    const mes = rangoMesCalendario(fechaHastaYmd);
+    const sinFondo = gastos.filter((g) => !g.usa_fondo_diario);
+    const prorrateo = prorratearGastosFijos(sinFondo.map((g) => ({
+        id: g.id,
+        nombre: g.nombre,
+        monto_mensual: g.monto_mensual,
+    })), fechaDesdeYmd, fechaHastaYmd);
+    const porId = new Map();
+    for (const d of prorrateo.detalle) {
+        const g = sinFondo.find((x) => x.id === d.id);
+        porId.set(d.id, {
+            ...d,
+            usa_fondo_diario: false,
+            cuota_diaria: g?.cuota_diaria ?? null,
+            acumulado_mes: 0,
+        });
+    }
+    for (const g of gastos) {
+        if (!g.usa_fondo_diario)
+            continue;
+        const monto_periodo = sumarCuotasAplicadas(cuotasAplicadas, g.id, fechaDesdeYmd, fechaHastaYmd);
+        const acumulado_mes = mes
+            ? sumarCuotasAplicadas(cuotasAplicadas, g.id, mes.desde, mes.hasta)
+            : monto_periodo;
+        porId.set(g.id, {
+            id: g.id,
+            nombre: g.nombre,
+            monto_mensual: Math.round(Number(g.monto_mensual) || 0),
+            monto_periodo,
+            usa_fondo_diario: true,
+            cuota_diaria: g.cuota_diaria != null
+                ? Math.max(0, Math.round(Number(g.cuota_diaria) || 0))
+                : null,
+            acumulado_mes,
+        });
+    }
+    const detalle = gastos.map((g) => {
+        const d = porId.get(g.id);
+        if (d)
+            return d;
+        return {
+            id: g.id,
+            nombre: g.nombre,
+            monto_mensual: Math.round(Number(g.monto_mensual) || 0),
+            monto_periodo: 0,
+            usa_fondo_diario: g.usa_fondo_diario,
+            cuota_diaria: g.cuota_diaria != null
+                ? Math.max(0, Math.round(Number(g.cuota_diaria) || 0))
+                : null,
+            acumulado_mes: 0,
+        };
+    });
+    const total = detalle.reduce((s, d) => s + d.monto_periodo, 0);
+    return { total, detalle };
+}
 function prorratearGastosFijos(gastos, fechaDesdeYmd, fechaHastaYmd) {
     const dias = eachYmdInclusive(fechaDesdeYmd, fechaHastaYmd);
     if (dias.length === 0 || gastos.length === 0) {

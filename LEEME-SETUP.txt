@@ -8,9 +8,8 @@ NO uses el de tools\drewrest-setup\bin\... (pesa ~0.2 MB y NO abre
 en PCs sin .NET 10 instalado).
 
 Formas correctas:
-  1) Descargar desde GitHub Releases:
-     https://github.com/Drew990320/DrewRestProduccion/releases
-     Asset: DrewRest-Setup.exe
+  1) Descargar el instalador oficial desde el canal de distribución DrewTech
+     (archivo DrewRest-Setup.exe, ~50 MB).
 
   2) Copiar desde la carpeta "distribucion-setup" del empaquetado DrewTech
      (DrewRest-Setup.exe + DrewRest-Setup-Iniciar.cmd).
@@ -20,4 +19,4 @@ Si al doble clic "no hace nada":
   - O ejecuta DrewRest-Setup-Iniciar.cmd (desbloquea y abre)
 
 Requisitos del PC destino: Windows 10/11 de 64 bits e internet
-(para descargar el paquete del Release).
+(para descargar el paquete de actualización).

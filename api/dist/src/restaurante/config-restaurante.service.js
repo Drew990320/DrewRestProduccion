@@ -111,6 +111,8 @@ let ConfigRestauranteService = class ConfigRestauranteService {
             modulo_redondeo_cobro_activo: row.moduloRedondeoCobroActivo,
             modulo_login_pin_activo: row.moduloLoginPinActivo,
             modulo_autoservicio_activo: row.moduloAutoservicioActivo,
+            modulo_menu_imagenes_activo: row.moduloMenuImagenesActivo,
+            modulo_produccion_porciones_activo: row.moduloProduccionPorcionesActivo,
             login_pin_compartido_activo: row.loginPinCompartidoActivo,
             login_pin_definido: Boolean(row.loginPinHash?.trim()),
             actualizado_en: row.actualizadoEn.toISOString(),

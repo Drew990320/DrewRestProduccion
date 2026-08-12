@@ -19,6 +19,7 @@ const timezone_1 = require("../common/timezone");
 const stock_producto_1 = require("@drewrest/shared-domain/stock-producto");
 const tenant_constants_1 = require("../tenant/tenant.constants");
 const menu_activo_service_1 = require("./menu-activo.service");
+const producto_imagen_upload_util_1 = require("./producto-imagen-upload.util");
 function categoriaDisponibleHoy(cat, weekday) {
     return (0, categoria_dia_1.categoriaDisponibleEnDia)(cat, weekday);
 }
@@ -32,11 +33,19 @@ let MenuService = class MenuService {
     invalidateCache() {
         (0, menu_hoy_cache_1.invalidateMenuHoyCache)();
     }
+    async menuPorImagenesActivo(tenantId) {
+        const cfg = await this.prisma.configRestaurante.findUnique({
+            where: { idRestaurante: tenantId },
+            select: { moduloMenuImagenesActivo: true },
+        });
+        return Boolean(cfg?.moduloMenuImagenesActivo);
+    }
     async menuHoy(tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
         const activo = await this.menuActivo.resolverActivo(tenantId);
+        const menuPorImagenes = await this.menuPorImagenesActivo(tenantId);
         const cacheKey = activo
-            ? `${tenantId}:${activo.menu.idMenu}:${activo.modo}`
-            : `${tenantId}:none`;
+            ? `${tenantId}:${activo.menu.idMenu}:${activo.modo}:img${menuPorImagenes ? 1 : 0}`
+            : `${tenantId}:none:img${menuPorImagenes ? 1 : 0}`;
         const cached = (0, menu_hoy_cache_1.getCachedMenuHoy)(cacheKey);
         if (cached) {
             return cached;
@@ -50,7 +59,11 @@ let MenuService = class MenuService {
             }
             : null;
         if (!activo) {
-            const empty = { menu: null, categorias: [] };
+            const empty = {
+                menu: null,
+                menu_por_imagenes: menuPorImagenes,
+                categorias: [],
+            };
             (0, menu_hoy_cache_1.setCachedMenuHoy)(empty, cacheKey);
             return empty;
         }
@@ -61,7 +74,11 @@ let MenuService = class MenuService {
         const precioPorProducto = new Map(membresias.map((m) => [m.idProducto, Number(m.precio)]));
         const productIds = [...precioPorProducto.keys()];
         if (productIds.length === 0) {
-            const empty = { menu: menuInfo, categorias: [] };
+            const empty = {
+                menu: menuInfo,
+                menu_por_imagenes: menuPorImagenes,
+                categorias: [],
+            };
             (0, menu_hoy_cache_1.setCachedMenuHoy)(empty, cacheKey);
             return empty;
         }
@@ -129,6 +146,7 @@ let MenuService = class MenuService {
                 es_combo: p.esCombo,
                 combo_min: Math.max(1, p.comboMin ?? 1),
                 combo_max: Math.max(1, p.comboMax ?? 1),
+                imagen_url: (0, producto_imagen_upload_util_1.productoImagenPublicUrl)(p.idProducto, p.imagenArchivo),
                 combo_elegibles: p.esCombo
                     ? p.comboElegiblesComoCombo
                         .map((e) => ({
@@ -173,7 +191,11 @@ let MenuService = class MenuService {
             .filter((c) => c.productos.length > 0);
         const ids = out.flatMap((c) => c.productos.map((p) => p.id_producto));
         if (ids.length === 0) {
-            const empty = { menu: menuInfo, categorias: [] };
+            const empty = {
+                menu: menuInfo,
+                menu_por_imagenes: menuPorImagenes,
+                categorias: [],
+            };
             (0, menu_hoy_cache_1.setCachedMenuHoy)(empty, cacheKey);
             return empty;
         }
@@ -196,9 +218,66 @@ let MenuService = class MenuService {
                 }));
             }
         }
-        const result = { menu: menuInfo, categorias: out };
+        const result = {
+            menu: menuInfo,
+            menu_por_imagenes: menuPorImagenes,
+            categorias: out,
+        };
         (0, menu_hoy_cache_1.setCachedMenuHoy)(result, cacheKey);
         return result;
+    }
+    async guardarImagenProducto(idProducto, buffer, mime, originalName, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
+        if (!(await this.menuPorImagenesActivo(tenantId))) {
+            throw new common_1.BadRequestException('El menú por imágenes no está activo para este restaurante');
+        }
+        const producto = await this.prisma.producto.findFirst({
+            where: {
+                idProducto,
+                categoria: { idRestaurante: tenantId, canal: 'restaurante' },
+            },
+            select: { idProducto: true, imagenArchivo: true },
+        });
+        if (!producto) {
+            throw new common_1.NotFoundException('Producto no encontrado');
+        }
+        const { archivo } = (0, producto_imagen_upload_util_1.guardarArchivoImagenProducto)(idProducto, buffer, mime, originalName);
+        const updated = await this.prisma.producto.update({
+            where: { idProducto },
+            data: { imagenArchivo: archivo },
+            select: { idProducto: true, imagenArchivo: true },
+        });
+        (0, menu_hoy_cache_1.invalidateMenuHoyCache)();
+        return {
+            id_producto: updated.idProducto,
+            imagen_archivo: updated.imagenArchivo,
+            imagen_url: (0, producto_imagen_upload_util_1.productoImagenPublicUrl)(updated.idProducto, updated.imagenArchivo),
+        };
+    }
+    async eliminarImagenProducto(idProducto, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
+        if (!(await this.menuPorImagenesActivo(tenantId))) {
+            throw new common_1.BadRequestException('El menú por imágenes no está activo para este restaurante');
+        }
+        const producto = await this.prisma.producto.findFirst({
+            where: {
+                idProducto,
+                categoria: { idRestaurante: tenantId, canal: 'restaurante' },
+            },
+            select: { idProducto: true, imagenArchivo: true },
+        });
+        if (!producto) {
+            throw new common_1.NotFoundException('Producto no encontrado');
+        }
+        (0, producto_imagen_upload_util_1.eliminarArchivoImagenProducto)(producto.imagenArchivo);
+        await this.prisma.producto.update({
+            where: { idProducto },
+            data: { imagenArchivo: null },
+        });
+        (0, menu_hoy_cache_1.invalidateMenuHoyCache)();
+        return {
+            id_producto: idProducto,
+            imagen_archivo: null,
+            imagen_url: null,
+        };
     }
 };
 exports.MenuService = MenuService;
