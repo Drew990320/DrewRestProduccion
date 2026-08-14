@@ -65,14 +65,14 @@ function assertValidLicense() {
     const enforce = process.env.LICENSE_ENFORCE === 'true' ||
         process.env.LICENSE_ENFORCE === '1' ||
         process.env.NODE_ENV === 'production';
-    const machineId = (0, machine_id_1.getMachineId)();
+    const thisPcId = () => (0, machine_id_1.getMachineId)();
     const licensePath = findLicenseFile();
     if (!licensePath) {
         if (!enforce) {
-            console.warn(`[licencia] Sin license.key (ID PC: ${(0, machine_id_1.formatMachineIdDisplay)(machineId)}). En producción será obligatorio.`);
+            console.warn(`[licencia] Sin license.key (ID PC: ${(0, machine_id_1.formatMachineIdDisplay)(thisPcId())}). En producción será obligatorio.`);
             return null;
         }
-        printBlocked('No se encontró el archivo de licencia (api\\license.key).', machineId);
+        printBlocked('No se encontró el archivo de licencia (api\\license.key).', thisPcId());
     }
     let license;
     try {
@@ -80,18 +80,18 @@ function assertValidLicense() {
     }
     catch (e) {
         const detail = e instanceof Error ? e.message : String(e);
-        printBlocked(`No se pudo leer la licencia: ${detail}`, machineId);
+        printBlocked(`No se pudo leer la licencia: ${detail}`, thisPcId());
     }
     if (!(0, license_crypto_1.verifyLicenseSignature)(license)) {
-        printBlocked('La licencia está alterada o no es auténtica (firma inválida).', machineId);
+        printBlocked('La licencia está alterada o no es auténtica (firma inválida).', thisPcId());
     }
-    if (license.payload.machineId.toLowerCase() !== machineId.toLowerCase()) {
-        printBlocked('Esta licencia pertenece a otro PC. No se puede mover la instalación a este equipo.', machineId);
+    if (!(0, machine_id_1.machineIdMatchesLicense)(license.payload.machineId)) {
+        printBlocked('Esta licencia pertenece a otro PC. No se puede mover la instalación a este equipo.', thisPcId());
     }
     if (isExpired(license.payload)) {
-        printBlocked(`La licencia de "${license.payload.cliente}" venció el ${license.payload.expiresAt}.`, machineId);
+        printBlocked(`La licencia de "${license.payload.cliente}" venció el ${license.payload.expiresAt}.`, thisPcId());
     }
-    console.log(`[licencia] OK — ${license.payload.cliente} (PC ${(0, machine_id_1.formatMachineIdDisplay)(machineId)})`);
+    console.log(`[licencia] OK — ${license.payload.cliente} (PC ${(0, machine_id_1.formatMachineIdDisplay)(license.payload.machineId)})`);
     return license.payload;
 }
 //# sourceMappingURL=assert-license.js.map

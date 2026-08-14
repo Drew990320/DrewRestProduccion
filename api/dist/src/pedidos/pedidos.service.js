@@ -4264,7 +4264,7 @@ let PedidosService = class PedidosService {
                         cantidad: cantidadCombo,
                         precioUnitario: 0,
                         idDetalleComboPadre: padre.idDetalle,
-                        notaCocina: null,
+                        notaCocina: dto.nota_cocina ?? null,
                     },
                 });
                 lineasAgregadas.push({
@@ -5485,11 +5485,12 @@ let PedidosService = class PedidosService {
         const emitidaEn = opts.emitidaEn ?? new Date();
         const esReimpresion = opts.esReimpresion ?? false;
         const esAdicional = opts.esAdicional ?? false;
-        const lineas = (0, comanda_lineas_group_1.lineasComandaParaTicket)(detalles.map((d) => ({
+        const aAgrupable = (d) => ({
             id_detalle: d.idDetalle,
             id_producto: d.idProducto,
             id_categoria: d.producto.categoria.idCategoria,
             id_detalle_padre: d.idDetallePadre,
+            id_detalle_combo_padre: d.idDetalleComboPadre,
             nombre_producto: d.producto.nombre,
             categoria_nombre: d.producto.categoria.nombre,
             es_acompanamiento_mazorca: d.producto.esAcompanamientoMazorca,
@@ -5505,7 +5506,11 @@ let PedidosService = class PedidosService {
                     descripcion: dp.opcion.descripcion,
                 })),
             ],
-        })));
+        });
+        const catalogo = (pedido.detalles ?? detalles).map(aAgrupable);
+        const lineas = (0, comanda_lineas_group_1.lineasComandaParaTicket)(catalogo, {
+            idsImprimir: detalles.map((d) => d.idDetalle),
+        });
         const mesero = `${pedido.usuario.nombre} ${pedido.usuario.apellido}`.trim();
         return {
             id_pedido: pedido.idPedido,

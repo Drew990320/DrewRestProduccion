@@ -18,6 +18,7 @@ class PatchModulosSuperadminDto {
     modulo_autoservicio_activo;
     modulo_menu_imagenes_activo;
     modulo_produccion_porciones_activo;
+    modulo_conexion_movil_activo;
 }
 exports.PatchModulosSuperadminDto = PatchModulosSuperadminDto;
 __decorate([
@@ -50,4 +51,9 @@ __decorate([
     (0, class_validator_1.IsBoolean)(),
     __metadata("design:type", Boolean)
 ], PatchModulosSuperadminDto.prototype, "modulo_produccion_porciones_activo", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], PatchModulosSuperadminDto.prototype, "modulo_conexion_movil_activo", void 0);
 //# sourceMappingURL=patch-modulos.dto.js.map

@@ -5,6 +5,7 @@ export type DetalleCocinaLike = {
     id_detalle: number;
     id_producto?: number;
     id_detalle_padre?: number | null;
+    id_detalle_combo_padre?: number | null;
     nombre_producto?: string;
     cantidad: number;
     categoria_nombre?: string;

@@ -770,7 +770,7 @@ exports.HELP_TUTORIAL_ACTIONS = [
         steps: [
             {
                 title: '1. Pantalla de conexión',
-                body: 'Aquí obtienes el QR y la URL para que los meseros abran DrewRest en el celular sin instalar nada.',
+                body: 'Aquí tienes dos QR: uno para descargar el APK y otro para vincular el celular a este local.',
                 buscar: 'Título «Conexión móvil» y texto introductorio',
                 listoSi: 'conexion.en_pantalla',
                 pantalla: 'conexion_movil',
@@ -778,9 +778,9 @@ exports.HELP_TUTORIAL_ACTIONS = [
             },
             {
                 title: '2. Escanea el QR',
-                body: 'El código lleva al login de la app en el navegador del teléfono.',
-                buscar: 'Cuadro blanco con código QR',
-                accion: 'Pide al mesero que escanee con la cámara del celular.',
+                body: 'Primero el QR de descarga (APK). Luego, en la app, el QR de vincular.',
+                buscar: 'Dos códigos QR: Descargar app y Vincular este local',
+                accion: 'Pide al mesero que instale el APK y luego escanee el QR 2.',
                 target: 'conexion.qr',
                 pantalla: 'conexion_movil',
                 tip: 'En local: misma Wi‑Fi. En demo en la nube: con internet.',

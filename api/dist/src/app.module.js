@@ -41,6 +41,7 @@ const restaurante_module_1 = require("./restaurante/restaurante.module");
 const tenant_module_1 = require("./tenant/tenant.module");
 const visual_module_1 = require("./visual/visual.module");
 const sistema_controller_1 = require("./sistema/sistema.controller");
+const mobile_download_controller_1 = require("./sistema/mobile-download.controller");
 const rendimiento_controller_1 = require("./sistema/rendimiento.controller");
 const logs_controller_1 = require("./sistema/logs.controller");
 const logs_service_1 = require("./sistema/logs.service");
@@ -94,7 +95,13 @@ exports.AppModule = AppModule = __decorate([
             superadmin_module_1.SuperadminModule,
             print_agent_module_1.PrintAgentModule,
         ],
-        controllers: [app_controller_1.AppController, sistema_controller_1.SistemaController, rendimiento_controller_1.RendimientoController, logs_controller_1.LogsController],
+        controllers: [
+            app_controller_1.AppController,
+            sistema_controller_1.SistemaController,
+            mobile_download_controller_1.MobileDownloadController,
+            rendimiento_controller_1.RendimientoController,
+            logs_controller_1.LogsController,
+        ],
         providers: [
             logs_service_1.LogsService,
             { provide: core_1.APP_GUARD, useClass: throttler_1.ThrottlerGuard },

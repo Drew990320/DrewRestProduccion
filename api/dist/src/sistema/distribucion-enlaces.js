@@ -8,6 +8,7 @@ const path_1 = require("path");
 const EMPTY = {
     url_actualizacion_general: null,
     url_personalizacion: null,
+    url_apk_movil: null,
 };
 function readJsonFile(path) {
     if (!(0, fs_1.existsSync)(path))
@@ -41,6 +42,7 @@ function leerDistribucionEnlaces(cwd = process.cwd()) {
         return {
             url_actualizacion_general: normalizeUrl(raw.url_actualizacion_general ?? raw.urlActualizacionGeneral),
             url_personalizacion: normalizeUrl(raw.url_personalizacion ?? raw.urlPersonalizacion),
+            url_apk_movil: normalizeUrl(raw.url_apk_movil ?? raw.urlApkMovil),
         };
     }
     return { ...EMPTY };
@@ -54,6 +56,9 @@ function guardarDistribucionEnlaces(input, cwd = process.cwd()) {
         url_personalizacion: input.url_personalizacion !== undefined
             ? normalizeUrl(input.url_personalizacion)
             : current.url_personalizacion,
+        url_apk_movil: input.url_apk_movil !== undefined
+            ? normalizeUrl(input.url_apk_movil)
+            : current.url_apk_movil,
     };
     const path = pathsDistribucionEnlaces(cwd)[0];
     const dir = (0, path_1.dirname)(path);

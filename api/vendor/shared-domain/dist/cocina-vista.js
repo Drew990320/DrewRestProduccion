@@ -30,6 +30,7 @@ exports.etiquetaPlatoPendiente = etiquetaPlatoPendiente;
 exports.agruparPlatosPendientes = agruparPlatosPendientes;
 exports.mesasActivasDePedidos = mesasActivasDePedidos;
 exports.resumenItemsMesero = resumenItemsMesero;
+const comanda_lineas_group_1 = require("./comanda-lineas-group");
 const cocina_prioridad_1 = require("./cocina-prioridad");
 const mesa_label_1 = require("./mesa-label");
 const cocina_producto_1 = require("./cocina-producto");
@@ -79,15 +80,19 @@ function agruparLineasCocinaVisibles(detalles) {
     const orden = [];
     const map = new Map();
     for (const d of visibles) {
-        const key = claveAgrupacionCocina(d);
+        const conNota = {
+            ...d,
+            nota_cocina: (0, comanda_lineas_group_1.notaCocinaComandaEfectiva)(d, byId),
+        };
+        const key = claveAgrupacionCocina(conNota);
         const prev = map.get(key);
         if (!prev) {
             orden.push(key);
-            const listo = Boolean(d.listo_para_recoger);
+            const listo = Boolean(conNota.listo_para_recoger);
             map.set(key, {
-                ...d,
-                ids_detalle: [d.id_detalle],
-                cantidad: d.cantidad,
+                ...conNota,
+                ids_detalle: [conNota.id_detalle],
+                cantidad: conNota.cantidad,
                 listo_para_recoger: listo,
                 listo_para_recoger_parcial: false,
             });

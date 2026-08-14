@@ -36,7 +36,7 @@ function detectarRedLocal() {
         let prioridad = 1;
         if (WIFI.test(nombre)) {
             tipo = 'wifi';
-            prioridad = 3;
+            prioridad = /^wi-?fi$/i.test(nombre.trim()) ? 4 : 3;
         }
         else if (ETH.test(nombre)) {
             tipo = 'ethernet';

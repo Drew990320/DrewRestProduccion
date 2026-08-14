@@ -138,6 +138,7 @@ let SuperadminService = class SuperadminService {
                     moduloAutoservicioActivo: true,
                     moduloMenuImagenesActivo: true,
                     moduloProduccionPorcionesActivo: true,
+                    moduloConexionMovilActivo: true,
                 },
             }),
         ]);
@@ -157,6 +158,7 @@ let SuperadminService = class SuperadminService {
                 modulo_autoservicio_activo: cfg?.moduloAutoservicioActivo ?? false,
                 modulo_menu_imagenes_activo: cfg?.moduloMenuImagenesActivo ?? false,
                 modulo_produccion_porciones_activo: cfg?.moduloProduccionPorcionesActivo ?? false,
+                modulo_conexion_movil_activo: cfg?.moduloConexionMovilActivo ?? false,
             },
             admin_registrado: adminCount > 0,
             totales: {
@@ -179,8 +181,10 @@ let SuperadminService = class SuperadminService {
         return {
             url_actualizacion_general: inst.url_actualizacion_general,
             url_personalizacion: inst.url_personalizacion,
+            url_apk_movil: guardados.url_apk_movil,
             url_actualizacion_general_override: guardados.url_actualizacion_general,
             url_personalizacion_override: guardados.url_personalizacion,
+            url_apk_movil_override: guardados.url_apk_movil,
             url_version_general: inst.url_version_general,
             url_paquete_general: inst.url_paquete_general,
             url_version_canal: inst.url_version_canal,
@@ -196,9 +200,11 @@ let SuperadminService = class SuperadminService {
     guardarDistribucionEnlaces(dto) {
         assertHttpUrlOrEmpty('Actualización general', dto.url_actualizacion_general);
         assertHttpUrlOrEmpty('Personalización', dto.url_personalizacion);
+        assertHttpUrlOrEmpty('APK móvil', dto.url_apk_movil);
         (0, distribucion_enlaces_1.guardarDistribucionEnlaces)({
             url_actualizacion_general: dto.url_actualizacion_general,
             url_personalizacion: dto.url_personalizacion,
+            url_apk_movil: dto.url_apk_movil,
         });
         return this.obtenerDistribucionEnlaces();
     }
@@ -394,7 +400,8 @@ let SuperadminService = class SuperadminService {
             dto.modulo_login_pin_activo === undefined &&
             dto.modulo_autoservicio_activo === undefined &&
             dto.modulo_menu_imagenes_activo === undefined &&
-            dto.modulo_produccion_porciones_activo === undefined) {
+            dto.modulo_produccion_porciones_activo === undefined &&
+            dto.modulo_conexion_movil_activo === undefined) {
             throw new common_1.BadRequestException('Nada que actualizar');
         }
         await this.prisma.restaurante.upsert({
@@ -430,6 +437,9 @@ let SuperadminService = class SuperadminService {
                         moduloProduccionPorcionesActivo: dto.modulo_produccion_porciones_activo,
                     }
                     : {}),
+                ...(dto.modulo_conexion_movil_activo !== undefined
+                    ? { moduloConexionMovilActivo: dto.modulo_conexion_movil_activo }
+                    : {}),
             },
             update: {
                 ...(dto.modulo_retail_activo !== undefined
@@ -452,6 +462,9 @@ let SuperadminService = class SuperadminService {
                         moduloProduccionPorcionesActivo: dto.modulo_produccion_porciones_activo,
                     }
                     : {}),
+                ...(dto.modulo_conexion_movil_activo !== undefined
+                    ? { moduloConexionMovilActivo: dto.modulo_conexion_movil_activo }
+                    : {}),
             },
         });
         (0, config_restaurante_cache_1.invalidateConfigRestauranteCache)(tenantId);
@@ -467,6 +480,7 @@ let SuperadminService = class SuperadminService {
             modulo_autoservicio_activo: row.moduloAutoservicioActivo,
             modulo_menu_imagenes_activo: row.moduloMenuImagenesActivo,
             modulo_produccion_porciones_activo: row.moduloProduccionPorcionesActivo,
+            modulo_conexion_movil_activo: row.moduloConexionMovilActivo,
         };
     }
     async asegurarMesaBoutique(tenantId) {

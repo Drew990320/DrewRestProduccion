@@ -27,15 +27,6 @@ function validate() {
   const licensePath =
     process.env.LICENSE_FILE || path.join(process.cwd(), 'license.key');
 
-  let machineId = process.env.DREWREST_MACHINE_ID || '';
-  if (!machineId) {
-    try {
-      machineId = require('./machine-id').getMachineId();
-    } catch {
-      machineId = '';
-    }
-  }
-
   if (!fs.existsSync(licensePath)) {
     if (!enforce) {
       return { ok: true, skipped: true, message: 'Sin license.key (no enforce)' };
@@ -45,7 +36,7 @@ function validate() {
 
   let license;
   try {
-    license = JSON.parse(fs.readFileSync(licensePath, 'utf8'));
+    license = JSON.parse(fs.readFileSync(licensePath, 'utf8').replace(/^\uFEFF/, ''));
   } catch (e) {
     return { ok: false, code: 78, message: `No se pudo leer licencia: ${e.message}` };
   }
@@ -78,12 +69,25 @@ function validate() {
     return { ok: false, code: 78, message: `Error verificando firma: ${e.message}` };
   }
 
-  if (machineId && p.machineId && p.machineId.toLowerCase() !== machineId.toLowerCase()) {
+  const { getMachineId, machineIdMatchesLicense } = require('./machine-id');
+  const envId = (process.env.DREWREST_MACHINE_ID || '').trim().toLowerCase();
+  const samePc = envId
+    ? envId === String(p.machineId || '').trim().toLowerCase()
+    : machineIdMatchesLicense(p.machineId);
+  if (!samePc) {
+    let liveId = envId;
+    if (!liveId) {
+      try {
+        liveId = getMachineId();
+      } catch {
+        liveId = '';
+      }
+    }
     return {
       ok: false,
       code: 78,
       message: 'Esta licencia pertenece a otro PC',
-      machineId,
+      machineId: liveId,
     };
   }
 

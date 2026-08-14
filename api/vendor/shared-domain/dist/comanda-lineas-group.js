@@ -1,7 +1,46 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.notaCocinaComandaEfectiva = notaCocinaComandaEfectiva;
+exports.prepararLineasComandaParaTicket = prepararLineasComandaParaTicket;
 exports.lineasComandaParaTicket = lineasComandaParaTicket;
+const factura_lineas_group_1 = require("./factura-lineas-group");
 const cocina_producto_1 = require("./cocina-producto");
+function notaCocinaComandaEfectiva(linea, catalogoPorId) {
+    const propia = (0, factura_lineas_group_1.limpiarNotaCocinaTicket)(linea.nota_cocina);
+    if (propia)
+        return propia;
+    const padreId = linea.id_detalle_combo_padre;
+    if (padreId == null)
+        return null;
+    return (0, factura_lineas_group_1.limpiarNotaCocinaTicket)(catalogoPorId.get(padreId)?.nota_cocina);
+}
+/**
+ * Quita el wrapper del combo si sus componentes también se imprimen, y copia
+ * la nota del padre a los hijos que no tienen nota propia.
+ */
+function prepararLineasComandaParaTicket(catalogo, idsImprimir) {
+    const byId = new Map(catalogo.map((d) => [d.id_detalle, d]));
+    const printIds = idsImprimir ?? new Set(catalogo.map((d) => d.id_detalle));
+    const padresConHijosImpresos = new Set();
+    for (const d of catalogo) {
+        if (d.id_detalle_combo_padre != null &&
+            printIds.has(d.id_detalle)) {
+            padresConHijosImpresos.add(d.id_detalle_combo_padre);
+        }
+    }
+    const out = [];
+    for (const d of catalogo) {
+        if (!printIds.has(d.id_detalle))
+            continue;
+        if (padresConHijosImpresos.has(d.id_detalle))
+            continue;
+        out.push({
+            ...d,
+            nota_cocina: notaCocinaComandaEfectiva(d, byId),
+        });
+    }
+    return out;
+}
 function claveComanda(d) {
     const pers = (d.personalizaciones ?? [])
         .map((p) => String(p.id_opcion ?? p.descripcion))
@@ -21,8 +60,12 @@ function compararLineasComanda(a, b) {
         return ta - tb;
     return a.id_detalle - b.id_detalle;
 }
-function lineasComandaParaTicket(detalles) {
-    const ordenados = [...detalles].sort(compararLineasComanda);
+function lineasComandaParaTicket(detalles, opts) {
+    const idsImprimir = opts?.idsImprimir
+        ? new Set(opts.idsImprimir)
+        : undefined;
+    const preparados = prepararLineasComandaParaTicket(detalles, idsImprimir);
+    const ordenados = [...preparados].sort(compararLineasComanda);
     const orden = [];
     const map = new Map();
     for (const d of ordenados) {

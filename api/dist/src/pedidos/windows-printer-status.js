@@ -6,13 +6,15 @@ const node_util_1 = require("node:util");
 const execFileAsync = (0, node_util_1.promisify)(node_child_process_1.execFile);
 const CACHE_TTL_MS = 30_000;
 const cache = new Map();
-async function consultarPapelWindows(printerName) {
+async function consultarPapelWindows(printerName, opts = {}) {
     if (process.platform !== 'win32')
         return null;
     const key = printerName.trim().toLowerCase();
-    const hit = cache.get(key);
-    if (hit && hit.expiresAt > Date.now())
-        return hit.estado;
+    if (!opts.fresh) {
+        const hit = cache.get(key);
+        if (hit && hit.expiresAt > Date.now())
+            return hit.estado;
+    }
     const escaped = printerName.replace(/'/g, "''");
     const ps = `
 $p = Get-CimInstance Win32_Printer -Filter "Name='${escaped}'" -ErrorAction SilentlyContinue
@@ -29,6 +31,7 @@ Write-Output $p.DetectedErrorState
                 estado = {
                     sinPapel: state === 4,
                     papelBajo: state === 3,
+                    ticketPendiente: null,
                 };
             }
         }

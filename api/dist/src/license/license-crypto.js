@@ -26,7 +26,7 @@ function verifyLicenseSignature(license) {
     }
 }
 function parseLicenseFile(raw) {
-    const parsed = JSON.parse(raw);
+    const parsed = JSON.parse(raw.replace(/^\uFEFF/, ''));
     if (!parsed?.payload || typeof parsed.signature !== 'string') {
         throw new Error('Formato de licencia inválido');
     }

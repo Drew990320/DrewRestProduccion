@@ -77,6 +77,10 @@
                                            "types":  "./dist/visual-style.d.ts",
                                            "default":  "./dist/visual-style.js"
                                        },
+                    "./server-connection":  {
+                                                "types":  "./dist/server-connection.d.ts",
+                                                "default":  "./dist/server-connection.js"
+                                            },
                     "./mesa-visual":  {
                                           "types":  "./dist/mesa-visual.d.ts",
                                           "default":  "./dist/mesa-visual.js"

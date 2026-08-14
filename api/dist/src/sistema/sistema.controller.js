@@ -57,8 +57,10 @@ const roles_decorator_1 = require("../auth/roles.decorator");
 const roles_guard_1 = require("../auth/roles.guard");
 const red_local_1 = require("./red-local");
 const instalacion_on_prem_1 = require("./instalacion-on-prem");
+const server_connection_1 = require("@drewrest/shared-domain/server-connection");
 const cors_origins_1 = require("../common/cors-origins");
 const license_status_1 = require("../license/license-status");
+const apk_download_1 = require("./apk-download");
 let SistemaController = class SistemaController {
     configRestaurante;
     constructor(configRestaurante) {
@@ -107,7 +109,7 @@ let SistemaController = class SistemaController {
                 'Demo en la nube: el QR abre el login de la demo en cualquier celular con internet (no requiere la misma red Wi‑Fi del restaurante).',
             ]
             : [
-                'Los celulares deben estar en la misma red Wi-Fi (o Ethernet al mismo router). No uses redes virtuales (192.168.56.x).',
+                'QR 1 descarga el APK. QR 2 se escanea con DrewRest (Escanear QR). QR 3 abre la página web. Misma Wi-Fi. Para el QR 2 también puedes copiar la IP.',
             ];
         if (!modoDemoNube && webPort !== red_local_1.PUERTO_WEB_POR_DEFECTO) {
             avisos.unshift(`El puerto ${red_local_1.PUERTO_WEB_POR_DEFECTO} estaba ocupado; la app web usa el puerto ${webPort}.`);
@@ -117,6 +119,25 @@ let SistemaController = class SistemaController {
             : ip
                 ? `http://${ip}:${webPort}`
                 : null;
+        const urlApi = modoDemoNube
+            ? null
+            : ip
+                ? `http://${ip}:${apiPort}`
+                : null;
+        const urlApkMovil = modoDemoNube
+            ? null
+            : (0, apk_download_1.resolveApkDownloadUrl)({ ip, apiPort });
+        const urlVincular = !modoDemoNube && ip && urlApi
+            ? `http://${ip}:${apiPort}/vincular?api=${encodeURIComponent(urlApi)}`
+            : null;
+        const qrConexion = !modoDemoNube && ip
+            ? (0, server_connection_1.buildServerConnectionQrString)({
+                host: ip,
+                port: apiPort,
+                protocol: 'http',
+                apiBasePath: '',
+            })
+            : null;
         return {
             ip: modoDemoNube ? null : ip,
             adaptador: modoDemoNube ? null : red?.adaptador ?? null,
@@ -124,11 +145,10 @@ let SistemaController = class SistemaController {
             puerto_api: apiPort,
             puerto_web: webPort,
             puerto_web_por_defecto: red_local_1.PUERTO_WEB_POR_DEFECTO,
-            url_api: modoDemoNube
-                ? null
-                : ip
-                    ? `http://${ip}:${apiPort}`
-                    : null,
+            url_api: urlApi,
+            url_apk_movil: urlApkMovil,
+            url_vincular: urlVincular,
+            qr_conexion: qrConexion,
             url_web_celular: urlWebCelular,
             url_web_local: modoDemoNube
                 ? demoLoginUrl.replace(/\/login$/, '')

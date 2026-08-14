@@ -36,6 +36,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.printEncabezadoDrewRest = exports.DREWTECH_CREDITO_LINEA = exports.DEFAULT_ESC_POS_WIDTH = exports.DREWTECH_TELEFONO_LABEL = exports.DREWTECH_TELEFONO = void 0;
 exports.resolveEscPosTicketOpts = resolveEscPosTicketOpts;
 exports.applyEscPosFontSize = applyEscPosFontSize;
+exports.buildEscPosBeepBuffer = buildEscPosBeepBuffer;
 exports.applyEscPosBeep = applyEscPosBeep;
 exports.applyEscPosTicketStart = applyEscPosTicketStart;
 exports.applyEscPosTicketEnd = applyEscPosTicketEnd;
@@ -120,6 +121,14 @@ function beepEscPosParams() {
     const times = Math.min(9, Math.max(1, Math.round(Number(process.env.PRINTER_BEEP_TIMES) || 2)));
     const length = Math.min(9, Math.max(1, Math.round(Number(process.env.PRINTER_BEEP_LENGTH) || 2)));
     return { times, length };
+}
+function buildEscPosBeepBuffer(opts) {
+    if (!beepEscPosHabilitado())
+        return null;
+    const defaults = beepEscPosParams();
+    const times = Math.min(9, Math.max(1, Math.round(opts?.times ?? defaults.times)));
+    const length = Math.min(9, Math.max(1, Math.round(opts?.length ?? defaults.length)));
+    return Buffer.from([0x1b, 0x42, times, length, 0x07]);
 }
 async function applyEscPosBeep(printer) {
     if (!beepEscPosHabilitado())

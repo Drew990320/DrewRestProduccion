@@ -21,6 +21,7 @@ const impresoras_pos_detect_1 = require("./impresoras-pos.detect");
 const destinos_impresora_cache_1 = require("./destinos-impresora-cache");
 const limpiar_reglas_impresion_cocina_1 = require("./limpiar-reglas-impresion-cocina");
 const impresora_papel_ancho_1 = require("./impresora-papel-ancho");
+const escpos_tcp_1 = require("../pedidos/escpos-tcp");
 let ImpresorasPosService = ImpresorasPosService_1 = class ImpresorasPosService {
     prisma;
     config;
@@ -440,7 +441,9 @@ let ImpresorasPosService = ImpresorasPosService_1 = class ImpresorasPosService {
         }
         if (/^COM\d+$/i.test(t) || t.startsWith('\\\\.\\'))
             return;
-        throw new common_1.BadRequestException('Destino inválido. Use printer:Nombre o COM3');
+        if ((0, escpos_tcp_1.parseDestinoTcp)(t))
+            return;
+        throw new common_1.BadRequestException('Destino inválido. Use printer:Nombre, COM3 o tcp:192.168.1.50 (red/UTP, puerto 9100)');
     }
 };
 exports.ImpresorasPosService = ImpresorasPosService;

@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.buildComandaEscPos = buildComandaEscPos;
 const escpos_utils_1 = require("./escpos-utils");
+const factura_lineas_group_1 = require("./factura-lineas-group");
 async function buildComandaEscPos(ticket, charWidthOrOpts = escpos_utils_1.DEFAULT_ESC_POS_WIDTH) {
     const opts = (0, escpos_utils_1.resolveEscPosTicketOpts)(charWidthOrOpts);
     const printer = (0, escpos_utils_1.createEscPosPrinter)(opts.charWidth);
@@ -52,8 +53,9 @@ async function buildComandaEscPos(ticket, charWidthOrOpts = escpos_utils_1.DEFAU
                 await printer.println(line);
             }
         }
-        if (linea.nota_cocina?.trim()) {
-            for (const line of (0, escpos_utils_1.wrapEscPos)(`  Nota: ${linea.nota_cocina.trim()}`, w)) {
+        const nota = (0, factura_lineas_group_1.limpiarNotaCocinaTicket)(linea.nota_cocina);
+        if (nota) {
+            for (const line of (0, escpos_utils_1.wrapEscPos)(`  Nota: ${nota}`, w)) {
                 await printer.println(line);
             }
         }

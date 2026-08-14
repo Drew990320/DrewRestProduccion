@@ -1017,6 +1017,8 @@ model ConfigRestaurante {
   moduloMenuImagenesActivo   Boolean  @default(false) @map("modulo_menu_imagenes_activo")
   /// Producción interna: enteras → porciones (pizzería). Solo superadmin.
   moduloProduccionPorcionesActivo Boolean @default(false) @map("modulo_produccion_porciones_activo")
+  /// QR de descarga APK y vincular. Solo superadmin. El QR de la web del celular se muestra siempre.
+  moduloConexionMovilActivo Boolean @default(false) @map("modulo_conexion_movil_activo")
   /// Ganancias: costos de menú, gastos fijos/extras y reporte por periodo.
   moduloGananciasActivo      Boolean  @default(false) @map("modulo_ganancias_activo")
   /// Admin: usar PIN en login de pantallas compartidas (requiere módulo + hash).

@@ -25,6 +25,8 @@ const prueba_impresora_escpos_builder_1 = require("./prueba-impresora-escpos.bui
 const cierre_caja_escpos_builder_1 = require("./cierre-caja-escpos.builder");
 const cuentas_divididas_escpos_builder_1 = require("./cuentas-divididas-escpos.builder");
 const escpos_paper_status_1 = require("./escpos-paper-status");
+const escpos_tcp_1 = require("./escpos-tcp");
+const escpos_utils_1 = require("./escpos-utils");
 const serialport_loader_1 = require("./serialport-loader");
 const pedidos_gateway_1 = require("./pedidos.gateway");
 const windows_raw_print_1 = require("./windows-raw-print");
@@ -49,10 +51,14 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
     tiposPendientesPorDestino = new Map();
     encoladosRecientes = new Map();
     impresionRapida = false;
+    takeReminders = new Map();
     constructor(config, impresorasPos, gateway) {
         this.config = config;
         this.impresorasPos = impresorasPos;
         this.gateway = gateway;
+    }
+    onModuleDestroy() {
+        this.cancelAllTakeReminders();
     }
     enabled() {
         const live = process.env.PRINTER_ENABLED?.trim();
@@ -86,6 +92,125 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
             .trim()
             .toLowerCase();
         return v === '1' || v === 'true' || v === 'yes';
+    }
+    takeReminderEnabled() {
+        const live = process.env.PRINTER_TAKE_REMINDER?.trim();
+        const v = (live ||
+            this.config.get('PRINTER_TAKE_REMINDER') ||
+            '1')
+            .trim()
+            .toLowerCase();
+        return v !== '0' && v !== 'false' && v !== 'off' && v !== 'no';
+    }
+    takeReminderDelayMs() {
+        const n = Number(process.env.PRINTER_TAKE_REMINDER_DELAY_MS ??
+            this.config.get('PRINTER_TAKE_REMINDER_DELAY_MS') ??
+            2000);
+        return Number.isFinite(n) && n >= 0 ? n : 2000;
+    }
+    takeReminderIntervalMs() {
+        const n = Number(process.env.PRINTER_TAKE_REMINDER_INTERVAL_MS ??
+            this.config.get('PRINTER_TAKE_REMINDER_INTERVAL_MS') ??
+            1500);
+        return Number.isFinite(n) && n >= 300 ? n : 1500;
+    }
+    takeReminderMaxBeeps() {
+        const n = Number(process.env.PRINTER_TAKE_REMINDER_MAX ??
+            this.config.get('PRINTER_TAKE_REMINDER_MAX') ??
+            10);
+        return Number.isFinite(n) && n >= 1 ? Math.min(30, Math.round(n)) : 10;
+    }
+    destinoKey(destino) {
+        return destino.trim().toLowerCase();
+    }
+    cancelTakeReminder(destino) {
+        const key = this.destinoKey(destino);
+        const prev = this.takeReminders.get(key);
+        if (!prev)
+            return;
+        prev.abort.abort();
+        this.takeReminders.delete(key);
+    }
+    cancelAllTakeReminders() {
+        for (const key of [...this.takeReminders.keys()]) {
+            this.cancelTakeReminder(key);
+        }
+    }
+    sleepAbortable(ms, signal) {
+        return new Promise((resolve) => {
+            if (signal.aborted) {
+                resolve();
+                return;
+            }
+            const t = setTimeout(resolve, ms);
+            signal.addEventListener('abort', () => {
+                clearTimeout(t);
+                resolve();
+            }, { once: true });
+        });
+    }
+    scheduleTakeReminder(target, baudRate, tipo) {
+        if (tipo !== 'comanda' || !this.takeReminderEnabled())
+            return;
+        const key = this.destinoKey(target);
+        this.cancelTakeReminder(target);
+        const abort = new AbortController();
+        const token = Date.now();
+        this.takeReminders.set(key, { token, abort });
+        const delayMs = this.takeReminderDelayMs();
+        const intervalMs = this.takeReminderIntervalMs();
+        const maxBeeps = this.takeReminderMaxBeeps();
+        void (async () => {
+            try {
+                await this.sleepAbortable(delayMs, abort.signal);
+                if (abort.signal.aborted)
+                    return;
+                const inicial = await this.consultarPapel(target, baudRate, {
+                    fresh: true,
+                });
+                if (abort.signal.aborted)
+                    return;
+                if (inicial?.ticketPendiente !== true) {
+                    if (inicial?.ticketPendiente === false) {
+                        this.logger.debug(`Papel ya retirado en ${target}; sin recordatorio`);
+                    }
+                    else {
+                        this.logger.debug(`Sin sensor de salida en ${target}; no se recuerda por tiempo`);
+                    }
+                    return;
+                }
+                this.logger.log(`Sensor de salida: ticket pendiente en ${target}. Recordatorio hasta retirarlo.`);
+                for (let i = 0; i < maxBeeps; i++) {
+                    if (abort.signal.aborted)
+                        return;
+                    if ((this.trabajosPorDestino.get(key) ?? 0) > 0)
+                        return;
+                    const ahora = await this.consultarPapel(target, baudRate, {
+                        fresh: true,
+                    });
+                    if (abort.signal.aborted)
+                        return;
+                    if (ahora?.ticketPendiente !== true) {
+                        this.logger.debug(`Papel retirado en ${target}; se detiene beep`);
+                        return;
+                    }
+                    this.logger.debug(`Recordatorio tomar papel ${target} (${i + 1}/${maxBeeps})`);
+                    await this.alertarSinPapelBeep(target, baudRate, { times: 2 });
+                    if (i < maxBeeps - 1) {
+                        await this.sleepAbortable(intervalMs, abort.signal);
+                    }
+                }
+            }
+            catch (e) {
+                const msg = e instanceof Error ? e.message : String(e);
+                this.logger.debug(`Recordatorio papel ${target}: ${msg}`);
+            }
+            finally {
+                const cur = this.takeReminders.get(key);
+                if (cur?.token === token)
+                    this.takeReminders.delete(key);
+            }
+        })();
     }
     jobCooldownMs() {
         const n = Number(this.config.get('PRINTER_JOB_COOLDOWN_MS') ?? DEFAULT_INTER_JOB_DELAY_MS);
@@ -158,6 +283,7 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
         const key = destino.trim().toLowerCase();
         const tipo = opts.tipo ?? 'factura';
         const skipCooldownAfter = opts.skipCooldownAfter === true || tipo === 'cajon';
+        this.cancelTakeReminder(destino);
         const jobId = this.nuevoJobId();
         const porDelante = this.trabajosPorDestino.get(key) ?? 0;
         this.trabajosPorDestino.set(key, porDelante + 1);
@@ -275,6 +401,16 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
         }
         if (jobs.length === 0) {
             jobs.push({ destino: destinos[0], ticket });
+        }
+        else if (hayEstaciones && !hayMaestra) {
+            const cubiertas = new Set(jobs.flatMap((j) => j.ticket.lineas.map((l) => l.id_detalle)));
+            const huerfanas = ticket.lineas.filter((l) => !cubiertas.has(l.id_detalle));
+            if (huerfanas.length > 0) {
+                jobs.push({
+                    destino: destinos[0],
+                    ticket: { ...ticket, lineas: huerfanas },
+                });
+            }
         }
         const resultados = await Promise.all(jobs.map(({ destino, ticket: t }) => this.imprimirComandaEnDestino(t, destino)));
         const ok = resultados.find((r) => r.impreso);
@@ -481,27 +617,26 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
             };
         }
         const errors = [];
-        const chequearPapel = !opts.ignorarSensorPapel && this.paperCheckAntesDeEnviar();
+        const chequearPapelPrevio = !opts.ignorarSensorPapel && this.paperCheckAntesDeEnviar();
         for (const target of targets) {
-            if (chequearPapel) {
+            if (chequearPapelPrevio) {
                 const papel = await this.consultarPapel(target, baudRate);
                 if (papel?.sinPapel) {
-                    const msg = `Sin papel en ${target}. Recargue el rollo en la impresora POS.`;
-                    this.logger.warn(msg);
-                    return {
-                        impreso: false,
-                        error: msg,
-                        codigo_error: 'sin_papel',
-                        destino: target,
-                    };
+                    this.logger.warn(`Papel no listo en ${target}. Se imprime igual y se avisa con beep.`);
+                    await this.alertarSinPapelBeep(target, baudRate);
                 }
-                if (papel?.papelBajo) {
+                else if (papel?.papelBajo) {
                     this.logger.warn(`Papel bajo en ${target}`);
+                    await this.alertarSinPapelBeep(target, baudRate, { times: 1 });
                 }
             }
+            const papelEnParalelo = !opts.ignorarSensorPapel && !chequearPapelPrevio
+                ? this.consultarPapel(target, baudRate)
+                : null;
             try {
                 await this.sendBuffer(target, buffer, baudRate);
                 this.logger.log(`${tipo} impresa vía ${target}`);
+                this.scheduleTakeReminder(target, baudRate, tipo);
                 return { impreso: true, destino: target };
             }
             catch (e) {
@@ -509,11 +644,25 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
                 errors.push(`${target}: ${msg}`);
                 this.logger.warn(`Impresión ${tipo} falló (${target}): ${msg}`);
                 if (!opts.ignorarSensorPapel) {
-                    void this.consultarPapel(target, baudRate).then((trasFallo) => {
+                    try {
+                        const trasFallo = (await papelEnParalelo) ??
+                            (await this.consultarPapel(target, baudRate));
                         if (trasFallo?.sinPapel) {
-                            this.logger.warn(`Sin papel detectado tras fallo en ${target} (consulta async)`);
+                            this.logger.warn(`Papel no arrancado / sin papel en ${target} tras fallo`);
+                            await this.alertarSinPapelBeep(target, baudRate);
+                            return {
+                                impreso: false,
+                                error: `Sin papel en ${target}. Recargue o arranque el rollo en la impresora POS.`,
+                                codigo_error: 'sin_papel',
+                                destino: target,
+                            };
                         }
-                    });
+                        if (trasFallo?.papelBajo) {
+                            await this.alertarSinPapelBeep(target, baudRate, { times: 1 });
+                        }
+                    }
+                    catch {
+                    }
                 }
             }
         }
@@ -533,6 +682,7 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
                 destino: null,
                 sin_papel: null,
                 papel_bajo: null,
+                ticket_pendiente: null,
                 error: 'Sin impresora configurada',
             };
         }
@@ -544,15 +694,17 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
                 destino: null,
                 sin_papel: null,
                 papel_bajo: null,
+                ticket_pendiente: null,
                 error: 'Impresora deshabilitada (PRINTER_ENABLED)',
             };
         }
-        const papel = await this.consultarPapel(destino, baudRate);
+        const papel = await this.consultarPapel(destino, baudRate, { fresh: true });
         if (!papel) {
             return {
                 destino,
                 sin_papel: null,
                 papel_bajo: null,
+                ticket_pendiente: null,
                 error: 'No se pudo leer el sensor de papel (revise conexión USB/COM)',
             };
         }
@@ -560,15 +712,25 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
             destino,
             sin_papel: papel.sinPapel,
             papel_bajo: papel.papelBajo,
+            ticket_pendiente: papel.ticketPendiente,
         };
     }
-    async consultarPapel(target, baudRate) {
+    async consultarPapel(target, baudRate, opts = {}) {
         const lower = target.toLowerCase();
         if (lower.startsWith('printer:')) {
             const name = target.slice('printer:'.length).trim();
             if (!name)
                 return null;
-            return (0, windows_printer_status_1.consultarPapelWindows)(name);
+            return (0, windows_printer_status_1.consultarPapelWindows)(name, opts);
+        }
+        const red = (0, escpos_tcp_1.parseDestinoTcp)(target);
+        if (red) {
+            try {
+                return await (0, escpos_tcp_1.consultarPapelTcp)(red.host, red.port);
+            }
+            catch {
+                return null;
+            }
         }
         try {
             const comPath = this.normalizeComPath(target);
@@ -576,6 +738,18 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
         }
         catch {
             return null;
+        }
+    }
+    async alertarSinPapelBeep(target, baudRate, opts) {
+        const beep = (0, escpos_utils_1.buildEscPosBeepBuffer)(opts?.times != null ? { times: opts.times } : undefined);
+        if (!beep)
+            return;
+        try {
+            await this.sendBuffer(target, beep, baudRate);
+        }
+        catch (e) {
+            const msg = e instanceof Error ? e.message : String(e);
+            this.logger.debug(`Beep sin-papel no enviado a ${target}: ${msg}`);
         }
     }
     async sendBuffer(target, buffer, baudRate) {
@@ -588,6 +762,11 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
                 throw new Error('printer: solo en Windows');
             }
             await (0, windows_raw_print_1.printRawWindows)(name, buffer);
+            return;
+        }
+        const red = (0, escpos_tcp_1.parseDestinoTcp)(target);
+        if (red) {
+            await (0, escpos_tcp_1.sendEscPosTcp)(red.host, red.port, buffer);
             return;
         }
         const comPath = this.normalizeComPath(target);
