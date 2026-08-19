@@ -24,7 +24,7 @@ export * from './saldo-restante';
 export * from './cocina-prioridad';
 export * from './cocina-producto';
 export * from './cocina-vista';
-export * from './comanda-lineas-group';
+export * from './impresion-estacion-reglas';
 export * from './descuentos-pedido';
 export * from './dias-semana';
 export * from './menu-franja';

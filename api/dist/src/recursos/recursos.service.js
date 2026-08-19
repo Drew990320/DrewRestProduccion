@@ -558,6 +558,28 @@ let RecursosService = class RecursosService {
             costo_revaluado: input.tipo === 'compra' && costoPromedio != null,
         };
     }
+    async sumarStockVendibleSiVinculado(idProducto, cantidad, tenantId, idUsuario) {
+        const rec = await this.prisma.recurso.findFirst({
+            where: {
+                idProducto,
+                idRestaurante: tenantId,
+                categoria: { puedeVenderse: true, controlaStock: true },
+                estado: { not: 'baja' },
+            },
+        });
+        if (!rec)
+            return false;
+        await this.prisma.$transaction(async (tx) => {
+            await this.aplicarMovimientoTx(tx, rec.idRecurso, tenantId, {
+                tipo: 'ajuste',
+                cantidad,
+                observacion: 'Ingreso rápido de vendible',
+                modulo_origen: 'compras_internas',
+                id_usuario: idUsuario,
+            });
+        });
+        return true;
+    }
     async registrarMovimiento(id, dto, tenantId = tenant_constants_1.DEFAULT_TENANT_ID, idUsuario) {
         let tipo;
         if ((0, recurso_movimientos_1.esTipoMovimientoRecurso)(dto.tipo)) {

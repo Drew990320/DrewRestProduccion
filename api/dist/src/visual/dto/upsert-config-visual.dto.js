@@ -27,6 +27,7 @@ class UpsertConfigVisualDto {
     estilo_visual;
     mesa_forma;
     mesa_vista;
+    menu_categoria_vista;
 }
 exports.UpsertConfigVisualDto = UpsertConfigVisualDto;
 __decorate([
@@ -120,4 +121,10 @@ __decorate([
     (0, class_validator_1.IsString)(),
     __metadata("design:type", Object)
 ], UpsertConfigVisualDto.prototype, "mesa_vista", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.ValidateIf)((_, v) => v != null && v !== ''),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", Object)
+], UpsertConfigVisualDto.prototype, "menu_categoria_vista", void 0);
 //# sourceMappingURL=upsert-config-visual.dto.js.map

@@ -38,6 +38,7 @@ const SCREEN_SIGNAL = {
     superadmin: 'superadmin.en_pantalla',
     usuarios: 'usuarios.en_pantalla',
     inventario: help_coach_1.HELP_SIGNAL.inventarioEnPantalla,
+    compras: 'compras.en_pantalla',
     contabilidad: 'contabilidad.en_pantalla',
     proveedores: 'proveedores.en_pantalla',
     cuentas_por_pagar: 'cuentas_por_pagar.en_pantalla',
@@ -116,9 +117,15 @@ const SCREEN_DESTINATIONS = {
     },
     inventario: {
         screenId: 'inventario',
-        route: '/(app)/inventario',
-        title: 'Inventario',
-        navTarget: 'nav.inventario',
+        route: '/(app)/recursos',
+        title: 'Bodega',
+        navTarget: 'nav.recursos',
+    },
+    compras: {
+        screenId: 'compras',
+        route: '/(app)/compras',
+        title: 'Compras',
+        viaMoreMenu: true,
     },
     contabilidad: {
         screenId: 'contabilidad',

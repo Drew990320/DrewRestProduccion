@@ -728,6 +728,51 @@ let PedidosService = class PedidosService {
             impresion_movimiento: impresion,
         };
     }
+    async registrarSalidaCajaCompra(input) {
+        const monto = Math.round(Number(input.monto));
+        if (!Number.isFinite(monto) || monto <= 0) {
+            throw new common_1.BadRequestException('El costo de caja debe ser mayor a 0');
+        }
+        const motivo = input.motivo.trim();
+        if (!motivo) {
+            throw new common_1.BadRequestException('Indica el motivo de la compra');
+        }
+        const tenantId = input.tenantId ?? tenant_constants_1.DEFAULT_TENANT_ID;
+        const { base, fechaOnly } = this.parseFechaResumenBogota();
+        const fechaStr = base.toFormat('yyyy-LL-dd');
+        await this.prisma.$transaction(async (tx) => {
+            const created = await tx.movimientoCaja.create({
+                data: {
+                    fecha: fechaOnly,
+                    tipo: 'salida_manual',
+                    monto,
+                    motivo,
+                    metodoDevolucion: 'efectivo',
+                    idUsuario: input.idUsuario,
+                },
+            });
+            try {
+                await this.contabilidadPosting.postEvento(tx, {
+                    tenantId,
+                    evento: 'caja_salida_manual',
+                    monto,
+                    fecha: fechaStr,
+                    origen: {
+                        modulo: 'compras',
+                        tipo: 'movimiento_caja',
+                        id: created.idMovimientoCaja,
+                    },
+                    idDocumento: `compras:${created.idMovimientoCaja}:caja_salida_manual`,
+                    idUsuario: input.idUsuario,
+                    descripcion: motivo,
+                    motivo,
+                });
+            }
+            catch (e) {
+                this.logger.warn(`Posteo contable compra ${created.idMovimientoCaja}: ${e instanceof Error ? e.message : String(e)}`);
+            }
+        });
+    }
     async imprimirMovimientoCajaManual(actor, idMovimiento) {
         if (actor.rol.nombre !== 'admin') {
             throw new common_1.ForbiddenException('Solo admin');
@@ -963,20 +1008,27 @@ let PedidosService = class PedidosService {
         const row = await this.obtenerConfigOperativaRow(tenantId);
         const mapped = this.mapConfigOperativa(row);
         let moduloRedondeo = false;
+        let moduloEnvioCorreo = false;
         const cachedRest = (0, config_restaurante_cache_1.getCachedConfigRestaurante)(tenantId);
         if (cachedRest) {
             moduloRedondeo = cachedRest.moduloRedondeoCobroActivo;
+            moduloEnvioCorreo = cachedRest.moduloEnvioCorreoActivo;
         }
         else {
             const cfg = await this.prisma.configRestaurante.findUnique({
                 where: { idRestaurante: tenantId },
-                select: { moduloRedondeoCobroActivo: true },
+                select: {
+                    moduloRedondeoCobroActivo: true,
+                    moduloEnvioCorreoActivo: true,
+                },
             });
             moduloRedondeo = cfg?.moduloRedondeoCobroActivo ?? false;
+            moduloEnvioCorreo = cfg?.moduloEnvioCorreoActivo ?? false;
         }
         return {
             ...mapped,
             modulo_redondeo_cobro_activo: moduloRedondeo,
+            modulo_envio_correo_activo: moduloEnvioCorreo,
         };
     }
     async upsertConfigOperativa(dto, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
@@ -5213,6 +5265,17 @@ let PedidosService = class PedidosService {
     }
     async enviarFacturaCorreo(idPedido, idFactura, email, actor) {
         await this.exigirPermisoMesero(actor, 'cobrar');
+        const tenantId = tenant_constants_1.DEFAULT_TENANT_ID;
+        const cached = (0, config_restaurante_cache_1.getCachedConfigRestaurante)(tenantId);
+        const moduloOn = cached
+            ? cached.moduloEnvioCorreoActivo
+            : (await this.prisma.configRestaurante.findUnique({
+                where: { idRestaurante: tenantId },
+                select: { moduloEnvioCorreoActivo: true },
+            }))?.moduloEnvioCorreoActivo ?? false;
+        if (!moduloOn) {
+            throw new common_1.ForbiddenException('Módulo no habilitado para este restaurante');
+        }
         const completo = await this.obtenerPorIdTrasEscritura(idPedido);
         const facturas = completo.facturas ?? [];
         if (facturas.length === 0) {

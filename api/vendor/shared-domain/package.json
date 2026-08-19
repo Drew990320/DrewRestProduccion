@@ -197,6 +197,10 @@
                                                    "types":  "./dist/comanda-lineas-group.d.ts",
                                                    "default":  "./dist/comanda-lineas-group.js"
                                                },
+                    "./impresion-estacion-reglas":  {
+                                                        "types":  "./dist/impresion-estacion-reglas.d.ts",
+                                                        "default":  "./dist/impresion-estacion-reglas.js"
+                                                    },
                     "./companero-pedido":  {
                                                "types":  "./dist/companero-pedido.d.ts",
                                                "default":  "./dist/companero-pedido.js"

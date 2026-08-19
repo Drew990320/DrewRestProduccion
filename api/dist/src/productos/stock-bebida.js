@@ -25,6 +25,24 @@ async function descontarStockBebidaTx(tx, p, cantidad) {
     if ((0, inventario_stock_producto_1.productoUsaInventarioComercial)(inv)) {
         return;
     }
+    if (p.usaProduccionPorciones) {
+        const actual = await tx.producto.findUnique({
+            where: { idProducto: p.idProducto },
+            select: { stockDisponible: true },
+        });
+        const qty = Math.min(cantidad, Math.max(0, actual?.stockDisponible ?? 0));
+        if (qty <= 0)
+            return;
+        await tx.producto.updateMany({
+            where: {
+                idProducto: p.idProducto,
+                controlStock: true,
+                stockDisponible: { gte: qty },
+            },
+            data: { stockDisponible: { decrement: qty } },
+        });
+        return;
+    }
     const r = await tx.producto.updateMany({
         where: {
             idProducto: p.idProducto,

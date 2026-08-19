@@ -12,6 +12,7 @@ const auth_module_1 = require("../auth/auth.module");
 const inventario_module_1 = require("../inventario/inventario.module");
 const pedidos_module_1 = require("../pedidos/pedidos.module");
 const menu_module_1 = require("../menu/menu.module");
+const recursos_module_1 = require("../recursos/recursos.module");
 const productos_controller_1 = require("./productos.controller");
 const productos_service_1 = require("./productos.service");
 const personalizaciones_controller_1 = require("./personalizaciones.controller");
@@ -29,6 +30,7 @@ exports.ProductosModule = ProductosModule = __decorate([
             auth_module_1.AuthModule,
             (0, common_1.forwardRef)(() => pedidos_module_1.PedidosModule),
             inventario_module_1.InventarioModule,
+            recursos_module_1.RecursosModule,
             (0, common_1.forwardRef)(() => menu_module_1.MenuModule),
         ],
         controllers: [

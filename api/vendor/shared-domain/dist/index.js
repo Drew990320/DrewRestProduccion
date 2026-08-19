@@ -40,7 +40,7 @@ __exportStar(require("./saldo-restante"), exports);
 __exportStar(require("./cocina-prioridad"), exports);
 __exportStar(require("./cocina-producto"), exports);
 __exportStar(require("./cocina-vista"), exports);
-__exportStar(require("./comanda-lineas-group"), exports);
+__exportStar(require("./impresion-estacion-reglas"), exports);
 __exportStar(require("./descuentos-pedido"), exports);
 __exportStar(require("./dias-semana"), exports);
 __exportStar(require("./menu-franja"), exports);

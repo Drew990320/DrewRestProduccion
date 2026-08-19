@@ -187,6 +187,7 @@ class ReglaImpresionCocinaDto {
     id_categoria;
     id_producto;
     orden;
+    omitir;
 }
 exports.ReglaImpresionCocinaDto = ReglaImpresionCocinaDto;
 __decorate([
@@ -209,6 +210,11 @@ __decorate([
     (0, class_validator_1.Min)(0),
     __metadata("design:type", Number)
 ], ReglaImpresionCocinaDto.prototype, "orden", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], ReglaImpresionCocinaDto.prototype, "omitir", void 0);
 class ReplaceReglasCocinaDto {
     reglas;
 }

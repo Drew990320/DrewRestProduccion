@@ -26,6 +26,7 @@ exports.HELP_GUIDES_BY_SCREEN = {
     permisos: ['configurar_permiso_mesero'],
     configuracion: ['vista_previa_tickets'],
     inventario: ['gestionar_inventario', 'como_usar_coach'],
+    compras: ['ingreso_rapido_vendibles', 'gestionar_inventario'],
     contabilidad: ['como_usar_coach'],
     proveedores: ['como_usar_coach'],
     cuentas_por_pagar: ['como_usar_coach'],

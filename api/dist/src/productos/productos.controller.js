@@ -19,6 +19,7 @@ const roles_decorator_1 = require("../auth/roles.decorator");
 const roles_guard_1 = require("../auth/roles.guard");
 const current_tenant_decorator_1 = require("../tenant/current-tenant.decorator");
 const create_producto_dto_1 = require("./dto/create-producto.dto");
+const ingreso_stock_vendible_dto_1 = require("./dto/ingreso-stock-vendible.dto");
 const update_producto_dto_1 = require("./dto/update-producto.dto");
 const productos_service_1 = require("./productos.service");
 let ProductosController = class ProductosController {
@@ -35,6 +36,9 @@ let ProductosController = class ProductosController {
     }
     crear(dto, tenantId) {
         return this.productos.crear(dto, tenantId);
+    }
+    ingresoStock(id, dto, tenantId, req) {
+        return this.productos.ingresoStockRapido(id, dto, tenantId, req.user?.idUsuario);
     }
     actualizar(id, dto, tenantId) {
         return this.productos.actualizar(id, dto, tenantId);
@@ -67,6 +71,16 @@ __decorate([
     __metadata("design:paramtypes", [create_producto_dto_1.CreateProductoDto, Number]),
     __metadata("design:returntype", void 0)
 ], ProductosController.prototype, "crear", null);
+__decorate([
+    (0, common_1.Post)(':id/ingreso-stock'),
+    __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
+    __param(1, (0, common_1.Body)()),
+    __param(2, (0, current_tenant_decorator_1.CurrentTenantId)()),
+    __param(3, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number, ingreso_stock_vendible_dto_1.IngresoStockVendibleDto, Number, Object]),
+    __metadata("design:returntype", void 0)
+], ProductosController.prototype, "ingresoStock", null);
 __decorate([
     (0, common_1.Patch)(':id'),
     __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),

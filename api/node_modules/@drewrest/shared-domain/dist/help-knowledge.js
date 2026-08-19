@@ -65,10 +65,24 @@ exports.HELP_KNOWLEDGE_TOPICS = [
         id: 'inventario_interno',
         moduleId: 'admin_operacion',
         title: 'Inventario interno',
-        summary: 'Inventario en la nav principal. Agrega ítems y registra entradas con «+ Entrada» en cada tarjeta.',
+        summary: 'Más → Bodega. Alta con «Nuevo producto / insumo». Reposición en la tarjeta con «Entrada de stock». El historial está en la pestaña Kardex.',
         screenIds: ['inventario'],
         roles: ['admin'],
-        relatedTargetIds: ['nav.inventario', 'inventario.agregar_item', 'inventario.movimiento_entrada'],
+        relatedTargetIds: ['nav.recursos', 'inventario.agregar_item', 'inventario.movimiento_entrada'],
+        faq: [
+            {
+                q: '¿Cómo registro un producto nuevo?',
+                a: 'Bodega → Recursos → «Nuevo producto / insumo». Código, nombre, categoría y, si ya llegó mercadería, stock inicial.',
+            },
+            {
+                q: '¿Cómo sumo cantidad a uno que ya existe?',
+                a: 'En la tarjeta del ítem pulsa «Entrada de stock». La cantidad se suma al stock y queda en el Kardex como Entrada.',
+            },
+            {
+                q: '¿Cuentas por pagar sube el inventario?',
+                a: 'No. La factura del proveedor es deuda. El stock solo cambia con una entrada en Bodega.',
+            },
+        ],
     },
     {
         id: 'conexion_movil',

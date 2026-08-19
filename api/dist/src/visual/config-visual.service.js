@@ -207,6 +207,9 @@ let ConfigVisualService = class ConfigVisualService {
             estilo_visual: (0, visual_style_1.resolverEstiloVisual)(row.estiloVisual),
             mesa_forma: (0, mesa_visual_1.esMesaFormaValida)(row.mesaForma) ? row.mesaForma : null,
             mesa_vista: (0, mesa_visual_1.esMesaVistaValida)(row.mesaVista) ? row.mesaVista : null,
+            menu_categoria_vista: (0, visual_style_1.esMenuCategoriaVistaValida)(row.menuCategoriaVista)
+                ? row.menuCategoriaVista
+                : null,
             logo_login_archivo: row.logoLoginArchivo,
             logo_factura_archivo: row.logoFacturaArchivo,
             logo_ticket_archivo: row.logoTicketArchivo,
@@ -266,6 +269,7 @@ let ConfigVisualService = class ConfigVisualService {
                 estiloVisual: 'minimalista',
                 mesaForma: null,
                 mesaVista: null,
+                menuCategoriaVista: null,
                 actualizadoEn: new Date(),
             },
         });
@@ -346,6 +350,14 @@ let ConfigVisualService = class ConfigVisualService {
                     : (0, mesa_visual_1.esMesaVistaValida)(dto.mesa_vista)
                         ? dto.mesa_vista
                         : (0, mesa_visual_1.resolverMesaVista)(null);
+        }
+        if (dto.menu_categoria_vista !== undefined) {
+            data.menuCategoriaVista =
+                dto.menu_categoria_vista == null || dto.menu_categoria_vista === ''
+                    ? null
+                    : (0, visual_style_1.esMenuCategoriaVistaValida)(dto.menu_categoria_vista)
+                        ? dto.menu_categoria_vista
+                        : (0, visual_style_1.resolverMenuCategoriaVista)(null);
         }
         await this.obtenerRow(tenantId);
         const row = await this.prisma.configVisual.update({

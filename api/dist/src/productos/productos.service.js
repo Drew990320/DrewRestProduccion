@@ -8,11 +8,16 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ProductosService = void 0;
 const common_1 = require("@nestjs/common");
+const stock_producto_1 = require("@drewrest/shared-domain/stock-producto");
 const prisma_service_1 = require("../prisma/prisma.service");
 const pedidos_gateway_1 = require("../pedidos/pedidos.gateway");
+const pedidos_service_1 = require("../pedidos/pedidos.service");
 const tenant_constants_1 = require("../tenant/tenant.constants");
 const empaque_para_llevar_1 = require("@drewrest/shared-domain/empaque-para-llevar");
 const cocina_producto_1 = require("@drewrest/shared-domain/cocina-producto");
@@ -22,6 +27,7 @@ const menu_activo_service_1 = require("../menu/menu-activo.service");
 const producto_imagen_upload_util_1 = require("../menu/producto-imagen-upload.util");
 const limpiar_reglas_impresion_cocina_1 = require("../impresoras-pos/limpiar-reglas-impresion-cocina");
 const destinos_impresora_cache_1 = require("../impresoras-pos/destinos-impresora-cache");
+const recursos_service_1 = require("../recursos/recursos.service");
 function resolverFlagsProducto(cat, explicit, existing) {
     const auto = (0, empaque_para_llevar_1.flagsProductoMenuPorCategoria)(cat);
     let esEmpacable;
@@ -102,11 +108,15 @@ let ProductosService = class ProductosService {
     gateway;
     vinculoInventario;
     menuActivo;
-    constructor(prisma, gateway, vinculoInventario, menuActivo) {
+    recursos;
+    pedidos;
+    constructor(prisma, gateway, vinculoInventario, menuActivo, recursos, pedidos) {
         this.prisma = prisma;
         this.gateway = gateway;
         this.vinculoInventario = vinculoInventario;
         this.menuActivo = menuActivo;
+        this.recursos = recursos;
+        this.pedidos = pedidos;
     }
     async asegurarUnicoMazorca(idProducto, esMazorca, tenantId) {
         if (!esMazorca)
@@ -218,12 +228,16 @@ let ProductosService = class ProductosService {
                             : dto.control_stock),
                     }
                     : {}),
-                ...(dto.stock_disponible != null
-                    ? { stockDisponible: Math.round(dto.stock_disponible) }
-                    : {}),
-                ...(dto.ocultar_sin_stock != null
-                    ? { ocultarSinStock: dto.ocultar_sin_stock }
-                    : {}),
+                ...(dto.usa_produccion_porciones
+                    ? { stockDisponible: 0, ocultarSinStock: dto.ocultar_sin_stock ?? false }
+                    : dto.stock_disponible != null
+                        ? { stockDisponible: Math.round(dto.stock_disponible) }
+                        : {}),
+                ...(dto.usa_produccion_porciones
+                    ? {}
+                    : dto.ocultar_sin_stock != null
+                        ? { ocultarSinStock: dto.ocultar_sin_stock }
+                        : {}),
             },
             include: { categoria: { select: { nombre: true, esBebida: true } } },
         });
@@ -281,6 +295,18 @@ let ProductosService = class ProductosService {
                 esEmpacable: flags.esEmpacable,
                 esAcompanamientoMazorca: esMazorca,
             });
+        const usaProduccion = dto.usa_produccion_porciones === true ||
+            (dto.usa_produccion_porciones !== false &&
+                existing.usaProduccionPorciones);
+        let stockProduccionSinHornada;
+        if (usaProduccion) {
+            const hornadas = await this.prisma.produccionPorcion.count({
+                where: { idProducto, idRestaurante: tenantId },
+            });
+            if (hornadas === 0) {
+                stockProduccionSinHornada = { stockDisponible: 0 };
+            }
+        }
         const updated = await this.prisma.producto.update({
             where: { idProducto },
             data: {
@@ -332,9 +358,12 @@ let ProductosService = class ProductosService {
                     : dto.control_stock != null
                         ? { controlStock: dto.control_stock }
                         : {}),
-                ...(dto.stock_disponible != null
-                    ? { stockDisponible: Math.round(dto.stock_disponible) }
-                    : {}),
+                ...(dto.usa_produccion_porciones === true
+                    ? {}
+                    : dto.stock_disponible != null
+                        ? { stockDisponible: Math.round(dto.stock_disponible) }
+                        : {}),
+                ...(stockProduccionSinHornada ?? {}),
                 ...(dto.ocultar_sin_stock != null
                     ? { ocultarSinStock: dto.ocultar_sin_stock }
                     : {}),
@@ -360,6 +389,66 @@ let ProductosService = class ProductosService {
         }
         this.gateway.emitConfigActualizada('menu', tenantId);
         return mapProducto(updated);
+    }
+    async ingresoStockRapido(idProducto, dto, tenantId = tenant_constants_1.DEFAULT_TENANT_ID, idUsuario) {
+        const cantidad = Math.round(Number(dto.cantidad));
+        if (!(0, stock_producto_1.cantidadIngresoRapidoValida)(cantidad)) {
+            throw new common_1.BadRequestException('Indica al menos 1 unidad');
+        }
+        const existing = await this.prisma.producto.findFirst({
+            where: { idProducto, categoria: { idRestaurante: tenantId } },
+            include: { categoria: { select: { nombre: true, esBebida: true } } },
+        });
+        if (!existing) {
+            throw new common_1.NotFoundException('Producto no encontrado');
+        }
+        if (existing.usaProduccionPorciones) {
+            throw new common_1.BadRequestException('Este producto usa producción por porciones. Regístralo en Producción del día.');
+        }
+        if (!existing.controlStock) {
+            throw new common_1.BadRequestException('Activa «control de stock» en el menú para este producto.');
+        }
+        const costoTotal = Math.max(0, Math.round(Number(dto.costo_total ?? 0)));
+        if (costoTotal > 0 && !idUsuario) {
+            throw new common_1.BadRequestException('Inicia sesión de nuevo para registrar el pago desde caja');
+        }
+        const vinculado = await this.recursos.sumarStockVendibleSiVinculado(idProducto, cantidad, tenantId, idUsuario);
+        const updated = vinculado
+            ? await this.prisma.producto.findFirstOrThrow({
+                where: { idProducto },
+                include: { categoria: { select: { nombre: true, esBebida: true } } },
+            })
+            : await this.prisma.producto.update({
+                where: { idProducto },
+                data: { stockDisponible: { increment: cantidad } },
+                include: { categoria: { select: { nombre: true, esBebida: true } } },
+            });
+        if (costoTotal > 0 && idUsuario) {
+            try {
+                await this.pedidos.registrarSalidaCajaCompra({
+                    idUsuario,
+                    monto: costoTotal,
+                    motivo: `Compra: ${cantidad} × ${updated.nombre}`,
+                    tenantId,
+                });
+            }
+            catch (e) {
+                if (!vinculado) {
+                    await this.prisma.producto.update({
+                        where: { idProducto },
+                        data: { stockDisponible: { decrement: cantidad } },
+                    });
+                }
+                throw e;
+            }
+        }
+        this.gateway.emitConfigActualizada('menu', tenantId);
+        return {
+            ...mapProducto(updated),
+            ingresado: cantidad,
+            costo_total: costoTotal,
+            salio_de_caja: costoTotal > 0,
+        };
     }
     async desactivar(idProducto, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
         const result = await this.actualizar(idProducto, { activo: false }, tenantId);
@@ -406,9 +495,12 @@ let ProductosService = class ProductosService {
 exports.ProductosService = ProductosService;
 exports.ProductosService = ProductosService = __decorate([
     (0, common_1.Injectable)(),
+    __param(5, (0, common_1.Inject)((0, common_1.forwardRef)(() => pedidos_service_1.PedidosService))),
     __metadata("design:paramtypes", [prisma_service_1.PrismaService,
         pedidos_gateway_1.PedidosGateway,
         producto_inventario_vinculo_service_1.ProductoInventarioVinculoService,
-        menu_activo_service_1.MenuActivoService])
+        menu_activo_service_1.MenuActivoService,
+        recursos_service_1.RecursosService,
+        pedidos_service_1.PedidosService])
 ], ProductosService);
 //# sourceMappingURL=productos.service.js.map

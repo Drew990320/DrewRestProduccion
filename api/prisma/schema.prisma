@@ -359,6 +359,8 @@ model ReglaImpresionCocina {
   idCategoria Int?                  @map("id_categoria")
   idProducto  Int?                  @map("id_producto")
   orden       Int                   @default(0)
+  /// Si true, esta zona/plato no se imprime en la estación (ni cae como huérfano).
+  omitir      Boolean               @default(false)
   impresora   ImpresoraPos          @relation(fields: [idImpresora], references: [idImpresora], onDelete: Cascade)
   categoria   Categoria?            @relation(fields: [idCategoria], references: [idCategoria], onDelete: Cascade)
   producto    Producto?             @relation(fields: [idProducto], references: [idProducto], onDelete: Cascade)
@@ -1059,6 +1061,8 @@ model ConfigVisual {
   mesaForma          String?  @map("mesa_forma") @db.VarChar(20)
   /// cuadricula | compacta | lista
   mesaVista          String?  @map("mesa_vista") @db.VarChar(20)
+  /// iconos | texto | ambos — barra de categorías del menú
+  menuCategoriaVista String?  @map("menu_categoria_vista") @db.VarChar(20)
   actualizadoEn      DateTime    @updatedAt @map("actualizado_en")
   restaurante        Restaurante @relation(fields: [idRestaurante], references: [idRestaurante])
 

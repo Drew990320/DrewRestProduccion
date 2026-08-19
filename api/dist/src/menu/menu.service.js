@@ -131,6 +131,7 @@ let MenuService = class MenuService {
                 control_stock: p.controlStock,
                 stock_disponible: p.stockDisponible,
                 ocultar_sin_stock: p.ocultarSinStock,
+                usa_produccion_porciones: p.usaProduccionPorciones,
             }))
                 .map((p) => ({
                 id_producto: p.idProducto,
@@ -168,9 +169,11 @@ let MenuService = class MenuService {
                 control_stock: p.controlStock,
                 stock_disponible: p.stockDisponible,
                 ocultar_sin_stock: p.ocultarSinStock,
+                usa_produccion_porciones: Boolean(p.usaProduccionPorciones),
                 agotado: (0, stock_producto_1.productoAgotado)({
                     control_stock: p.controlStock,
                     stock_disponible: p.stockDisponible,
+                    usa_produccion_porciones: p.usaProduccionPorciones,
                 }) ||
                     (p.esCombo &&
                         (p.comboElegiblesComoCombo.length === 0 ||

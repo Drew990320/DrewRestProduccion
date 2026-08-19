@@ -18,6 +18,7 @@ const common_1 = require("@nestjs/common");
 const config_1 = require("@nestjs/config");
 const latency_metrics_1 = require("../common/latency-metrics");
 const impresoras_pos_service_1 = require("../impresoras-pos/impresoras-pos.service");
+const impresion_estacion_reglas_1 = require("./impresion-estacion-reglas");
 const impresora_papel_ancho_1 = require("../impresoras-pos/impresora-papel-ancho");
 const comanda_escpos_builder_1 = require("./comanda-escpos.builder");
 const factura_escpos_builder_1 = require("./factura-escpos.builder");
@@ -355,19 +356,7 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
         const reglas = destino.reglas ?? [];
         if (reglas.length === 0)
             return null;
-        const lineas = ticket.lineas.filter((l) => {
-            const idProd = l.id_producto != null ? Number(l.id_producto) : null;
-            const idCat = l.id_categoria != null ? Number(l.id_categoria) : null;
-            return reglas.some((r) => {
-                if (r.alcance === 'producto' && r.id_producto != null) {
-                    return idProd != null && idProd === Number(r.id_producto);
-                }
-                if (r.alcance === 'categoria' && r.id_categoria != null) {
-                    return idCat != null && idCat === Number(r.id_categoria);
-                }
-                return false;
-            });
-        });
+        const lineas = ticket.lineas.filter((l) => (0, impresion_estacion_reglas_1.lineaPerteneceAEstacion)(l, reglas));
         if (lineas.length === 0)
             return null;
         return { ...ticket, lineas };
@@ -403,8 +392,8 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
             jobs.push({ destino: destinos[0], ticket });
         }
         else if (hayEstaciones && !hayMaestra) {
-            const cubiertas = new Set(jobs.flatMap((j) => j.ticket.lineas.map((l) => l.id_detalle)));
-            const huerfanas = ticket.lineas.filter((l) => !cubiertas.has(l.id_detalle));
+            const estaciones = destinos.filter((d) => !d.es_cocina_maestra && (d.reglas?.length ?? 0) > 0);
+            const huerfanas = (0, impresion_estacion_reglas_1.lineasHuerfanasEstaciones)(ticket.lineas, estaciones);
             if (huerfanas.length > 0) {
                 jobs.push({
                     destino: destinos[0],

@@ -1,6 +1,8 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.VISUAL_STYLE_PRESETS = exports.VISUAL_CHROME_DEFAULTS = exports.VISUAL_LAYOUT_DEFAULTS = exports.VISUAL_STYLE_IDS = void 0;
+exports.VISUAL_STYLE_PRESETS = exports.VISUAL_CHROME_DEFAULTS = exports.VISUAL_LAYOUT_DEFAULTS = exports.MENU_CATEGORIA_VISTA_DESCRIPCION = exports.MENU_CATEGORIA_VISTA_LABELS = exports.MENU_CATEGORIA_VISTA_IDS = exports.VISUAL_STYLE_IDS = void 0;
+exports.esMenuCategoriaVistaValida = esMenuCategoriaVistaValida;
+exports.resolverMenuCategoriaVista = resolverMenuCategoriaVista;
 exports.esEstiloVisualValido = esEstiloVisualValido;
 exports.resolverEstiloVisual = resolverEstiloVisual;
 exports.presetEstiloVisual = presetEstiloVisual;
@@ -11,6 +13,24 @@ exports.VISUAL_STYLE_IDS = [
     'calido',
     'expresivo',
 ];
+exports.MENU_CATEGORIA_VISTA_IDS = ['iconos', 'texto', 'ambos'];
+exports.MENU_CATEGORIA_VISTA_LABELS = {
+    iconos: 'Solo iconos',
+    texto: 'Solo texto',
+    ambos: 'Icono y texto',
+};
+exports.MENU_CATEGORIA_VISTA_DESCRIPCION = {
+    iconos: 'Barra de categorías con icono; el nombre aparece al mantener o al pasar el cursor.',
+    texto: 'Barra de categorías con el nombre visible. Útil si el icono no es claro.',
+    ambos: 'Icono y nombre juntos en cada categoría.',
+};
+function esMenuCategoriaVistaValida(id) {
+    return (typeof id === 'string' &&
+        exports.MENU_CATEGORIA_VISTA_IDS.includes(id));
+}
+function resolverMenuCategoriaVista(guardado) {
+    return esMenuCategoriaVistaValida(guardado) ? guardado : 'iconos';
+}
 exports.VISUAL_LAYOUT_DEFAULTS = {
     radiusSm: 8,
     radiusMd: 12,
@@ -28,6 +48,7 @@ exports.VISUAL_CHROME_DEFAULTS = {
     iconButtonBorderWidth: 1,
     mesaForma: 'rectangular',
     mesaVista: 'cuadricula',
+    menuCategoriaVista: 'iconos',
 };
 /** Paleta terracota DrewRest (referencia estilo cálido). */
 const PALETA_CALIDA = {
@@ -89,6 +110,7 @@ exports.VISUAL_STYLE_PRESETS = {
             iconButtonBorderWidth: 1.5,
             mesaForma: 'cuadrada',
             mesaVista: 'compacta',
+            menuCategoriaVista: 'iconos',
         },
     },
     calido: {
@@ -113,6 +135,7 @@ exports.VISUAL_STYLE_PRESETS = {
             iconButtonBorderWidth: 1,
             mesaForma: 'redonda',
             mesaVista: 'cuadricula',
+            menuCategoriaVista: 'iconos',
         },
     },
     expresivo: {
@@ -147,6 +170,7 @@ exports.VISUAL_STYLE_PRESETS = {
             iconButtonBorderWidth: 2,
             mesaForma: 'barra',
             mesaVista: 'lista',
+            menuCategoriaVista: 'iconos',
         },
     },
 };

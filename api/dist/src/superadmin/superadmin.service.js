@@ -86,7 +86,7 @@ let SuperadminService = class SuperadminService {
         if (!restaurante) {
             throw new common_1.NotFoundException('Restaurante no encontrado');
         }
-        const [adminCount, chefCount, meseroCount, productos, categorias, mesas, lugares, inventario, recursos, recetas, cfg,] = await Promise.all([
+        const [adminCount, chefCount, meseroCount, productos, categorias, mesas, lugares, inventario, recursos, recetas, movimientosRecurso, hornadas, cfg,] = await Promise.all([
             this.prisma.usuario.count({
                 where: {
                     idRestaurante: tenantId,
@@ -129,6 +129,12 @@ let SuperadminService = class SuperadminService {
             this.prisma.recetaProducto.count({
                 where: { idRestaurante: tenantId },
             }),
+            this.prisma.movimientoRecurso.count({
+                where: { recurso: { idRestaurante: tenantId } },
+            }),
+            this.prisma.produccionPorcion.count({
+                where: { idRestaurante: tenantId },
+            }),
             this.prisma.configRestaurante.findUnique({
                 where: { idRestaurante: tenantId },
                 select: {
@@ -139,6 +145,7 @@ let SuperadminService = class SuperadminService {
                     moduloMenuImagenesActivo: true,
                     moduloProduccionPorcionesActivo: true,
                     moduloConexionMovilActivo: true,
+                    moduloEnvioCorreoActivo: true,
                 },
             }),
         ]);
@@ -159,6 +166,7 @@ let SuperadminService = class SuperadminService {
                 modulo_menu_imagenes_activo: cfg?.moduloMenuImagenesActivo ?? false,
                 modulo_produccion_porciones_activo: cfg?.moduloProduccionPorcionesActivo ?? false,
                 modulo_conexion_movil_activo: cfg?.moduloConexionMovilActivo ?? false,
+                modulo_envio_correo_activo: cfg?.moduloEnvioCorreoActivo ?? false,
             },
             admin_registrado: adminCount > 0,
             totales: {
@@ -169,6 +177,8 @@ let SuperadminService = class SuperadminService {
                 inventario,
                 recursos,
                 recetas,
+                movimientos_recurso: movimientosRecurso,
+                hornadas,
                 admins: adminCount,
                 chefs: chefCount,
                 meseros: meseroCount,
@@ -401,7 +411,8 @@ let SuperadminService = class SuperadminService {
             dto.modulo_autoservicio_activo === undefined &&
             dto.modulo_menu_imagenes_activo === undefined &&
             dto.modulo_produccion_porciones_activo === undefined &&
-            dto.modulo_conexion_movil_activo === undefined) {
+            dto.modulo_conexion_movil_activo === undefined &&
+            dto.modulo_envio_correo_activo === undefined) {
             throw new common_1.BadRequestException('Nada que actualizar');
         }
         await this.prisma.restaurante.upsert({
@@ -440,6 +451,9 @@ let SuperadminService = class SuperadminService {
                 ...(dto.modulo_conexion_movil_activo !== undefined
                     ? { moduloConexionMovilActivo: dto.modulo_conexion_movil_activo }
                     : {}),
+                ...(dto.modulo_envio_correo_activo !== undefined
+                    ? { moduloEnvioCorreoActivo: dto.modulo_envio_correo_activo }
+                    : {}),
             },
             update: {
                 ...(dto.modulo_retail_activo !== undefined
@@ -465,6 +479,9 @@ let SuperadminService = class SuperadminService {
                 ...(dto.modulo_conexion_movil_activo !== undefined
                     ? { moduloConexionMovilActivo: dto.modulo_conexion_movil_activo }
                     : {}),
+                ...(dto.modulo_envio_correo_activo !== undefined
+                    ? { moduloEnvioCorreoActivo: dto.modulo_envio_correo_activo }
+                    : {}),
             },
         });
         (0, config_restaurante_cache_1.invalidateConfigRestauranteCache)(tenantId);
@@ -481,6 +498,7 @@ let SuperadminService = class SuperadminService {
             modulo_menu_imagenes_activo: row.moduloMenuImagenesActivo,
             modulo_produccion_porciones_activo: row.moduloProduccionPorcionesActivo,
             modulo_conexion_movil_activo: row.moduloConexionMovilActivo,
+            modulo_envio_correo_activo: row.moduloEnvioCorreoActivo,
         };
     }
     async asegurarMesaBoutique(tenantId) {
@@ -774,72 +792,96 @@ let SuperadminService = class SuperadminService {
         if (confirmar.trim().toUpperCase() !== 'PURGAR_INVENTARIO') {
             throw new common_1.BadRequestException('Escribe confirmar: "PURGAR_INVENTARIO"');
         }
-        const inventarios = await this.prisma.inventario.findMany({
-            where: { idRestaurante: tenantId },
-            select: { idInventario: true },
-        });
-        const invIds = inventarios.map((i) => i.idInventario);
-        const recursos = await this.prisma.recurso.findMany({
-            where: { idRestaurante: tenantId },
-            select: { idRecurso: true },
-        });
-        const recursoIds = recursos.map((r) => r.idRecurso);
-        const recetas = await this.prisma.recetaProducto.findMany({
-            where: { idRestaurante: tenantId },
-            select: { idReceta: true },
-        });
-        const recetaIds = recetas.map((r) => r.idReceta);
-        if (recetaIds.length > 0) {
-            await this.prisma.recetaLinea.updateMany({
-                where: { idSubreceta: { in: recetaIds } },
-                data: { idSubreceta: null },
+        const result = await this.prisma.$transaction(async (tx) => {
+            const inventarios = await tx.inventario.findMany({
+                where: { idRestaurante: tenantId },
+                select: { idInventario: true },
             });
-            await this.prisma.recetaLinea.deleteMany({
-                where: { idReceta: { in: recetaIds } },
+            const invIds = inventarios.map((i) => i.idInventario);
+            const recursos = await tx.recurso.findMany({
+                where: { idRestaurante: tenantId },
+                select: { idRecurso: true },
             });
-            await this.prisma.recetaProducto.deleteMany({
+            const recursoIds = recursos.map((r) => r.idRecurso);
+            const recetas = await tx.recetaProducto.findMany({
+                where: { idRestaurante: tenantId },
+                select: { idReceta: true },
+            });
+            const recetaIds = recetas.map((r) => r.idReceta);
+            if (recetaIds.length > 0) {
+                await tx.recetaLinea.updateMany({
+                    where: { idSubreceta: { in: recetaIds } },
+                    data: { idSubreceta: null },
+                });
+                await tx.recetaLinea.deleteMany({
+                    where: { idReceta: { in: recetaIds } },
+                });
+                await tx.recetaProducto.deleteMany({
+                    where: { idRestaurante: tenantId },
+                });
+            }
+            let movimientosInventario = 0;
+            if (invIds.length > 0) {
+                const mov = await tx.movInventario.deleteMany({
+                    where: { idInventario: { in: invIds } },
+                });
+                movimientosInventario = mov.count;
+            }
+            let movimientosRecurso = 0;
+            if (recursoIds.length > 0) {
+                const movR = await tx.movimientoRecurso.deleteMany({
+                    where: { idRecurso: { in: recursoIds } },
+                });
+                movimientosRecurso = movR.count;
+                await tx.mantenimientoRecurso.deleteMany({
+                    where: { idRecurso: { in: recursoIds } },
+                });
+            }
+            const hornadas = await tx.produccionPorcion.deleteMany({
                 where: { idRestaurante: tenantId },
             });
-        }
-        let movimientosInventario = 0;
-        if (invIds.length > 0) {
-            const mov = await this.prisma.movInventario.deleteMany({
-                where: { idInventario: { in: invIds } },
+            const stockPorciones = await tx.producto.updateMany({
+                where: {
+                    usaProduccionPorciones: true,
+                    categoria: { idRestaurante: tenantId },
+                },
+                data: { stockDisponible: 0 },
             });
-            movimientosInventario = mov.count;
-        }
-        let recursosEliminados = 0;
-        if (recursoIds.length > 0) {
-            const del = await this.prisma.recurso.deleteMany({
+            const recDel = recursoIds.length > 0
+                ? await tx.recurso.deleteMany({
+                    where: { idRestaurante: tenantId },
+                })
+                : { count: 0 };
+            const invDel = await tx.inventario.deleteMany({
                 where: { idRestaurante: tenantId },
             });
-            recursosEliminados = del.count;
-        }
-        const invDel = await this.prisma.inventario.deleteMany({
-            where: { idRestaurante: tenantId },
-        });
-        const conv = await this.prisma.conversionUnidad.deleteMany({
-            where: { idRestaurante: tenantId },
-        });
-        const ubic = await this.prisma.ubicacionRecurso.deleteMany({
-            where: { idRestaurante: tenantId },
-        });
-        const catRec = await this.prisma.categoriaRecurso.deleteMany({
-            where: { idRestaurante: tenantId },
-        });
+            const conv = await tx.conversionUnidad.deleteMany({
+                where: { idRestaurante: tenantId },
+            });
+            const ubic = await tx.ubicacionRecurso.deleteMany({
+                where: { idRestaurante: tenantId },
+            });
+            const catRec = await tx.categoriaRecurso.deleteMany({
+                where: { idRestaurante: tenantId },
+            });
+            return {
+                inventarios_eliminados: invDel.count,
+                movimientos_inventario: movimientosInventario,
+                recursos_eliminados: recDel.count,
+                movimientos_recurso: movimientosRecurso,
+                recetas_eliminadas: recetaIds.length,
+                hornadas_eliminadas: hornadas.count,
+                stock_porciones_reiniciado: stockPorciones.count,
+                conversiones_eliminadas: conv.count,
+                ubicaciones_eliminadas: ubic.count,
+                categorias_recurso_eliminadas: catRec.count,
+            };
+        }, { timeout: 30_000 });
         (0, deduccion_contexto_cache_1.invalidateDeduccionEstructuraCache)(tenantId);
         (0, config_inventario_cache_1.invalidateConfigInventarioCache)(tenantId);
         this.gateway.emitConfigActualizada('inventario', tenantId);
-        return {
-            ok: true,
-            inventarios_eliminados: invDel.count,
-            movimientos_inventario: movimientosInventario,
-            recursos_eliminados: recursosEliminados,
-            recetas_eliminadas: recetaIds.length,
-            conversiones_eliminadas: conv.count,
-            ubicaciones_eliminadas: ubic.count,
-            categorias_recurso_eliminadas: catRec.count,
-        };
+        this.gateway.emitConfigActualizada('menu', tenantId);
+        return { ok: true, ...result };
     }
 };
 exports.SuperadminService = SuperadminService;

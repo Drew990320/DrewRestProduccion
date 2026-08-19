@@ -149,6 +149,7 @@ let ImpresorasPosService = ImpresorasPosService_1 = class ImpresorasPosService {
                 id_categoria: r.idCategoria,
                 id_producto: r.idProducto,
                 orden: r.orden,
+                omitir: r.omitir === true,
                 categoria_nombre: r.categoria?.nombre ?? null,
                 producto_nombre: r.producto?.nombre ?? null,
             })),
@@ -319,6 +320,7 @@ let ImpresorasPosService = ImpresorasPosService_1 = class ImpresorasPosService {
                     idCategoria: r.alcance === 'categoria' ? r.id_categoria : null,
                     idProducto: r.alcance === 'producto' ? r.id_producto : null,
                     orden: r.orden ?? i,
+                    omitir: r.omitir === true,
                 },
             })),
         ]);
@@ -396,6 +398,7 @@ let ImpresorasPosService = ImpresorasPosService_1 = class ImpresorasPosService {
                     alcance: regla.alcance,
                     id_categoria: regla.idCategoria,
                     id_producto: regla.idProducto,
+                    omitir: regla.omitir === true,
                 })),
             }));
         }

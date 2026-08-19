@@ -50,9 +50,8 @@ let ProduccionService = class ProduccionService {
             throw new common_1.BadRequestException('Este producto no está configurado para producción por porciones');
         }
         const porcionesPorEntera = Math.max(1, producto.porcionesPorEntera ?? 8);
-        if (!producto.receta?.activa || !(producto.receta.lineas?.length > 0)) {
-            throw new common_1.BadRequestException('Define la receta de 1 entera (ingredientes) antes de registrar producción');
-        }
+        const tieneReceta = Boolean(producto.receta?.activa) &&
+            (producto.receta?.lineas?.length ?? 0) > 0;
         if (!producto.controlStock) {
             throw new common_1.BadRequestException('Activa el control de stock en el producto para llevar el conteo de porciones');
         }
@@ -60,19 +59,22 @@ let ProduccionService = class ProduccionService {
         const porcionesGeneradas = enteras * porcionesPorEntera;
         const idDocumento = `prod-porcion:${tenantId}:${producto.idProducto}:${iso}:${Date.now()}`;
         const row = await this.prisma.$transaction(async (tx) => {
-            await this.deduccion.consumirRecetaProduccionEnTx(tx, {
-                tenantId,
-                idProducto: producto.idProducto,
-                cantidadEnteras: enteras,
-                idUsuario,
-                idDocumento,
-                nombreProducto: producto.nombre,
-            });
+            let recetaDescontada = false;
+            if (tieneReceta) {
+                recetaDescontada = await this.deduccion.consumirRecetaProduccionEnTx(tx, {
+                    tenantId,
+                    idProducto: producto.idProducto,
+                    cantidadEnteras: enteras,
+                    idUsuario,
+                    idDocumento,
+                    nombreProducto: producto.nombre,
+                });
+            }
             await tx.producto.update({
                 where: { idProducto: producto.idProducto },
                 data: { stockDisponible: { increment: porcionesGeneradas } },
             });
-            return tx.produccionPorcion.create({
+            const created = await tx.produccionPorcion.create({
                 data: {
                     idRestaurante: tenantId,
                     idProducto: producto.idProducto,
@@ -83,20 +85,25 @@ let ProduccionService = class ProduccionService {
                     idUsuario: idUsuario ?? null,
                 },
             });
+            return {
+                row: created,
+                recetaDescontada,
+            };
         });
         const actualizado = await this.prisma.producto.findUnique({
             where: { idProducto: producto.idProducto },
             select: { stockDisponible: true, nombre: true },
         });
         return {
-            id_produccion: row.idProduccion,
-            id_producto: row.idProducto,
+            id_produccion: row.row.idProduccion,
+            id_producto: row.row.idProducto,
             nombre: actualizado?.nombre ?? producto.nombre,
             fecha: iso,
-            enteras: row.enteras,
-            porciones_por_entera: row.porcionesPorEntera,
-            porciones_generadas: row.porcionesGeneradas,
+            enteras: row.row.enteras,
+            porciones_por_entera: row.row.porcionesPorEntera,
+            porciones_generadas: row.row.porcionesGeneradas,
             stock_disponible: actualizado?.stockDisponible ?? 0,
+            receta_descontada: row.recetaDescontada,
         };
     }
     async resumenDia(fecha, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {

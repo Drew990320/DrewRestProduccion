@@ -226,7 +226,6 @@ let ConfigRestauranteService = class ConfigRestauranteService {
                     'Descuento clientes especiales',
                 moduloInventarioActivo: dto.modulo_inventario_activo ?? true,
                 moduloMeserosOperativosActivo: dto.modulo_meseros_operativos_activo ?? true,
-                moduloEnvioCorreoActivo: dto.modulo_envio_correo_activo ?? false,
                 moduloResumenDiarioActivo: dto.modulo_resumen_diario_activo ?? true,
                 moduloContabilidadActivo: dto.modulo_contabilidad_activo ?? false,
                 moduloGananciasActivo: dto.modulo_ganancias_activo ?? false,
@@ -321,9 +320,6 @@ let ConfigRestauranteService = class ConfigRestauranteService {
                     ? {
                         moduloMeserosOperativosActivo: dto.modulo_meseros_operativos_activo,
                     }
-                    : {}),
-                ...(dto.modulo_envio_correo_activo !== undefined
-                    ? { moduloEnvioCorreoActivo: dto.modulo_envio_correo_activo }
                     : {}),
                 ...(dto.modulo_resumen_diario_activo !== undefined
                     ? { moduloResumenDiarioActivo: dto.modulo_resumen_diario_activo }

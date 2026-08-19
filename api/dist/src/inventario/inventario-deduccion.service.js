@@ -705,7 +705,7 @@ let InventarioDeduccionService = class InventarioDeduccionService {
     }
     async consumirRecetaProduccionEnTx(tx, input) {
         if (input.cantidadEnteras <= 0)
-            return;
+            return false;
         const configRow = await this.obtenerConfigRow(input.tenantId);
         const politica = this.politicaDesdeRow(configRow);
         const evento = politica.evento_receta;
@@ -714,7 +714,7 @@ let InventarioDeduccionService = class InventarioDeduccionService {
         ]);
         const receta = ctx.recetaPorProducto.get(input.idProducto);
         if (!receta?.lineas?.length) {
-            throw new common_1.BadRequestException('El producto necesita una receta con ingredientes (costo de 1 entera) antes de registrar producción');
+            return false;
         }
         const plan = (0, inventario_motor_1.planificarDeduccionReceta)({
             linea: {
@@ -731,7 +731,7 @@ let InventarioDeduccionService = class InventarioDeduccionService {
             politica,
         });
         if (!plan.movimientos.length) {
-            throw new common_1.BadRequestException('No se pudo descontar la receta (revisa ingredientes y unidades)');
+            return false;
         }
         await this.persistirMovimientos(tx, plan.movimientos, {
             evento,
@@ -741,6 +741,7 @@ let InventarioDeduccionService = class InventarioDeduccionService {
             usaRecursos: ctx.usaRecursos,
             tenantId: input.tenantId,
         });
+        return true;
     }
 };
 exports.InventarioDeduccionService = InventarioDeduccionService;
