@@ -7,7 +7,7 @@ export type ProductoConStock = {
 };
 /** Máximo razonable para un ingreso rápido (evita ceros de más). */
 export declare const INGRESO_RAPIDO_CANTIDAD_MAX = 9999;
-/** Vendible con contador de menú, sin transformación por receta. */
+/** Vendible con contador de menú (bebida, porción, etc.). */
 export declare function esProductoIngresoRapidoVendible(p: ProductoConStock): boolean;
 /** Cualquier vendible con stock: lote de unidades (gaseosa, porción, etc.). */
 export declare function esProductoLoteVendible(p: ProductoConStock): boolean;

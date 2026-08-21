@@ -231,23 +231,21 @@ let ProductosService = class ProductosService {
                         porcionesPorEntera: Math.max(1, Math.round(dto.porciones_por_entera)),
                     }
                     : {}),
-                ...(dto.control_stock != null || dto.usa_produccion_porciones
+                ...(dto.control_stock != null || dto.usa_produccion_porciones === true
                     ? {
-                        controlStock: Boolean(dto.usa_produccion_porciones
+                        controlStock: Boolean(dto.usa_produccion_porciones === true
                             ? true
                             : dto.control_stock),
                     }
                     : {}),
-                ...(dto.usa_produccion_porciones
-                    ? { stockDisponible: 0, ocultarSinStock: dto.ocultar_sin_stock ?? false }
-                    : dto.stock_disponible != null
-                        ? { stockDisponible: Math.round(dto.stock_disponible) }
+                ...(dto.stock_disponible != null
+                    ? { stockDisponible: Math.round(dto.stock_disponible) }
+                    : dto.usa_produccion_porciones === true && dto.stock_disponible == null
+                        ? { stockDisponible: 0 }
                         : {}),
-                ...(dto.usa_produccion_porciones
-                    ? {}
-                    : dto.ocultar_sin_stock != null
-                        ? { ocultarSinStock: dto.ocultar_sin_stock }
-                        : {}),
+                ...(dto.ocultar_sin_stock != null
+                    ? { ocultarSinStock: dto.ocultar_sin_stock }
+                    : {}),
             },
             include: { categoria: { select: { nombre: true, esBebida: true } } },
         });
@@ -305,18 +303,6 @@ let ProductosService = class ProductosService {
                 esEmpacable: flags.esEmpacable,
                 esAcompanamientoMazorca: esMazorca,
             });
-        const usaProduccion = dto.usa_produccion_porciones === true ||
-            (dto.usa_produccion_porciones !== false &&
-                existing.usaProduccionPorciones);
-        let stockProduccionSinHornada;
-        if (usaProduccion) {
-            const hornadas = await this.prisma.produccionPorcion.count({
-                where: { idProducto, idRestaurante: tenantId },
-            });
-            if (hornadas === 0) {
-                stockProduccionSinHornada = { stockDisponible: 0 };
-            }
-        }
         const updated = await this.prisma.producto.update({
             where: { idProducto },
             data: {
@@ -368,12 +354,9 @@ let ProductosService = class ProductosService {
                     : dto.control_stock != null
                         ? { controlStock: dto.control_stock }
                         : {}),
-                ...(dto.usa_produccion_porciones === true
-                    ? {}
-                    : dto.stock_disponible != null
-                        ? { stockDisponible: Math.round(dto.stock_disponible) }
-                        : {}),
-                ...(stockProduccionSinHornada ?? {}),
+                ...(dto.stock_disponible != null
+                    ? { stockDisponible: Math.round(dto.stock_disponible) }
+                    : {}),
                 ...(dto.ocultar_sin_stock != null
                     ? { ocultarSinStock: dto.ocultar_sin_stock }
                     : {}),
@@ -421,11 +404,14 @@ let ProductosService = class ProductosService {
         if (!existing) {
             throw new common_1.NotFoundException('Producto no encontrado');
         }
-        if (existing.usaProduccionPorciones) {
-            throw new common_1.BadRequestException('Este producto usa producción por porciones. Regístralo en Producción del día.');
-        }
-        if (!existing.controlStock) {
+        if (!existing.controlStock && !existing.usaProduccionPorciones) {
             throw new common_1.BadRequestException('Activa «control de stock» en el menú para este producto.');
+        }
+        if (existing.usaProduccionPorciones && !existing.controlStock) {
+            await this.prisma.producto.update({
+                where: { idProducto },
+                data: { controlStock: true },
+            });
         }
         const costoTotal = Math.max(0, Math.round(Number(dto.costo_total ?? 0)));
         if (costoTotal > 0 && !idUsuario) {

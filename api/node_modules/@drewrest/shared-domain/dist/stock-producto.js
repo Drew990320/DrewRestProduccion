@@ -10,11 +10,9 @@ exports.puedePedirCantidad = puedePedirCantidad;
 exports.stockEtiqueta = stockEtiqueta;
 /** Máximo razonable para un ingreso rápido (evita ceros de más). */
 exports.INGRESO_RAPIDO_CANTIDAD_MAX = 9999;
-/** Vendible con contador de menú, sin transformación por receta. */
+/** Vendible con contador de menú (bebida, porción, etc.). */
 function esProductoIngresoRapidoVendible(p) {
-    return (p.activo !== false &&
-        Boolean(p.control_stock) &&
-        !p.usa_produccion_porciones);
+    return p.activo !== false && Boolean(p.control_stock);
 }
 /** Cualquier vendible con stock: lote de unidades (gaseosa, porción, etc.). */
 function esProductoLoteVendible(p) {
@@ -24,16 +22,12 @@ function cantidadIngresoRapidoValida(n) {
     return Number.isInteger(n) && n >= 1 && n <= exports.INGRESO_RAPIDO_CANTIDAD_MAX;
 }
 function productoAgotado(p) {
-    if (p.usa_produccion_porciones)
-        return false;
     return Boolean(p.control_stock) && Math.max(0, p.stock_disponible ?? 0) <= 0;
 }
 /** Si el producto debe listarse en el menú del día. */
 function productoVisibleEnMenu(p) {
     if (p.activo === false)
         return false;
-    if (p.usa_produccion_porciones)
-        return true;
     if (!productoAgotado(p))
         return true;
     return p.ocultar_sin_stock === false;
@@ -43,8 +37,6 @@ function puedePedirCantidad(p, cantidad) {
         return false;
     if (!p.control_stock)
         return true;
-    if (p.usa_produccion_porciones)
-        return true;
     return (p.stock_disponible ?? 0) >= cantidad;
 }
 function stockEtiqueta(p) {
@@ -52,6 +44,6 @@ function stockEtiqueta(p) {
         return null;
     const n = Math.max(0, p.stock_disponible ?? 0);
     if (n <= 0)
-        return p.usa_produccion_porciones ? null : 'Agotado';
+        return 'Agotado';
     return `Quedan ${n}`;
 }
