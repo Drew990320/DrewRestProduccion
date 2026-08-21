@@ -377,12 +377,12 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
                 mesa_numero: ticket.mesa_numero,
                 modo_servicio: ticket.modo_servicio,
             });
-        const destinos = destinosAll.filter((d) => (0, mesa_label_1.destinoRecibeCanalComanda)(canal, {
+        const destinosCanal = destinosAll.filter((d) => (0, mesa_label_1.destinoRecibeCanalComanda)(canal, {
             comanda_mesa: d.comanda_mesa,
             comanda_mostrador: d.comanda_mostrador,
             comanda_para_llevar: d.comanda_para_llevar,
         }));
-        if (destinos.length === 0) {
+        if (destinosCanal.length === 0) {
             const etiqueta = canal === 'para_llevar'
                 ? 'para llevar'
                 : canal === 'mostrador'
@@ -394,7 +394,7 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
                 codigo_error: 'sin_impresora_configurada',
             };
         }
-        const destinosPlan = destinos.map((d, i) => ({
+        const destinosPlan = destinosAll.map((d, i) => ({
             key: `${d.id_impresora ?? 'x'}:${d.destino}:${i}`,
             es_cocina_maestra: d.es_cocina_maestra,
             reglas: d.reglas,
@@ -402,27 +402,46 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
         }));
         const plan = (0, impresion_estacion_reglas_1.planificarJobsComanda)(ticket.lineas, destinosPlan);
         const byKey = new Map(destinosPlan.map((d) => [d.key, d.destino]));
+        const clavesCanal = new Set(destinosPlan
+            .filter((d) => destinosCanal.some((c) => c.id_impresora === d.destino.id_impresora &&
+            c.destino === d.destino.destino))
+            .map((d) => d.key));
+        const jobsPlan = plan.jobs.filter((j) => clavesCanal.has(j.destinoKey));
+        const huerfanasPorCanal = [
+            ...plan.huerfanasSinDestino,
+        ];
+        for (const j of plan.jobs) {
+            if (clavesCanal.has(j.destinoKey))
+                continue;
+            if (j.motivo === 'catch_all_huerfanas' && j.lineas !== 'completo') {
+                huerfanasPorCanal.push(...j.lineas);
+            }
+        }
         if (plan.todoOmitido) {
             this.logger.log(`Comanda omitida: todas las líneas marcadas «no imprimir» (canal=${canal})`);
             return { impreso: true, destino: 'omitido' };
         }
-        if (plan.huerfanasSinDestino.length > 0) {
-            const nombres = plan.huerfanasSinDestino
+        if (huerfanasPorCanal.length > 0) {
+            const nombres = huerfanasPorCanal
                 .map((l) => l.nombre_producto ?? `prod:${l.id_producto}`)
                 .slice(0, 8)
                 .join(', ');
-            this.logger.warn(`Comanda: ${plan.huerfanasSinDestino.length} línea(s) sin estación ni cocina maestra/catch-all (${nombres}). No se redirigen a otra zona.`);
+            this.logger.warn(`Comanda: ${huerfanasPorCanal.length} línea(s) sin estación ni cocina maestra/catch-all (${nombres}). No se redirigen a otra zona.`);
         }
-        if (plan.jobs.length === 0) {
+        if (jobsPlan.length === 0) {
+            const huboEstacionFueraDeCanal = plan.jobs.some((j) => (j.motivo === 'estacion' || j.motivo === 'maestra') &&
+                !clavesCanal.has(j.destinoKey));
             return {
                 impreso: false,
-                error: plan.huerfanasSinDestino.length > 0
-                    ? 'Hay platos de cocina sin estación. Configura cocina maestra o asígnalos en Impresoras POS.'
-                    : 'Ninguna estación de cocina coincide con este pedido',
+                error: huboEstacionFueraDeCanal
+                    ? 'La estación de esos platos no recibe este tipo de pedido (mesa / mostrador / para llevar).'
+                    : huerfanasPorCanal.length > 0
+                        ? 'Hay platos de cocina sin estación. Configura cocina maestra o asígnalos en Impresoras POS.'
+                        : 'Ninguna estación de cocina coincide con este pedido',
                 codigo_error: 'sin_estacion_para_lineas',
             };
         }
-        const jobs = plan.jobs.map((j) => {
+        const jobs = jobsPlan.map((j) => {
             const destino = byKey.get(j.destinoKey);
             if (j.lineas === 'completo') {
                 return { destino, ticket };

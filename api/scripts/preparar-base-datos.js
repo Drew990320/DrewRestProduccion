@@ -174,6 +174,18 @@ function bootstrapFreshDatabase() {
   return markAllMigrationsApplied();
 }
 
+/** Solo BD sin tablas de app. Nunca destruir datos de un restaurante ya en marcha. */
+async function bootstrapFreshDatabaseSafe() {
+  const tables = await countAppTables();
+  if (tables > 0) {
+    throw new Error(
+      `RECHAZADO: se intentó recrear la BD con ${tables} tabla(s) existente(s). ` +
+        'Eso borraría restaurante, impresoras y tickets. Revisa migraciones (P3009) sin db push --accept-data-loss.',
+    );
+  }
+  return bootstrapFreshDatabase();
+}
+
 async function tryMigrateDeploy() {
   await repairMigrationHistory();
   try {
@@ -201,12 +213,29 @@ async function tryMigrateDeploy() {
       return;
     }
 
-    if (/P3009|failed migrations|does not exist|no existe la relaci/i.test(output)) {
-      await bootstrapFreshDatabase();
-      runPrisma(['migrate', 'deploy'], { inherit: true });
-      return;
+    if (/P3009|failed migrations/i.test(output)) {
+      console.log('');
+      console.log(
+        'Migración fallida (P3009): se repara historial y se reintenta deploy. ' +
+          'NO se usa db push --accept-data-loss (protege datos del restaurante).',
+      );
+      await repairMigrationHistory();
+      try {
+        const retry = runPrisma(['migrate', 'deploy']);
+        process.stdout.write(retry || '');
+        return;
+      } catch (retryErr) {
+        const retryOut = `${retryErr.stdout ?? ''}${retryErr.stderr ?? ''}${retryErr.message ?? ''}`;
+        process.stdout.write(retryOut);
+        console.error(
+          'No se pudo aplicar migraciones sin destruir datos. ' +
+            'Revisa api\\logs y data\\backups; no se reinicia la base vacía.',
+        );
+        throw retryErr;
+      }
     }
 
+    // Antes: "does not exist" disparaba bootstrapFresh y podía borrar un local con datos.
     throw error;
   }
 }
@@ -215,7 +244,7 @@ async function main() {
   const tables = await countAppTables();
   if (tables === 0) {
     console.log('Base sin tablas de aplicación: bootstrap inicial...');
-    await bootstrapFreshDatabase();
+    await bootstrapFreshDatabaseSafe();
     return;
   }
 
