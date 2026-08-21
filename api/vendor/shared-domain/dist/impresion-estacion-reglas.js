@@ -4,6 +4,8 @@ exports.reglaCubreLinea = reglaCubreLinea;
 exports.lineaPerteneceAEstacion = lineaPerteneceAEstacion;
 exports.lineaOmitidaEnEstaciones = lineaOmitidaEnEstaciones;
 exports.lineasHuerfanasEstaciones = lineasHuerfanasEstaciones;
+exports.destinoCatchAllHuerfanas = destinoCatchAllHuerfanas;
+exports.planificarJobsComanda = planificarJobsComanda;
 function idNum(v) {
     if (v == null)
         return null;
@@ -49,8 +51,82 @@ function lineaPerteneceAEstacion(linea, reglas) {
 function lineaOmitidaEnEstaciones(linea, estaciones) {
     return estaciones.some((est) => (est.reglas ?? []).some((r) => r.omitir === true && reglaCubreLinea(r, linea)));
 }
-/** Líneas de cocina sin estación y sin «no imprimir»: irían a la primera impresora. */
+/** Líneas de cocina sin estación y sin «no imprimir». */
 function lineasHuerfanasEstaciones(lineas, estaciones) {
     return lineas.filter((l) => !estaciones.some((e) => lineaPerteneceAEstacion(l, e.reglas)) &&
         !lineaOmitidaEnEstaciones(l, estaciones));
+}
+function esEstacionConReglas(d) {
+    return !d.es_cocina_maestra && (d.reglas?.length ?? 0) > 0;
+}
+/**
+ * Destino seguro para huérfanas: cocina maestra, o impresora sin reglas
+ * (catch-all). Nunca una estación con reglas (evita carne en barra).
+ */
+function destinoCatchAllHuerfanas(destinos) {
+    const maestra = destinos.find((d) => d.es_cocina_maestra);
+    if (maestra)
+        return maestra;
+    return (destinos.find((d) => !d.es_cocina_maestra && (d.reglas?.length ?? 0) === 0) ?? null);
+}
+/**
+ * Plan de impresión por zonas. No vuelca el ticket completo a la «primera»
+ * estación cuando hay huérfanas u omisiones.
+ */
+function planificarJobsComanda(lineas, destinos) {
+    const jobs = [];
+    if (destinos.length === 0 || lineas.length === 0) {
+        return { jobs, huerfanasSinDestino: [], todoOmitido: lineas.length === 0 };
+    }
+    const hayMaestra = destinos.some((d) => d.es_cocina_maestra);
+    const estaciones = destinos.filter(esEstacionConReglas);
+    const hayEstaciones = estaciones.length > 0;
+    for (const d of destinos) {
+        if (d.es_cocina_maestra) {
+            jobs.push({ destinoKey: d.key, lineas: 'completo', motivo: 'maestra' });
+            continue;
+        }
+        if ((d.reglas?.length ?? 0) > 0) {
+            const filtradas = lineas.filter((l) => lineaPerteneceAEstacion(l, d.reglas));
+            if (filtradas.length > 0) {
+                jobs.push({
+                    destinoKey: d.key,
+                    lineas: filtradas,
+                    motivo: 'estacion',
+                });
+            }
+            continue;
+        }
+        // Sin reglas: solo si no hay esquema maestra/estación (compat).
+        if (!hayMaestra && !hayEstaciones) {
+            jobs.push({
+                destinoKey: d.key,
+                lineas: 'completo',
+                motivo: 'compat_sin_estaciones',
+            });
+        }
+    }
+    const huerfanas = hayEstaciones && !hayMaestra
+        ? lineasHuerfanasEstaciones(lineas, estaciones)
+        : [];
+    let huerfanasSinDestino = [];
+    if (huerfanas.length > 0) {
+        const catchAll = destinoCatchAllHuerfanas(destinos);
+        if (catchAll && !catchAll.es_cocina_maestra) {
+            // Maestra ya recibió completo; solo catch-all sin reglas recibe huérfanas.
+            jobs.push({
+                destinoKey: catchAll.key,
+                lineas: huerfanas,
+                motivo: 'catch_all_huerfanas',
+            });
+        }
+        else if (!catchAll) {
+            huerfanasSinDestino = huerfanas;
+        }
+        // Si hay maestra, las «huérfanas» ya van en el ticket completo; no duplicar.
+    }
+    const todoOmitido = jobs.length === 0 &&
+        lineas.length > 0 &&
+        lineas.every((l) => lineaOmitidaEnEstaciones(l, estaciones));
+    return { jobs, huerfanasSinDestino, todoOmitido };
 }

@@ -394,37 +394,44 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
                 codigo_error: 'sin_impresora_configurada',
             };
         }
-        const jobs = [];
-        const hayMaestra = destinos.some((d) => d.es_cocina_maestra);
-        const hayEstaciones = destinos.some((d) => !d.es_cocina_maestra && (d.reglas?.length ?? 0) > 0);
-        for (const d of destinos) {
-            if (d.es_cocina_maestra) {
-                jobs.push({ destino: d, ticket });
-                continue;
-            }
-            if ((d.reglas?.length ?? 0) > 0) {
-                const filtrada = this.filtrarComandaParaEstacion(ticket, d);
-                if (filtrada)
-                    jobs.push({ destino: d, ticket: filtrada });
-                continue;
-            }
-            if (!hayMaestra && !hayEstaciones) {
-                jobs.push({ destino: d, ticket });
-            }
+        const destinosPlan = destinos.map((d, i) => ({
+            key: `${d.id_impresora ?? 'x'}:${d.destino}:${i}`,
+            es_cocina_maestra: d.es_cocina_maestra,
+            reglas: d.reglas,
+            destino: d,
+        }));
+        const plan = (0, impresion_estacion_reglas_1.planificarJobsComanda)(ticket.lineas, destinosPlan);
+        const byKey = new Map(destinosPlan.map((d) => [d.key, d.destino]));
+        if (plan.todoOmitido) {
+            this.logger.log(`Comanda omitida: todas las líneas marcadas «no imprimir» (canal=${canal})`);
+            return { impreso: true, destino: 'omitido' };
         }
-        if (jobs.length === 0) {
-            jobs.push({ destino: destinos[0], ticket });
+        if (plan.huerfanasSinDestino.length > 0) {
+            const nombres = plan.huerfanasSinDestino
+                .map((l) => l.nombre_producto ?? `prod:${l.id_producto}`)
+                .slice(0, 8)
+                .join(', ');
+            this.logger.warn(`Comanda: ${plan.huerfanasSinDestino.length} línea(s) sin estación ni cocina maestra/catch-all (${nombres}). No se redirigen a otra zona.`);
         }
-        else if (hayEstaciones && !hayMaestra) {
-            const estaciones = destinos.filter((d) => !d.es_cocina_maestra && (d.reglas?.length ?? 0) > 0);
-            const huerfanas = (0, impresion_estacion_reglas_1.lineasHuerfanasEstaciones)(ticket.lineas, estaciones);
-            if (huerfanas.length > 0) {
-                jobs.push({
-                    destino: destinos[0],
-                    ticket: { ...ticket, lineas: huerfanas },
-                });
+        if (plan.jobs.length === 0) {
+            return {
+                impreso: false,
+                error: plan.huerfanasSinDestino.length > 0
+                    ? 'Hay platos de cocina sin estación. Configura cocina maestra o asígnalos en Impresoras POS.'
+                    : 'Ninguna estación de cocina coincide con este pedido',
+                codigo_error: 'sin_estacion_para_lineas',
+            };
+        }
+        const jobs = plan.jobs.map((j) => {
+            const destino = byKey.get(j.destinoKey);
+            if (j.lineas === 'completo') {
+                return { destino, ticket };
             }
-        }
+            return {
+                destino,
+                ticket: { ...ticket, lineas: j.lineas },
+            };
+        });
         const resultados = await Promise.all(jobs.map(({ destino, ticket: t }) => this.imprimirComandaEnDestino(t, destino)));
         const ok = resultados.find((r) => r.impreso);
         if (ok) {

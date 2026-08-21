@@ -402,6 +402,10 @@ let ProductosService = class ProductosService {
         if (dto.activo === false) {
             await (0, limpiar_reglas_impresion_cocina_1.limpiarReglasImpresionPorProducto)(this.prisma, idProducto, tenantId);
         }
+        if (dto.id_categoria != null &&
+            dto.id_categoria !== existing.idCategoria) {
+            await (0, limpiar_reglas_impresion_cocina_1.limpiarReglasImpresionPorProducto)(this.prisma, idProducto, tenantId);
+        }
         this.gateway.emitConfigActualizada('menu', tenantId);
         return mapProducto(updated);
     }
