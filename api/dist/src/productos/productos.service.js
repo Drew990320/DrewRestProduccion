@@ -163,6 +163,16 @@ let ProductosService = class ProductosService {
         });
         return rows.map(mapProducto);
     }
+    async listarPreciosEnMenus(idProducto, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
+        const existing = await this.prisma.producto.findFirst({
+            where: { idProducto, categoria: { idRestaurante: tenantId } },
+            select: { idProducto: true },
+        });
+        if (!existing) {
+            throw new common_1.NotFoundException('Producto no encontrado');
+        }
+        return this.menuActivo.listarPreciosProductoEnMenus(idProducto, tenantId);
+    }
     async crear(dto, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
         const cat = await this.prisma.categoria.findFirst({
             where: { idCategoria: dto.id_categoria, idRestaurante: tenantId },
@@ -382,7 +392,12 @@ let ProductosService = class ProductosService {
             await this.vinculoInventario.sincronizarNombreDesdeProducto(idProducto, dto.nombre, tenantId);
         }
         if (dto.precio != null) {
-            await this.menuActivo.sincronizarPrecioMenuDefault(idProducto, dto.precio, tenantId);
+            if (dto.sincronizar_precio_menu_ids !== undefined) {
+                await this.menuActivo.sincronizarPrecioEnMenus(idProducto, dto.precio, dto.sincronizar_precio_menu_ids, tenantId);
+            }
+            else {
+                await this.menuActivo.sincronizarPrecioMenuDefault(idProducto, dto.precio, tenantId);
+            }
         }
         if (dto.activo === false) {
             await (0, limpiar_reglas_impresion_cocina_1.limpiarReglasImpresionPorProducto)(this.prisma, idProducto, tenantId);

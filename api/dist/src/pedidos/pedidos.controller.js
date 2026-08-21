@@ -37,6 +37,8 @@ const vaciar_resumen_diario_dto_1 = require("./dto/vaciar-resumen-diario.dto");
 const upsert_config_descuentos_dto_1 = require("./dto/upsert-config-descuentos.dto");
 const upsert_config_operativa_dto_1 = require("./dto/upsert-config-operativa.dto");
 const patch_cliente_mulero_dto_1 = require("./dto/patch-cliente-mulero.dto");
+const patch_cliente_domicilio_dto_1 = require("./dto/patch-cliente-domicilio.dto");
+const imprimir_domicilio_dto_1 = require("./dto/imprimir-domicilio.dto");
 const patch_etiquetas_promocion_dto_1 = require("./dto/patch-etiquetas-promocion.dto");
 const patch_mazorcas_pedido_dto_1 = require("./dto/patch-mazorcas-pedido.dto");
 const patch_estado_dto_1 = require("./dto/patch-estado.dto");
@@ -51,6 +53,7 @@ const patch_detalle_cocina_dto_1 = require("./dto/patch-detalle-cocina.dto");
 const patch_listo_para_recoger_dto_1 = require("./dto/patch-listo-para-recoger.dto");
 const falta_en_cocina_dto_1 = require("./dto/falta-en-cocina.dto");
 const patch_detalle_cantidad_dto_1 = require("./dto/patch-detalle-cantidad.dto");
+const patch_detalle_notas_cocina_dto_1 = require("./dto/patch-detalle-notas-cocina.dto");
 const patch_detalle_precio_dto_1 = require("./dto/patch-detalle-precio.dto");
 const patch_detalle_subitems_dto_1 = require("./dto/patch-detalle-subitems.dto");
 const patch_prioridad_cocina_dto_1 = require("./dto/patch-prioridad-cocina.dto");
@@ -80,8 +83,14 @@ let PedidosController = class PedidosController {
     autoservicioActivo(req) {
         return this.pedidos.pedidoAutoservicioActivo(req.user);
     }
+    colaAutoservicio(req) {
+        return this.pedidos.listarColaAutoservicio(req.user);
+    }
     enviarCajaAutoservicio(id, req) {
         return this.pedidos.marcarListoParaCobroAutoservicio(id, req.user);
+    }
+    liberarMesaAutoservicio(id, req) {
+        return this.pedidos.liberarMesaAutoservicio(id, req.user);
     }
     listarMisActivosResumen(req) {
         return this.pedidos.listarMisActivosResumen(req.user);
@@ -132,8 +141,19 @@ let PedidosController = class PedidosController {
     imprimirResumenCompleto(fecha) {
         return this.pedidos.imprimirResumenDiarioCompleto(fecha);
     }
-    imprimirResumenTotal(fecha) {
-        return this.pedidos.imprimirResumenDiarioTotal(fecha);
+    imprimirResumenTotal(fecha, periodo, fechaDesde, fechaHasta) {
+        return this.pedidos.imprimirResumenDiarioTotal(fecha, {
+            periodo,
+            fecha_desde: fechaDesde,
+            fecha_hasta: fechaHasta,
+        });
+    }
+    imprimirResumenItemsMenu(fecha, periodo, fechaDesde, fechaHasta) {
+        return this.pedidos.imprimirResumenDiarioItemsMenu(fecha, {
+            periodo,
+            fecha_desde: fechaDesde,
+            fecha_hasta: fechaHasta,
+        });
     }
     imprimirResumenSeleccion(dto, fecha) {
         return this.pedidos.imprimirResumenDiarioSeleccion(dto, fecha);
@@ -171,6 +191,9 @@ let PedidosController = class PedidosController {
     setClienteMulero(id, dto) {
         return this.pedidos.setClienteMulero(id, dto.cliente_mulero);
     }
+    setClienteDomicilio(id, dto) {
+        return this.pedidos.setClienteDomicilio(id, dto);
+    }
     setEtiquetasPromocion(id, dto) {
         return this.pedidos.setEtiquetasPromocion(id, dto);
     }
@@ -191,6 +214,9 @@ let PedidosController = class PedidosController {
     }
     actualizarCantidadDetalle(idDetalle, dto, req) {
         return this.pedidos.actualizarCantidadDetalle(idDetalle, dto, req.user);
+    }
+    actualizarNotasCocinaDetalle(idDetalle, dto, req) {
+        return this.pedidos.actualizarNotasCocinaDetalle(idDetalle, dto, req.user);
     }
     actualizarPrecioDetalle(idDetalle, dto, req) {
         return this.pedidos.actualizarPrecioDetalle(idDetalle, dto, req.user);
@@ -224,6 +250,11 @@ let PedidosController = class PedidosController {
     }
     reimprimirComanda(id, req) {
         return this.pedidos.reimprimirComanda(id, req.user);
+    }
+    imprimirDomicilio(id, dto) {
+        return this.pedidos.imprimirDomicilio(id, {
+            forzar_blanco: dto.forzar_blanco === true,
+        });
     }
     enviarFacturaCorreo(id, dto, req) {
         return this.pedidos.enviarFacturaCorreo(id, dto.id_factura, dto.email, req.user);
@@ -347,6 +378,16 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], PedidosController.prototype, "autoservicioActivo", null);
 __decorate([
+    (0, throttler_1.SkipThrottle)(),
+    (0, common_1.Get)('autoservicio/cola'),
+    (0, common_1.UseGuards)(pedido_tenant_guard_1.PedidoTenantGuard, roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)('admin', 'mesero'),
+    __param(0, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], PedidosController.prototype, "colaAutoservicio", null);
+__decorate([
     (0, common_1.Post)(':id/enviar-caja-autoservicio'),
     (0, common_1.UseGuards)(pedido_tenant_guard_1.PedidoTenantGuard, roles_guard_1.RolesGuard),
     (0, roles_decorator_1.Roles)('autoservicio'),
@@ -356,6 +397,16 @@ __decorate([
     __metadata("design:paramtypes", [Number, Object]),
     __metadata("design:returntype", void 0)
 ], PedidosController.prototype, "enviarCajaAutoservicio", null);
+__decorate([
+    (0, common_1.Post)(':id/liberar-mesa-autoservicio'),
+    (0, common_1.UseGuards)(pedido_tenant_guard_1.PedidoTenantGuard, roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)('admin'),
+    __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
+    __param(1, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number, Object]),
+    __metadata("design:returntype", void 0)
+], PedidosController.prototype, "liberarMesaAutoservicio", null);
 __decorate([
     (0, throttler_1.SkipThrottle)(),
     (0, common_1.Get)('mis-activos/resumen'),
@@ -478,10 +529,25 @@ __decorate([
     (0, common_1.UseGuards)(pedido_tenant_guard_1.PedidoTenantGuard, roles_guard_1.RolesGuard),
     (0, roles_decorator_1.Roles)('admin', 'superadmin'),
     __param(0, (0, common_1.Query)('fecha')),
+    __param(1, (0, common_1.Query)('periodo')),
+    __param(2, (0, common_1.Query)('fecha_desde')),
+    __param(3, (0, common_1.Query)('fecha_hasta')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [String, String, String, String]),
     __metadata("design:returntype", void 0)
 ], PedidosController.prototype, "imprimirResumenTotal", null);
+__decorate([
+    (0, common_1.Post)('resumen-diario/imprimir-items-menu'),
+    (0, common_1.UseGuards)(pedido_tenant_guard_1.PedidoTenantGuard, roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)('admin', 'superadmin'),
+    __param(0, (0, common_1.Query)('fecha')),
+    __param(1, (0, common_1.Query)('periodo')),
+    __param(2, (0, common_1.Query)('fecha_desde')),
+    __param(3, (0, common_1.Query)('fecha_hasta')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, String, String]),
+    __metadata("design:returntype", void 0)
+], PedidosController.prototype, "imprimirResumenItemsMenu", null);
 __decorate([
     (0, common_1.Post)('resumen-diario/imprimir-seleccion'),
     (0, common_1.UseGuards)(pedido_tenant_guard_1.PedidoTenantGuard, roles_guard_1.RolesGuard),
@@ -600,6 +666,16 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], PedidosController.prototype, "setClienteMulero", null);
 __decorate([
+    (0, common_1.Patch)(':id/cliente-domicilio'),
+    (0, common_1.UseGuards)(pedido_tenant_guard_1.PedidoTenantGuard, roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)('admin', 'mesero'),
+    __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number, patch_cliente_domicilio_dto_1.PatchClienteDomicilioDto]),
+    __metadata("design:returntype", void 0)
+], PedidosController.prototype, "setClienteDomicilio", null);
+__decorate([
     (0, common_1.Patch)(':id/etiquetas-promocion'),
     (0, common_1.UseGuards)(pedido_tenant_guard_1.PedidoTenantGuard, roles_guard_1.RolesGuard),
     (0, roles_decorator_1.Roles)('admin', 'mesero'),
@@ -671,6 +747,17 @@ __decorate([
     __metadata("design:paramtypes", [Number, patch_detalle_cantidad_dto_1.PatchDetalleCantidadDto, Object]),
     __metadata("design:returntype", void 0)
 ], PedidosController.prototype, "actualizarCantidadDetalle", null);
+__decorate([
+    (0, common_1.Patch)('detalles/:idDetalle/notas-cocina'),
+    (0, common_1.UseGuards)(detalle_tenant_guard_1.DetalleTenantGuard, roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)('admin', 'mesero', 'autoservicio'),
+    __param(0, (0, common_1.Param)('idDetalle', common_1.ParseIntPipe)),
+    __param(1, (0, common_1.Body)()),
+    __param(2, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number, patch_detalle_notas_cocina_dto_1.PatchDetalleNotasCocinaDto, Object]),
+    __metadata("design:returntype", void 0)
+], PedidosController.prototype, "actualizarNotasCocinaDetalle", null);
 __decorate([
     (0, common_1.Patch)('detalles/:idDetalle/precio'),
     (0, common_1.UseGuards)(detalle_tenant_guard_1.DetalleTenantGuard, roles_guard_1.RolesGuard),
@@ -773,6 +860,16 @@ __decorate([
     __metadata("design:paramtypes", [Number, Object]),
     __metadata("design:returntype", void 0)
 ], PedidosController.prototype, "reimprimirComanda", null);
+__decorate([
+    (0, common_1.Post)(':id/imprimir-domicilio'),
+    (0, common_1.UseGuards)(pedido_tenant_guard_1.PedidoTenantGuard, roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)('admin', 'mesero'),
+    __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number, imprimir_domicilio_dto_1.ImprimirDomicilioDto]),
+    __metadata("design:returntype", void 0)
+], PedidosController.prototype, "imprimirDomicilio", null);
 __decorate([
     (0, common_1.Post)(':id/enviar-factura-correo'),
     (0, common_1.UseGuards)(pedido_tenant_guard_1.PedidoTenantGuard, roles_guard_1.RolesGuard),

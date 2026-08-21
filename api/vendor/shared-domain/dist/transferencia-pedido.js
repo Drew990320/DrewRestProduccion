@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.AYUDA_TRANSFERENCIA_PEDIDO = void 0;
+exports.AYUDA_ASIGNAR_MESA_AUTOSERVICIO = exports.AYUDA_TRANSFERENCIA_PEDIDO = void 0;
 exports.pedidoDebeTenerLineaMazorca = pedidoDebeTenerLineaMazorca;
 exports.validarTransferenciaPedido = validarTransferenciaPedido;
 const mesa_label_1 = require("./mesa-label");
@@ -31,13 +31,15 @@ const MSG_DESTINO_VIRTUAL = 'No se puede transferir a Para llevar, Mostrador ni 
 const MSG_ORIGEN_VIRTUAL = 'Los pedidos de Para llevar, Mostrador o Tienda no se transfieren. Usa «Cancelar pedido» si ya no aplica.';
 const MSG_DESTINO_ANEXA = 'Esa mesa está agrupada a otro pedido. Desagrúpala antes de transferir aquí, o elige otra mesa.';
 /**
- * Transferencia entre mesas físicas (no 98/99).
+ * Transferencia entre mesas físicas (no 98/99), con una excepción:
+ * autoservicio sin mesa (origen virtual) sí puede asignarse a mesa física.
  * - Libre: mueve la cuenta y libera el origen.
  * - Ocupada: deja una segunda cuenta en el destino (como bebidas / para llevar), sin agrupar mesas.
  */
 function validarTransferenciaPedido(input) {
-    const { origen_mesa_numero: origen, destino_mesa_numero: destino, destino_libre: libre, destino_es_anexa: esAnexa = false, mesas_virtuales: mesasVirtuales, } = input;
-    if ((0, mesa_label_1.esMesaVirtualNumero)(origen, mesasVirtuales)) {
+    const { origen_mesa_numero: origen, destino_mesa_numero: destino, destino_libre: libre, destino_es_anexa: esAnexa = false, mesas_virtuales: mesasVirtuales, origen_autoservicio: origenAutoservicio = false, } = input;
+    const origenVirtual = (0, mesa_label_1.esMesaVirtualNumero)(origen, mesasVirtuales);
+    if (origenVirtual && !origenAutoservicio) {
         return { accion: 'rechazar', mensaje: MSG_ORIGEN_VIRTUAL };
     }
     if ((0, mesa_label_1.esMesaVirtualNumero)(destino, mesasVirtuales)) {
@@ -47,6 +49,18 @@ function validarTransferenciaPedido(input) {
         return { accion: 'rechazar', mensaje: MSG_DESTINO_ANEXA };
     }
     const lugar = (0, mesa_label_1.tituloLugarMesa)(destino, mesasVirtuales);
+    if (origenVirtual && origenAutoservicio) {
+        if (libre) {
+            return {
+                accion: 'mover',
+                mensaje_confirmacion: `¿Asignar el autoservicio a ${lugar}? Dejará de estar sin mesa física.`,
+            };
+        }
+        return {
+            accion: 'mover',
+            mensaje_confirmacion: `¿Asignar el autoservicio a ${lugar}? Quedará como cuenta separada junto al pedido que ya hay ahí, sin agrupar mesas.`,
+        };
+    }
     if (libre) {
         return {
             accion: 'mover',
@@ -58,4 +72,5 @@ function validarTransferenciaPedido(input) {
         mensaje_confirmacion: `¿Mover el pedido a ${lugar}? Quedará como cuenta separada junto al pedido que ya hay ahí (como en bebidas), sin agrupar mesas. La mesa actual quedará libre.`,
     };
 }
-exports.AYUDA_TRANSFERENCIA_PEDIDO = 'Elige mesa libre u ocupada. En ocupada queda como segunda cuenta (sin agrupar). Para llevar y mostrador: cancela y abre pedido nuevo.';
+exports.AYUDA_TRANSFERENCIA_PEDIDO = 'Elige mesa libre u ocupada. En ocupada queda como segunda cuenta (sin agrupar). Para llevar y mostrador normales: cancela y abre pedido nuevo. Autoservicio sin mesa sí puede asignarse a una mesa física.';
+exports.AYUDA_ASIGNAR_MESA_AUTOSERVICIO = 'Elige una mesa física libre u ocupada para asignar este autoservicio. En ocupada queda como cuenta separada (sin agrupar).';

@@ -96,6 +96,48 @@ p{line-height:1.45;color:#334;max-width:28rem;margin:12px auto}
 </body></html>`;
         res.type('html').send(html);
     }
+    abrirWeb(toRaw, res) {
+        const lan = (0, red_local_1.detectarRedLocal)();
+        const webPort = (0, red_local_1.leerPuertoWeb)();
+        const ip = lan?.ip ?? null;
+        let target = ip ? `http://${ip}:${webPort}/` : '';
+        if (toRaw?.trim() && ip) {
+            try {
+                const u = new URL(toRaw.trim());
+                if ((u.protocol === 'http:' || u.protocol === 'https:') &&
+                    u.hostname === ip) {
+                    target = `${u.protocol}//${u.host}${u.pathname || '/'}${u.search}`;
+                }
+            }
+            catch {
+            }
+        }
+        if (!target) {
+            res.type('html').send(`<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Abrir web</title></head><body style="font-family:sans-serif;padding:24px;background:#EDF3FA"><h1>Sin IP de red</h1><p>Conecta este PC al Wi‑Fi del restaurante y vuelve a escanear el QR.</p></body></html>`);
+            return;
+        }
+        const safe = escapeHtml(target);
+        const html = `<!DOCTYPE html>
+<html lang="es"><head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<meta http-equiv="refresh" content="0;url=${safe}"/>
+<title>Abrir DrewRest</title>
+<style>
+body{font-family:sans-serif;background:#EDF3FA;color:#1a1a1a;margin:0;padding:24px;text-align:center}
+a{display:inline-block;margin-top:16px;padding:14px 22px;background:#1B4F8A;color:#fff;text-decoration:none;border-radius:10px;font-weight:700}
+p{line-height:1.45;color:#334;max-width:28rem;margin:12px auto}
+.url{display:block;margin-top:16px;padding:8px;background:#F4F7FB;border-radius:8px;font-size:12px;word-break:break-all;text-align:left}
+</style>
+</head><body>
+<h1>Abrir DrewRest</h1>
+<p>Si no redirige solo, pulsa el botón.</p>
+<p><a href="${safe}">Abrir en el navegador</a></p>
+<span class="url">${safe}</span>
+<script>location.replace(${JSON.stringify(target)});</script>
+</body></html>`;
+        res.type('html').send(html);
+    }
     conectar(res) {
         const lan = (0, red_local_1.detectarRedLocal)();
         const apiPort = Number(process.env.PORT ?? 3000);
@@ -108,7 +150,7 @@ p{line-height:1.45;color:#334;max-width:28rem;margin:12px auto}
         const apiDirect = `http://${ip}:${apiPort}`;
         const webPort = (0, red_local_1.leerPuertoWeb)();
         const webDirect = `http://${ip}:${webPort}`;
-        const webCamera = `http://${ip}.nip.io:${webPort}`;
+        const webCamera = `${apiDirect}/abrir-web?to=${encodeURIComponent(webDirect + '/')}`;
         const apkDirect = `${apiDirect}/descargar-app`;
         const apkCamera = `http://${ip}.nip.io:${apiPort}/descargar-app`;
         const vincularDirect = `${apiDirect}/vincular?api=${encodeURIComponent(apiDirect)}`;
@@ -184,6 +226,15 @@ __decorate([
     __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", void 0)
 ], MobileDownloadController.prototype, "vincular", null);
+__decorate([
+    (0, throttler_1.SkipThrottle)(),
+    (0, common_1.Get)(['abrir-web', 'abrir-web/']),
+    __param(0, (0, common_1.Query)('to')),
+    __param(1, (0, common_1.Res)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:returntype", void 0)
+], MobileDownloadController.prototype, "abrirWeb", null);
 __decorate([
     (0, throttler_1.SkipThrottle)(),
     (0, common_1.Get)(['conectar', 'conectar/']),

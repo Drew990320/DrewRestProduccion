@@ -19,9 +19,11 @@ const config_1 = require("@nestjs/config");
 const latency_metrics_1 = require("../common/latency-metrics");
 const impresoras_pos_service_1 = require("../impresoras-pos/impresoras-pos.service");
 const impresion_estacion_reglas_1 = require("./impresion-estacion-reglas");
+const mesa_label_1 = require("@drewrest/shared-domain/mesa-label");
 const impresora_papel_ancho_1 = require("../impresoras-pos/impresora-papel-ancho");
 const comanda_escpos_builder_1 = require("./comanda-escpos.builder");
 const factura_escpos_builder_1 = require("./factura-escpos.builder");
+const domicilio_escpos_builder_1 = require("./domicilio-escpos.builder");
 const prueba_impresora_escpos_builder_1 = require("./prueba-impresora-escpos.builder");
 const cierre_caja_escpos_builder_1 = require("./cierre-caja-escpos.builder");
 const cuentas_divididas_escpos_builder_1 = require("./cuentas-divididas-escpos.builder");
@@ -362,11 +364,33 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
         return { ...ticket, lineas };
     }
     async imprimirComanda(ticket) {
-        const destinos = await this.impresorasPos.destinosParaRol('cocina');
-        if (destinos.length === 0) {
+        const destinosAll = await this.impresorasPos.destinosParaRol('cocina');
+        if (destinosAll.length === 0) {
             return {
                 impreso: false,
                 error: 'Sin impresora de cocina configurada',
+                codigo_error: 'sin_impresora_configurada',
+            };
+        }
+        const canal = ticket.canal_comanda ??
+            (0, mesa_label_1.resolverCanalComanda)({
+                mesa_numero: ticket.mesa_numero,
+                modo_servicio: ticket.modo_servicio,
+            });
+        const destinos = destinosAll.filter((d) => (0, mesa_label_1.destinoRecibeCanalComanda)(canal, {
+            comanda_mesa: d.comanda_mesa,
+            comanda_mostrador: d.comanda_mostrador,
+            comanda_para_llevar: d.comanda_para_llevar,
+        }));
+        if (destinos.length === 0) {
+            const etiqueta = canal === 'para_llevar'
+                ? 'para llevar'
+                : canal === 'mostrador'
+                    ? 'mostrador'
+                    : 'mesa';
+            return {
+                impreso: false,
+                error: `Ninguna impresora de cocina recibe pedidos de ${etiqueta}`,
                 codigo_error: 'sin_impresora_configurada',
             };
         }
@@ -430,6 +454,9 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
     }
     async imprimirFactura(ticket) {
         return this.enviarPorRolConBuilder('factura', 'factura', (opts) => (0, factura_escpos_builder_1.buildFacturaEscPos)(ticket, opts));
+    }
+    async imprimirDomicilio(ticket) {
+        return this.enviarPorRolConBuilder('factura', 'factura', (opts) => (0, domicilio_escpos_builder_1.buildDomicilioEscPos)(ticket, opts));
     }
     async imprimirFacturaConCajon(ticket, opts = {}) {
         const abrirCajon = opts.abrirCajon === true;
@@ -557,6 +584,9 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
     }
     async imprimirMovimientoCaja(ticket) {
         return this.enviarPorRolConBuilder('cierre', 'caja', (opts) => (0, cierre_caja_escpos_builder_1.buildMovimientoCajaEscPos)(ticket, opts.charWidth));
+    }
+    async imprimirItemsMenu(ticket) {
+        return this.enviarPorRolConBuilder('cierre', 'caja', (opts) => (0, cierre_caja_escpos_builder_1.buildItemsMenuEscPos)(ticket, opts.charWidth));
     }
     async enviarPorRolConBuilder(tipo, rol, build) {
         const destinos = await this.impresorasPos.destinosParaRol(rol);

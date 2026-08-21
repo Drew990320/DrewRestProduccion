@@ -110,8 +110,62 @@ function sendFile(res, filePath) {
   fs.createReadStream(filePath).pipe(res);
 }
 
+/** Evita que Chrome/Edge traduzcan la UI (causa típica de removeChild en React). */
+function applyNoTranslateHtml(html) {
+  let out = String(html ?? '');
+  if (/<html\b[^>]*>/i.test(out)) {
+    out = out.replace(/<html\b[^>]*>/i, (tag) => {
+      let t = tag;
+      if (/\blang\s*=/i.test(t)) {
+        t = t.replace(/\blang\s*=\s*(["'][^"']*["']|[^\s>]+)/i, 'lang="es"');
+      } else {
+        t = t.replace(/<html\b/i, '<html lang="es"');
+      }
+      if (/\btranslate\s*=/i.test(t)) {
+        t = t.replace(/\btranslate\s*=\s*(["'][^"']*["']|[^\s>]+)/i, 'translate="no"');
+      } else {
+        t = t.replace(/<html\b/i, '<html translate="no"');
+      }
+      if (!/\bclass\s*=/i.test(t)) {
+        t = t.replace(/<html\b/i, '<html class="notranslate"');
+      } else if (!/\bnotranslate\b/i.test(t)) {
+        t = t.replace(/\bclass\s*=\s*(["'])([^"']*)\1/i, (_, q, c) => `class=${q}${c} notranslate${q}`);
+      }
+      return t;
+    });
+  }
+  if (
+    !/name\s*=\s*["']google["'][^>]*content\s*=\s*["']notranslate["']/i.test(out) &&
+    !/content\s*=\s*["']notranslate["'][^>]*name\s*=\s*["']google["']/i.test(out)
+  ) {
+    const meta = '<meta name="google" content="notranslate" />';
+    if (/<\/head>/i.test(out)) {
+      out = out.replace(/<\/head>/i, `${meta}</head>`);
+    } else if (/<head[^>]*>/i.test(out)) {
+      out = out.replace(/<head[^>]*>/i, (m) => `${m}${meta}`);
+    }
+  }
+  if (/<body\b[^>]*>/i.test(out)) {
+    out = out.replace(/<body\b[^>]*>/i, (tag) => {
+      let t = tag;
+      if (/\btranslate\s*=/i.test(t)) {
+        t = t.replace(/\btranslate\s*=\s*(["'][^"']*["']|[^\s>]+)/i, 'translate="no"');
+      } else {
+        t = t.replace(/<body\b/i, '<body translate="no"');
+      }
+      if (!/\bclass\s*=/i.test(t)) {
+        t = t.replace(/<body\b/i, '<body class="notranslate"');
+      } else if (!/\bnotranslate\b/i.test(t)) {
+        t = t.replace(/\bclass\s*=\s*(["'])([^"']*)\1/i, (_, q, c) => `class=${q}${c} notranslate${q}`);
+      }
+      return t;
+    });
+  }
+  return out;
+}
+
 function sendHtml(res, html) {
-  const buf = Buffer.from(html, 'utf8');
+  const buf = Buffer.from(applyNoTranslateHtml(html), 'utf8');
   res.writeHead(200, {
     'Content-Type': 'text/html; charset=utf-8',
     'Content-Length': buf.length,
@@ -145,7 +199,7 @@ function sendIndex(res) {
       res.end('index.html no encontrado');
       return;
     }
-    let out = html;
+    let out = applyNoTranslateHtml(html);
     if (!/<title>\s*DrewRest\s*<\/title>/i.test(out)) {
       if (/<title>[^<]*<\/title>/i.test(out)) {
         out = out.replace(/<title>[^<]*<\/title>/i, '<title>DrewRest</title>');
@@ -223,6 +277,47 @@ function qrImgSrc(data) {
   return `https://api.qrserver.com/v1/create-qr-code/?size=220x220&ecc=M&margin=8&data=${encodeURIComponent(data)}`;
 }
 
+/** Landing del QR «página web»: IP LAN + path, sin nip.io (DNS externo). */
+function sendAbrirWeb(res, reqUrl) {
+  const lan = findRestaurantLanIp();
+  const webPort = LISTEN_PORT;
+  const ip = lan && lan.address ? lan.address : null;
+  let target = ip ? `http://${ip}:${webPort}/` : '/';
+  try {
+    const u = new URL(reqUrl, 'http://localhost');
+    const to = (u.searchParams.get('to') || '').trim();
+    if (to && ip) {
+      const dest = new URL(to);
+      if (
+        (dest.protocol === 'http:' || dest.protocol === 'https:') &&
+        dest.hostname === ip
+      ) {
+        target = `${dest.protocol}//${dest.host}${dest.pathname || '/'}${dest.search}`;
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+  const html = `<!DOCTYPE html>
+<html lang="es"><head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<meta http-equiv="refresh" content="0;url=${target}"/>
+<title>Abrir DrewRest</title>
+<style>
+body{font-family:sans-serif;background:#EDF3FA;color:#1a1a1a;margin:0;padding:24px;text-align:center}
+a{display:inline-block;margin-top:16px;padding:14px 22px;background:#1B4F8A;color:#fff;text-decoration:none;border-radius:10px;font-weight:700}
+p{line-height:1.45;color:#334;max-width:28rem;margin:12px auto}
+</style>
+</head><body>
+<h1>Abrir DrewRest</h1>
+<p>Si no redirige solo, pulsa el botón.</p>
+<p><a href="${target}">Abrir en el navegador</a></p>
+<script>location.replace(${JSON.stringify(target)});</script>
+</body></html>`;
+  sendHtml(res, html);
+}
+
 function sendConectar(res) {
   const lan = findRestaurantLanIp();
   const apiPort = Number(process.env.PORT || 3000);
@@ -238,7 +333,8 @@ function sendConectar(res) {
   const apiDirect = `http://${ip}:${apiPort}`;
   const webPort = LISTEN_PORT;
   const webDirect = `http://${ip}:${webPort}`;
-  const webCamera = `http://${ip}.nip.io:${webPort}`;
+  /** Misma máquina web: IP + /abrir-web (sin nip.io). */
+  const webCamera = `http://${ip}:${webPort}/abrir-web`;
   const apkDirect = `${apiDirect}/descargar-app`;
   const apkCamera = `http://${ip}.nip.io:${apiPort}/descargar-app`;
   const vincularDirect = `${apiDirect}/vincular?api=${encodeURIComponent(apiDirect)}`;
@@ -358,6 +454,15 @@ function onRequest(req, res) {
       return;
     }
     sendConectar(res);
+    return;
+  }
+  if (pathOnly === '/abrir-web' || pathOnly === '/abrir-web/') {
+    if (req.method === 'HEAD') {
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end();
+      return;
+    }
+    sendAbrirWeb(res, req.url);
     return;
   }
   if (pathOnly === '/vincular' || pathOnly === '/vincular/') {

@@ -4,6 +4,7 @@ exports.buildCierreCajaEscPos = buildCierreCajaEscPos;
 exports.buildBaseCajaEscPos = buildBaseCajaEscPos;
 exports.buildBaseCajaCierreEscPos = buildBaseCajaCierreEscPos;
 exports.buildMovimientoCajaEscPos = buildMovimientoCajaEscPos;
+exports.buildItemsMenuEscPos = buildItemsMenuEscPos;
 const escpos_utils_1 = require("./escpos-utils");
 async function buildCierreCajaEscPos(ticket, charWidth = escpos_utils_1.DEFAULT_ESC_POS_WIDTH) {
     const printer = (0, escpos_utils_1.createEscPosPrinter)(charWidth);
@@ -12,7 +13,9 @@ async function buildCierreCajaEscPos(ticket, charWidth = escpos_utils_1.DEFAULT_
     await (0, escpos_utils_1.applyEscPosBeep)(printer);
     await printer.alignCenter();
     await printer.println('CIERRE DE CAJA');
-    await printer.println(ticket.fecha);
+    for (const line of (0, escpos_utils_1.wrapEscPos)(ticket.fecha, w)) {
+        await printer.println(line);
+    }
     await printer.drawLine();
     await printer.alignLeft();
     await printer.println(`Impreso: ${new Date(ticket.emitida_en).toLocaleString('es-CO', {
@@ -170,6 +173,49 @@ async function buildMovimientoCajaEscPos(ticket, charWidth = escpos_utils_1.DEFA
     await printer.println(`Impreso: ${new Date(ticket.emitida_en).toLocaleString('es-CO', {
         timeZone: 'America/Bogota',
     })}`);
+    await printer.cut();
+    return (0, escpos_utils_1.bufferFromPrinter)(printer);
+}
+async function buildItemsMenuEscPos(ticket, charWidth = escpos_utils_1.DEFAULT_ESC_POS_WIDTH) {
+    const printer = (0, escpos_utils_1.createEscPosPrinter)(charWidth);
+    const w = charWidth;
+    const sep = '-'.repeat(w);
+    await (0, escpos_utils_1.applyEscPosBeep)(printer);
+    await printer.alignCenter();
+    await printer.println('ITEMS DEL MENU');
+    for (const line of (0, escpos_utils_1.wrapEscPos)(ticket.fecha, w)) {
+        await printer.println(line);
+    }
+    await printer.drawLine();
+    await printer.alignLeft();
+    await printer.println(`Impreso: ${new Date(ticket.emitida_en).toLocaleString('es-CO', {
+        timeZone: 'America/Bogota',
+    })}`);
+    await printer.println('Subtotales brutos (antes de descuentos)');
+    await printer.println(sep);
+    if (ticket.items.length === 0) {
+        await printer.println('Sin items facturados');
+    }
+    else {
+        for (const item of ticket.items) {
+            const etiqueta = `${item.nombre_producto} x${item.cantidad}`;
+            await printer.println((0, escpos_utils_1.lineaConPrecio)(etiqueta, (0, escpos_utils_1.formatCopEscPos)(item.subtotal), w));
+            if (item.categoria_nombre.trim()) {
+                await printer.println(`  ${item.categoria_nombre.trim()}`);
+            }
+        }
+    }
+    await printer.println(sep);
+    await printer.println((0, escpos_utils_1.lineaConPrecio)('Subtotal bruto', (0, escpos_utils_1.formatCopEscPos)(ticket.subtotal_ventas_bruto), w));
+    if (ticket.total_descuentos_dia > 0) {
+        await printer.println((0, escpos_utils_1.lineaConPrecio)('Descuentos', `-${(0, escpos_utils_1.formatCopEscPos)(ticket.total_descuentos_dia)}`, w));
+    }
+    await printer.bold(true);
+    await printer.println((0, escpos_utils_1.lineaConPrecio)('Total facturado', (0, escpos_utils_1.formatCopEscPos)(ticket.total_facturado), w));
+    await printer.bold(false);
+    await printer.println(sep);
+    await printer.alignCenter();
+    await printer.println(`${ticket.items.length} producto(s)`);
     await printer.cut();
     return (0, escpos_utils_1.bufferFromPrinter)(printer);
 }

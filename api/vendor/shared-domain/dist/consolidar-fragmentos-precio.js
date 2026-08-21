@@ -42,6 +42,8 @@ function claveGrupo(d) {
     return [
         d.id_producto,
         d.personalizacion_key,
+        // No fusionar líneas con notas/personalizaciones distintas (p. ej. tras partir por notas a cocina).
+        ((0, factura_lineas_group_1.limpiarNotaCocinaTicket)(d.nota_cocina) ?? '').trim(),
         d.enviado_cocina ? '1' : '0',
         d.listo_cocina ? '1' : '0',
         d.listo_para_recoger ? '1' : '0',

@@ -6,6 +6,8 @@ exports.esMesaVirtualNumero = esMesaVirtualNumero;
 exports.esMesaMostradorNumero = esMesaMostradorNumero;
 exports.esMesaParaLlevarNumero = esMesaParaLlevarNumero;
 exports.esMesaBoutiqueNumero = esMesaBoutiqueNumero;
+exports.resolverCanalComanda = resolverCanalComanda;
+exports.destinoRecibeCanalComanda = destinoRecibeCanalComanda;
 exports.tituloLugarMesa = tituloLugarMesa;
 exports.etiquetaMesaNumero = etiquetaMesaNumero;
 exports.etiquetaMesaComanda = etiquetaMesaComanda;
@@ -48,6 +50,30 @@ function esMesaParaLlevarNumero(numero, cfg) {
 }
 function esMesaBoutiqueNumero(numero, cfg) {
     return numero === resolverMesasVirtuales(cfg).numero_mesa_boutique;
+}
+/**
+ * Resuelve el canal de impresión de cocina.
+ * Mostrador es mesa virtual con modo en_mesa; para llevar usa mesa virtual o modo_servicio.
+ */
+function resolverCanalComanda(opts, cfg) {
+    if (opts.modo_servicio === 'para_llevar' ||
+        esMesaParaLlevarNumero(opts.mesa_numero, cfg)) {
+        return 'para_llevar';
+    }
+    if (esMesaMostradorNumero(opts.mesa_numero, cfg)) {
+        return 'mostrador';
+    }
+    return 'mesa';
+}
+function destinoRecibeCanalComanda(canal, flags) {
+    const mesa = flags?.comanda_mesa !== false;
+    const mostrador = flags?.comanda_mostrador !== false;
+    const paraLlevar = flags?.comanda_para_llevar !== false;
+    if (canal === 'mesa')
+        return mesa;
+    if (canal === 'mostrador')
+        return mostrador;
+    return paraLlevar;
 }
 /** Texto para UI (pantallas de mesero/cocina). */
 function tituloLugarMesa(numero, cfg) {

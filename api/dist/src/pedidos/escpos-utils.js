@@ -283,9 +283,7 @@ async function cargarLogoTicketRedimensionado(sourcePath, maxWidthPx = TICKET_LO
 }
 function resolveTicketLogoPath() {
     return ((0, visual_assets_util_1.resolverAssetVisualPath)('ticket', null) ??
-        (0, visual_assets_util_1.resolverAssetVisualPath)('factura', null) ??
-        (0, visual_assets_util_1.resolverAssetVisualPath)('login', null) ??
-        (0, restaurant_branding_1.resolveRestaurantLogoPath)());
+        (0, visual_assets_util_1.resolverAssetVisualPath)('factura', null));
 }
 async function ticketLogoPngBufferForPreview(charWidth = exports.DEFAULT_ESC_POS_WIDTH) {
     const logoPath = resolveTicketLogoPath();

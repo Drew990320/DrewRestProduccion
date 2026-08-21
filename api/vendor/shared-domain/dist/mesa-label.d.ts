@@ -32,6 +32,23 @@ export declare function esMesaVirtualNumero(numero: number, cfg?: MesasVirtuales
 export declare function esMesaMostradorNumero(numero: number, cfg?: MesasVirtualesConfig | null): boolean;
 export declare function esMesaParaLlevarNumero(numero: number, cfg?: MesasVirtualesConfig | null): boolean;
 export declare function esMesaBoutiqueNumero(numero: number, cfg?: MesasVirtualesConfig | null): boolean;
+/** Canal de comanda para enrutar a impresoras de cocina. */
+export type CanalComanda = 'mesa' | 'mostrador' | 'para_llevar';
+/**
+ * Resuelve el canal de impresión de cocina.
+ * Mostrador es mesa virtual con modo en_mesa; para llevar usa mesa virtual o modo_servicio.
+ */
+export declare function resolverCanalComanda(opts: {
+    mesa_numero: number;
+    modo_servicio?: string | null;
+}, cfg?: MesasVirtualesConfig | null): CanalComanda;
+/** Flags de canal en una impresora de cocina (omitidos / undefined = recibe todos). */
+export type FlagsCanalComanda = {
+    comanda_mesa?: boolean;
+    comanda_mostrador?: boolean;
+    comanda_para_llevar?: boolean;
+};
+export declare function destinoRecibeCanalComanda(canal: CanalComanda, flags?: FlagsCanalComanda | null): boolean;
 /** Texto para UI (pantallas de mesero/cocina). */
 export declare function tituloLugarMesa(numero: number, cfg?: MesasVirtualesConfig | null): string;
 /** Etiqueta corta para la grilla de mesas. */

@@ -757,7 +757,7 @@ export declare const NAV_APP_ICONOS: ReadonlyArray<{
     id: NavAppIconId;
     label: string;
 }>;
-export declare const NAV_ICON_KEYS: readonly ["mesas", "pedidos", "mostrador", "para_llevar", "ayuda", "cocina", "caja", "mas", "cuenta", "mesa", "menu", "cobrar", "usuarios", "editar_menu", "menus_franja", "categorias", "mesas_admin", "descuentos_promociones", "creditos", "inventario", "recursos", "contabilidad", "ganancias", "tienda", "tienda_venta", "tienda_catalogo", "configuracion", "conexion", "permisos", "turno", "personalizacion", "impresoras_pos", "vista_previa_tickets"];
+export declare const NAV_ICON_KEYS: readonly ["mesas", "pedidos", "mostrador", "para_llevar", "autoservicio", "ayuda", "cocina", "caja", "mas", "cuenta", "mesa", "menu", "cobrar", "usuarios", "editar_menu", "menus_franja", "categorias", "mesas_admin", "descuentos_promociones", "creditos", "inventario", "recursos", "contabilidad", "ganancias", "tienda", "tienda_venta", "tienda_catalogo", "configuracion", "conexion", "permisos", "turno", "personalizacion", "impresoras_pos", "vista_previa_tickets"];
 export type NavIconKey = (typeof NAV_ICON_KEYS)[number];
 export declare const NAV_ICON_DEFAULTS: Record<NavIconKey, NavAppIconId>;
 /** Etiquetas en Personalización visual (iconos de navegación / módulos). */

@@ -209,6 +209,11 @@ let PedidosGateway = class PedidosGateway {
             this.server.to(room).emit('mesero:companero-agrego', payload);
         }
     }
+    emitAutoservicioListoCaja(payload, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
+        this.server
+            .to((0, tenant_rooms_1.tenantRoom)('rol:admin', tenantId))
+            .emit('autoservicio:listo-caja', payload);
+    }
     emitImpresoraAlerta(payload, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
         for (const rol of ['admin', 'mesero', 'chef']) {
             this.server

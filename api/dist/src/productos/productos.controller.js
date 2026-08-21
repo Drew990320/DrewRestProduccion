@@ -34,6 +34,9 @@ let ProductosController = class ProductosController {
         const incluir = incluirInactivos === 'true' || incluirInactivos === '1';
         return this.productos.listarProductos(incluir, tenantId);
     }
+    preciosEnMenus(id, tenantId) {
+        return this.productos.listarPreciosEnMenus(id, tenantId);
+    }
     crear(dto, tenantId) {
         return this.productos.crear(dto, tenantId);
     }
@@ -63,6 +66,14 @@ __decorate([
     __metadata("design:paramtypes", [String, Number]),
     __metadata("design:returntype", void 0)
 ], ProductosController.prototype, "listar", null);
+__decorate([
+    (0, common_1.Get)(':id/precios-en-menus'),
+    __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
+    __param(1, (0, current_tenant_decorator_1.CurrentTenantId)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number, Number]),
+    __metadata("design:returntype", void 0)
+], ProductosController.prototype, "preciosEnMenus", null);
 __decorate([
     (0, common_1.Post)(),
     __param(0, (0, common_1.Body)()),

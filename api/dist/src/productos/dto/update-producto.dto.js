@@ -36,6 +36,7 @@ class UpdateProductoDto {
     combo_max;
     usa_produccion_porciones;
     porciones_por_entera;
+    sincronizar_precio_menu_ids;
 }
 exports.UpdateProductoDto = UpdateProductoDto;
 __decorate([
@@ -164,4 +165,11 @@ __decorate([
     (0, class_validator_1.Min)(1),
     __metadata("design:type", Number)
 ], UpdateProductoDto.prototype, "porciones_por_entera", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsArray)(),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsInt)({ each: true }),
+    __metadata("design:type", Array)
+], UpdateProductoDto.prototype, "sincronizar_precio_menu_ids", void 0);
 //# sourceMappingURL=update-producto.dto.js.map

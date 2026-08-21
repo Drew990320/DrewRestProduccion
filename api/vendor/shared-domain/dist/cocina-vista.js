@@ -154,6 +154,8 @@ function pedidoTieneRecogidaPendiente(p) {
     return platosPendientesRecogerPedido(p) > 0;
 }
 function nombreMeseroPedido(p) {
+    if (p.origen_autoservicio)
+        return 'Autoservicio';
     const m = p.mesero;
     if (!m)
         return 'Mesero';

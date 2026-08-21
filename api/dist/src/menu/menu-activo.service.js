@@ -152,6 +152,57 @@ let MenuActivoService = class MenuActivoService {
             data: { precio },
         });
     }
+    async listarPreciosProductoEnMenus(idProducto, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
+        const rows = await this.prisma.menuProducto.findMany({
+            where: {
+                idProducto,
+                menu: { idRestaurante: tenantId },
+            },
+            include: {
+                menu: {
+                    select: {
+                        idMenu: true,
+                        nombre: true,
+                        esDefault: true,
+                        activo: true,
+                    },
+                },
+            },
+            orderBy: [{ menu: { esDefault: 'desc' } }, { menu: { nombre: 'asc' } }],
+        });
+        return {
+            menus: rows.map((r) => ({
+                id_menu: r.menu.idMenu,
+                nombre: r.menu.nombre,
+                es_default: r.menu.esDefault,
+                menu_activo: r.menu.activo,
+                precio: Number(r.precio),
+                en_menu_activo: r.activo,
+            })),
+        };
+    }
+    async sincronizarPrecioEnMenus(idProducto, precio, idMenus, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
+        const ids = [
+            ...new Set(idMenus
+                .map((n) => Math.round(Number(n)))
+                .filter((n) => Number.isFinite(n) && n > 0)),
+        ];
+        if (ids.length === 0)
+            return;
+        const menus = await this.prisma.menu.findMany({
+            where: { idRestaurante: tenantId, idMenu: { in: ids } },
+            select: { idMenu: true },
+        });
+        if (menus.length === 0)
+            return;
+        await this.prisma.menuProducto.updateMany({
+            where: {
+                idProducto,
+                idMenu: { in: menus.map((m) => m.idMenu) },
+            },
+            data: { precio },
+        });
+    }
     parseHora(label, value, fallback) {
         const raw = value?.trim() || fallback;
         const n = (0, menu_franja_1.normalizarHhMm)(raw);

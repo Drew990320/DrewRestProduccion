@@ -25,6 +25,9 @@ class CreateImpresoraPosDto {
     margen_fin_lineas;
     roles;
     es_cocina_maestra;
+    comanda_mesa;
+    comanda_mostrador;
+    comanda_para_llevar;
 }
 exports.CreateImpresoraPosDto = CreateImpresoraPosDto;
 __decorate([
@@ -96,6 +99,21 @@ __decorate([
     (0, class_validator_1.IsBoolean)(),
     __metadata("design:type", Boolean)
 ], CreateImpresoraPosDto.prototype, "es_cocina_maestra", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], CreateImpresoraPosDto.prototype, "comanda_mesa", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], CreateImpresoraPosDto.prototype, "comanda_mostrador", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], CreateImpresoraPosDto.prototype, "comanda_para_llevar", void 0);
 class UpdateImpresoraPosDto {
     nombre;
     destino;
@@ -108,6 +126,9 @@ class UpdateImpresoraPosDto {
     margen_fin_lineas;
     roles;
     es_cocina_maestra;
+    comanda_mesa;
+    comanda_mostrador;
+    comanda_para_llevar;
 }
 exports.UpdateImpresoraPosDto = UpdateImpresoraPosDto;
 __decorate([
@@ -182,6 +203,21 @@ __decorate([
     (0, class_validator_1.IsBoolean)(),
     __metadata("design:type", Boolean)
 ], UpdateImpresoraPosDto.prototype, "es_cocina_maestra", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], UpdateImpresoraPosDto.prototype, "comanda_mesa", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], UpdateImpresoraPosDto.prototype, "comanda_mostrador", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], UpdateImpresoraPosDto.prototype, "comanda_para_llevar", void 0);
 class ReglaImpresionCocinaDto {
     alcance;
     id_categoria;

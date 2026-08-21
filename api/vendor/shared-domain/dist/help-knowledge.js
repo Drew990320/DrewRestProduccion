@@ -19,7 +19,7 @@ exports.HELP_KNOWLEDGE_TOPICS = [
         relatedTargetIds: ['mesas.tarjeta_mesa', 'mesa.abrir_pedido', 'mesa.accion_menu', 'mesa.accion_cocina', 'nav.pedido_cobrar'],
         faq: [
             { q: '¿Cómo abro una mesa?', a: 'En Mesas, toca una tarjeta «Disponible» y pulsa «Abrir mesa».' },
-            { q: '¿Cómo agrego platos?', a: 'En el detalle de mesa, «Agregar del menú». Usa «Uno a uno» o «Varios» bajo Modos de selección.' },
+            { q: '¿Cómo agrego platos?', a: 'En el detalle de mesa, «Agregar del menú». Usa el + para agregar al instante. Las notas a cocina se editan después en cada línea del pedido.' },
             { q: '¿Cómo envío a cocina?', a: 'Pulsa «Pasar a cocina» cuando la tanda esté lista (requiere permiso enviar_cocina).' },
         ],
     },

@@ -143,6 +143,9 @@ let ImpresorasPosService = ImpresorasPosService_1 = class ImpresorasPosService {
             margen_fin_lineas: (0, impresora_papel_ancho_1.normalizarMargenLineas)(row.margenFinLineas, 2),
             roles: row.roles,
             es_cocina_maestra: row.esCocinaMaestra,
+            comanda_mesa: row.comandaMesa !== false,
+            comanda_mostrador: row.comandaMostrador !== false,
+            comanda_para_llevar: row.comandaParaLlevar !== false,
             reglas_cocina: (row.reglasCocina ?? []).map((r) => ({
                 id_regla: r.idRegla,
                 alcance: r.alcance,
@@ -196,6 +199,11 @@ let ImpresorasPosService = ImpresorasPosService_1 = class ImpresorasPosService {
         if (!dto.roles?.length) {
             throw new common_1.BadRequestException('Asigne al menos un rol');
         }
+        this.assertCanalesCocina(dto.roles, {
+            comanda_mesa: dto.comanda_mesa,
+            comanda_mostrador: dto.comanda_mostrador,
+            comanda_para_llevar: dto.comanda_para_llevar,
+        });
         const maxOrden = await this.prisma.impresoraPos.aggregate({
             where: { idRestaurante: tenantId },
             _max: { orden: true },
@@ -214,6 +222,9 @@ let ImpresorasPosService = ImpresorasPosService_1 = class ImpresorasPosService {
                 margenFinLineas: (0, impresora_papel_ancho_1.normalizarMargenLineas)(dto.margen_fin_lineas, 2),
                 roles: dto.roles,
                 esCocinaMaestra: dto.es_cocina_maestra ?? false,
+                comandaMesa: dto.comanda_mesa ?? true,
+                comandaMostrador: dto.comanda_mostrador ?? true,
+                comandaParaLlevar: dto.comanda_para_llevar ?? true,
             },
             include: { reglasCocina: true },
         });
@@ -232,12 +243,24 @@ let ImpresorasPosService = ImpresorasPosService_1 = class ImpresorasPosService {
         return this.serializar(row);
     }
     async actualizar(id, dto, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
-        await this.obtener(id, tenantId);
+        const actual = await this.obtener(id, tenantId);
         if (dto.destino)
             this.validarDestino(dto.destino);
         if (dto.roles && dto.roles.length === 0) {
             throw new common_1.BadRequestException('Asigne al menos un rol');
         }
+        const rolesFinal = (dto.roles ?? actual.roles);
+        this.assertCanalesCocina(rolesFinal, {
+            comanda_mesa: dto.comanda_mesa !== undefined
+                ? dto.comanda_mesa
+                : actual.comanda_mesa,
+            comanda_mostrador: dto.comanda_mostrador !== undefined
+                ? dto.comanda_mostrador
+                : actual.comanda_mostrador,
+            comanda_para_llevar: dto.comanda_para_llevar !== undefined
+                ? dto.comanda_para_llevar
+                : actual.comanda_para_llevar,
+        });
         const row = await this.prisma.impresoraPos.update({
             where: { idImpresora: id },
             data: {
@@ -265,6 +288,15 @@ let ImpresorasPosService = ImpresorasPosService_1 = class ImpresorasPosService {
                 ...(dto.roles != null ? { roles: dto.roles } : {}),
                 ...(dto.es_cocina_maestra != null
                     ? { esCocinaMaestra: dto.es_cocina_maestra }
+                    : {}),
+                ...(dto.comanda_mesa !== undefined
+                    ? { comandaMesa: dto.comanda_mesa }
+                    : {}),
+                ...(dto.comanda_mostrador !== undefined
+                    ? { comandaMostrador: dto.comanda_mostrador }
+                    : {}),
+                ...(dto.comanda_para_llevar !== undefined
+                    ? { comandaParaLlevar: dto.comanda_para_llevar }
                     : {}),
             },
             include: {
@@ -394,6 +426,9 @@ let ImpresorasPosService = ImpresorasPosService_1 = class ImpresorasPosService {
                 margen_inicio_lineas: (0, impresora_papel_ancho_1.normalizarMargenLineas)(r.margenInicioLineas, 0),
                 margen_fin_lineas: (0, impresora_papel_ancho_1.normalizarMargenLineas)(r.margenFinLineas, 2),
                 es_cocina_maestra: r.esCocinaMaestra,
+                comanda_mesa: r.comandaMesa !== false,
+                comanda_mostrador: r.comandaMostrador !== false,
+                comanda_para_llevar: r.comandaParaLlevar !== false,
                 reglas: r.reglasCocina.map((regla) => ({
                     alcance: regla.alcance,
                     id_categoria: regla.idCategoria,
@@ -424,12 +459,25 @@ let ImpresorasPosService = ImpresorasPosService_1 = class ImpresorasPosService {
                     margen_inicio_lineas: 0,
                     margen_fin_lineas: 2,
                     es_cocina_maestra: i === 0,
+                    comanda_mesa: true,
+                    comanda_mostrador: true,
+                    comanda_para_llevar: true,
                     reglas: [],
                 }));
             }
         }
         (0, destinos_impresora_cache_1.setCachedDestinos)(tenantId, rol, destinos);
         return destinos;
+    }
+    assertCanalesCocina(roles, flags) {
+        if (!roles.includes('cocina'))
+            return;
+        const mesa = flags.comanda_mesa !== false;
+        const mostrador = flags.comanda_mostrador !== false;
+        const paraLlevar = flags.comanda_para_llevar !== false;
+        if (!mesa && !mostrador && !paraLlevar) {
+            throw new common_1.BadRequestException('Activa al menos un tipo de comanda: mesa, mostrador o para llevar');
+        }
     }
     validarDestino(destino) {
         const t = destino.trim();

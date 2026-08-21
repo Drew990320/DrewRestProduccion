@@ -30,7 +30,12 @@ async function buildComandaEscPos(ticket, charWidthOrOpts = escpos_utils_1.DEFAU
     await printer.bold(false);
     await printer.println(`Pedido #${ticket.id_pedido}`);
     await printer.println(`Comensales: ${ticket.num_comensales}`);
-    if (ticket.mesero?.trim()) {
+    if (ticket.origen_autoservicio) {
+        await printer.bold(true);
+        await printer.println('*** AUTOSERVICIO ***');
+        await printer.bold(false);
+    }
+    else if (ticket.mesero?.trim()) {
         await printer.println(`Mesero: ${ticket.mesero}`);
     }
     if (ticket.modo_servicio === 'para_llevar') {

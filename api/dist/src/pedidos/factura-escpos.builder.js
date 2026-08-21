@@ -64,7 +64,13 @@ async function buildFacturaEscPos(ticket, charWidthOrOpts = escpos_utils_1.DEFAU
         await printer.println('*** REIMPRESION ***');
         await printer.bold(false);
     }
-    if (ticket.es_precuenta) {
+    if (ticket.es_autoservicio_caja) {
+        await printer.bold(true);
+        await printer.println('*** AUTOSERVICIO ***');
+        await printer.println('POR COBRAR EN CAJA');
+        await printer.bold(false);
+    }
+    else if (ticket.es_precuenta) {
         await printer.bold(true);
         await printer.println('*** PRE-CUENTA ***');
         await printer.println('NO COBRADA');

@@ -40,6 +40,7 @@ let PersonalizacionesController = class PersonalizacionesController {
 exports.PersonalizacionesController = PersonalizacionesController;
 __decorate([
     (0, common_1.Get)('productos/:idProducto/personalizaciones'),
+    (0, roles_decorator_1.Roles)('admin', 'mesero', 'autoservicio'),
     __param(0, (0, common_1.Param)('idProducto', common_1.ParseIntPipe)),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Number]),
@@ -47,6 +48,7 @@ __decorate([
 ], PersonalizacionesController.prototype, "listar", null);
 __decorate([
     (0, common_1.Post)('productos/:idProducto/personalizaciones'),
+    (0, roles_decorator_1.Roles)('admin'),
     __param(0, (0, common_1.Param)('idProducto', common_1.ParseIntPipe)),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -55,6 +57,7 @@ __decorate([
 ], PersonalizacionesController.prototype, "crear", null);
 __decorate([
     (0, common_1.Patch)('personalizaciones/:idOpcion'),
+    (0, roles_decorator_1.Roles)('admin'),
     __param(0, (0, common_1.Param)('idOpcion', common_1.ParseIntPipe)),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -63,6 +66,7 @@ __decorate([
 ], PersonalizacionesController.prototype, "actualizar", null);
 __decorate([
     (0, common_1.Delete)('personalizaciones/:idOpcion'),
+    (0, roles_decorator_1.Roles)('admin'),
     __param(0, (0, common_1.Param)('idOpcion', common_1.ParseIntPipe)),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Number]),
@@ -71,7 +75,6 @@ __decorate([
 exports.PersonalizacionesController = PersonalizacionesController = __decorate([
     (0, common_1.Controller)(),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
-    (0, roles_decorator_1.Roles)('admin'),
     __metadata("design:paramtypes", [personalizaciones_service_1.PersonalizacionesService])
 ], PersonalizacionesController);
 //# sourceMappingURL=personalizaciones.controller.js.map

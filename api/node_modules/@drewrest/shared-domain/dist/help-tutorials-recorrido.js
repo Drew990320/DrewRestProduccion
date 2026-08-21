@@ -134,9 +134,9 @@ exports.HELP_RECORRIDO_ACTIONS = [
             },
             {
                 title: '10. Modos del menú',
-                body: 'Bajo «Modos de selección»: «Uno a uno» agrega con el + al instante; «Varios» marca ítems y confirmas con «Agregar» abajo.',
-                buscar: '«Modos de selección» · botones «Uno a uno» y «Varios»',
-                target: 'pedido.modos_seleccion',
+                body: 'Usa el + para agregar al instante. Las notas a cocina e ingredientes a omitir se editan después en el pedido de la mesa.',
+                buscar: 'Botón + del producto · ayuda bajo el título del menú',
+                target: 'pedido.agregar_rapido',
                 confirmarEntendido: true,
                 pantalla: 'pedido_menu',
             },

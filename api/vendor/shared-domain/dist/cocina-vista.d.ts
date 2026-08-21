@@ -29,6 +29,7 @@ export type DetalleCocinaLike = {
 };
 export type PedidoCocinaLike = {
     mesa_numero: number;
+    origen_autoservicio?: boolean;
     mesero?: {
         nombre?: string;
         apellido?: string;

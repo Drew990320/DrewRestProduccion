@@ -146,11 +146,7 @@ let PedidosService = class PedidosService {
             select: {
                 idUsuario: true,
                 origenAutoservicio: true,
-                detalles: {
-                    where: { enviadoCocina: true },
-                    select: { idDetalle: true },
-                    take: 1,
-                },
+                listoParaCobroAutoservicio: true,
             },
         });
         if (!row?.origenAutoservicio)
@@ -158,7 +154,7 @@ let PedidosService = class PedidosService {
         if (row.idUsuario !== actor.idUsuario) {
             throw new common_1.ForbiddenException('No puedes modificar este pedido');
         }
-        if (row.detalles.length === 0)
+        if (!row.listoParaCobroAutoservicio)
             return;
         throw new common_1.ForbiddenException('El pedido ya fue enviado a caja. Un mesero o administrador puede ayudarte.');
     }
@@ -2746,10 +2742,10 @@ let PedidosService = class PedidosService {
             };
         });
     }
-    async imprimirResumenDiarioTotal(fecha) {
-        const resumen = await this.resumenDiario(fecha);
+    async imprimirResumenDiarioTotal(fecha, opts) {
+        const resumen = await this.resumenDiario(fecha, opts);
         const ticket = {
-            fecha: resumen.fecha,
+            fecha: resumen.periodo_etiqueta ?? resumen.fecha,
             total_facturado: resumen.total_facturado,
             total_facturas: resumen.total_facturas,
             monto_base_efectivo: resumen.monto_base_efectivo,
@@ -2776,11 +2772,43 @@ let PedidosService = class PedidosService {
         return {
             ok: impresion.impreso,
             fecha: resumen.fecha,
+            periodo: resumen.periodo,
+            periodo_etiqueta: resumen.periodo_etiqueta,
             impresion_cierre: impresion,
             resumen: {
                 total_facturado: resumen.total_facturado,
                 efectivo_esperado_en_caja: resumen.efectivo_esperado_en_caja ?? 0,
             },
+        };
+    }
+    async imprimirResumenDiarioItemsMenu(fecha, opts) {
+        const resumen = await this.resumenDiario(fecha, opts);
+        const items = (resumen.items_menu ?? []).map((i) => ({
+            nombre_producto: i.nombre_producto,
+            categoria_nombre: i.categoria_nombre,
+            cantidad: i.cantidad,
+            subtotal: i.subtotal,
+        }));
+        const etiquetaPeriodo = String(resumen.periodo_etiqueta ?? '').trim() || resumen.fecha;
+        const ticket = {
+            fecha: etiquetaPeriodo,
+            items,
+            subtotal_ventas_bruto: resumen.subtotal_ventas_bruto ?? 0,
+            total_descuentos_dia: resumen.total_descuentos_dia ?? 0,
+            total_facturado: resumen.total_facturado,
+            emitida_en: new Date().toISOString(),
+        };
+        const impresion = await this.comandaPrinter.runWithImpresionRapida(() => this.comandaPrinter.imprimirItemsMenu(ticket));
+        this.emitirAlertaImpresora(impresion, 'cierre');
+        return {
+            ok: impresion.impreso,
+            fecha: resumen.fecha,
+            periodo: resumen.periodo,
+            periodo_etiqueta: resumen.periodo_etiqueta,
+            fecha_desde: resumen.fecha_desde,
+            fecha_hasta: resumen.fecha_hasta,
+            total_items: items.length,
+            impresion_items: impresion,
         };
     }
     async imprimirComandaPedidoSiAplica(idPedido) {
@@ -3007,6 +3035,62 @@ let PedidosService = class PedidosService {
             },
         };
     }
+    async listarColaAutoservicio(actor) {
+        if (actor.rol.nombre !== 'admin' && actor.rol.nombre !== 'mesero') {
+            throw new common_1.ForbiddenException('Solo personal de sala o administración');
+        }
+        const tenantId = actor.idRestaurante ?? tenant_constants_1.DEFAULT_TENANT_ID;
+        const rows = await this.prisma.pedido.findMany({
+            where: {
+                idRestaurante: tenantId,
+                origenAutoservicio: true,
+                estado: { in: ABIERTOS },
+            },
+            orderBy: { creadoEn: 'asc' },
+            take: operative_limits_1.OPERATIVE_PEDIDOS_MAX,
+            include: {
+                mesa: true,
+                usuario: { include: { rol: true } },
+                detalles: {
+                    include: detalleInclude,
+                    orderBy: { idDetalle: 'asc' },
+                },
+                facturas: facturasInclude,
+            },
+        });
+        const mv = (0, mesa_label_1.resolverMesasVirtuales)(await this.obtenerConfigOperativaRow(tenantId));
+        const pedidos = await Promise.all(rows.map(async (row) => {
+            const serial = await this.serializarPedidoConAnexas(row);
+            const sinMesaFisica = row.mesa.numero === mv.numero_mesa_mostrador ||
+                row.mesa.numero === mv.numero_mesa_para_llevar;
+            const cobrado = (row.facturas?.length ?? 0) > 0;
+            const pendienteCobro = (serial.cobro_pendiente?.items ?? 0) > 0;
+            let fase = 'armando';
+            if (cobrado && !pendienteCobro) {
+                fase = sinMesaFisica ? 'sin_mesa_cobrado' : 'en_mesa';
+                if (row.estado === 'en_cocina')
+                    fase = 'en_cocina';
+            }
+            else if (row.listoParaCobroAutoservicio || pendienteCobro) {
+                fase = 'por_cobrar';
+            }
+            else if (!sinMesaFisica) {
+                fase = 'en_mesa';
+            }
+            return {
+                ...serial,
+                fase_autoservicio: fase,
+                sin_mesa_fisica: sinMesaFisica,
+            };
+        }));
+        const porCobrar = pedidos.filter((p) => p.fase_autoservicio === 'por_cobrar')
+            .length;
+        return {
+            pedidos,
+            count: pedidos.length,
+            por_cobrar: porCobrar,
+        };
+    }
     async limpiarPedidosAutoservicioAbandonados(idUsuario, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
         const rows = await this.prisma.pedido.findMany({
             where: {
@@ -3036,7 +3120,10 @@ let PedidosService = class PedidosService {
         }
         const pedido = await this.prisma.pedido.findUnique({
             where: { idPedido },
-            include: { detalles: { select: { idDetalle: true }, take: 1 } },
+            include: {
+                detalles: { select: { idDetalle: true }, take: 1 },
+                mesa: { select: { numero: true } },
+            },
         });
         if (!pedido)
             throw new common_1.NotFoundException('Pedido no encontrado');
@@ -3047,18 +3134,169 @@ let PedidosService = class PedidosService {
         if (!ABIERTOS.includes(pedido.estado)) {
             throw new common_1.ConflictException('El pedido ya no admite envío a caja');
         }
-        if (pedido.listoParaCobroAutoservicio) {
-            return { ok: true, id_pedido: idPedido, ya_listo: true };
-        }
         if (pedido.detalles.length === 0) {
             throw new common_1.BadRequestException('Agrega al menos un producto antes de enviar a caja');
         }
-        await this.prisma.pedido.update({
-            where: { idPedido },
-            data: { listoParaCobroAutoservicio: true },
-        });
+        const yaListo = Boolean(pedido.listoParaCobroAutoservicio);
+        if (!yaListo) {
+            await this.prisma.pedido.update({
+                where: { idPedido },
+                data: { listoParaCobroAutoservicio: true },
+            });
+        }
+        let impresionPrecuenta = {
+            impreso: false,
+            en_cola: false,
+        };
+        let totalAprox;
+        try {
+            const ticket = await this.construirTicketPrecuentaDesdeDto(idPedido, {});
+            ticket.es_autoservicio_caja = true;
+            ticket.es_precuenta = true;
+            totalAprox = ticket.total;
+            impresionPrecuenta = this.encolarImpresionFactura(ticket, idPedido, false);
+        }
+        catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            this.logger.warn(`Autoservicio #${idPedido}: no se pudo armar ticket de caja: ${msg}`);
+            impresionPrecuenta = {
+                impreso: false,
+                error: msg || 'No se pudo imprimir el ticket de caja',
+            };
+        }
         this.emit(idPedido, pedido.idMesa, pedido.idUsuario, pedido.idRestaurante);
-        return { ok: true, id_pedido: idPedido, ya_listo: false };
+        if (!yaListo) {
+            this.gateway.emitAutoservicioListoCaja({
+                pedidoId: idPedido,
+                mesaId: pedido.idMesa,
+                mesaNumero: pedido.mesa.numero,
+                totalAprox,
+                at: new Date().toISOString(),
+            }, pedido.idRestaurante);
+        }
+        return {
+            ok: true,
+            id_pedido: idPedido,
+            ya_listo: yaListo,
+            impresion_precuenta: impresionPrecuenta,
+        };
+    }
+    async liberarMesaAutoservicio(idPedido, actor) {
+        if (actor.rol.nombre !== 'admin') {
+            throw new common_1.ForbiddenException('Solo el administrador puede liberar la mesa de autoservicio');
+        }
+        const pedido = await this.prisma.pedido.findUnique({
+            where: { idPedido },
+            include: {
+                mesa: true,
+                detalles: {
+                    include: {
+                        producto: {
+                            select: {
+                                esEmpacable: true,
+                                enviaCocina: true,
+                                esAcompanamientoMazorca: true,
+                                esCuotaPendienteReparto: true,
+                                categoria: { select: { nombre: true } },
+                            },
+                        },
+                    },
+                },
+                facturas: { select: { idFactura: true }, take: 1 },
+            },
+        });
+        if (!pedido)
+            throw new common_1.NotFoundException('Pedido no encontrado');
+        if (!pedido.origenAutoservicio) {
+            throw new common_1.BadRequestException('Solo aplica a pedidos de autoservicio');
+        }
+        if (pedido.facturas.length === 0) {
+            throw new common_1.BadRequestException('Debes cobrar el pedido antes de liberar la mesa');
+        }
+        const hayCobroPendiente = pedido.detalles.some((d) => {
+            if (d.idFactura != null)
+                return false;
+            if ((0, saldo_restante_1.esNotaSaldoRestantePendiente)(d.notaCocina))
+                return true;
+            if ((d.notaCocina ?? '').trim().startsWith(saldo_restante_1.SALDO_ABONO_NOTA))
+                return false;
+            if (d.producto.esCuotaPendienteReparto)
+                return false;
+            if (d.producto.esAcompanamientoMazorca)
+                return false;
+            return Math.round(Number(d.precioUnitario)) * d.cantidad > 0;
+        });
+        if (hayCobroPendiente) {
+            throw new common_1.BadRequestException('Aún hay saldo por cobrar; completa el cobro antes de liberar');
+        }
+        const tenantId = pedido.idRestaurante;
+        const virtual = await this.esMesaVirtualNumero(pedido.mesa.numero, tenantId);
+        const cocinaPendiente = pedido.detalles.some((d) => productoDebePasarCocina(d.producto) &&
+            d.enviadoCocina &&
+            !d.listoCocina);
+        let mesaLiberadaId = null;
+        let movidoAMostrador = false;
+        await this.prisma.$transaction(async (tx) => {
+            if (!virtual && cocinaPendiente && pedido.estado === 'en_cocina') {
+                const mv = (0, mesa_label_1.resolverMesasVirtuales)(await this.obtenerConfigOperativaRow(tenantId));
+                const mostrador = await tx.mesa.findFirst({
+                    where: {
+                        idRestaurante: tenantId,
+                        numero: mv.numero_mesa_mostrador,
+                    },
+                });
+                if (!mostrador) {
+                    throw new common_1.BadRequestException(`Mostrador no configurado (mesa ${mv.numero_mesa_mostrador})`);
+                }
+                const idMesaFisica = pedido.idMesa;
+                await tx.pedido.update({
+                    where: { idPedido },
+                    data: { idMesa: mostrador.idMesa },
+                });
+                movidoAMostrador = true;
+                const abiertosRest = await tx.pedido.count({
+                    where: { idMesa: idMesaFisica, estado: { in: ABIERTOS } },
+                });
+                if (abiertosRest === 0) {
+                    await this.liberarMesasAnexasDePedidoTx(tx, idPedido);
+                    await tx.mesa.update({
+                        where: { idMesa: idMesaFisica },
+                        data: { estado: 'libre' },
+                    });
+                    mesaLiberadaId = idMesaFisica;
+                }
+                return;
+            }
+            await tx.pedido.update({
+                where: { idPedido },
+                data: { estado: 'facturado', cerradoEn: new Date() },
+            });
+            if (!virtual) {
+                const abiertosRest = await tx.pedido.count({
+                    where: { idMesa: pedido.idMesa, estado: { in: ABIERTOS } },
+                });
+                if (abiertosRest === 0) {
+                    await this.liberarMesasAnexasDePedidoTx(tx, idPedido);
+                    await tx.mesa.update({
+                        where: { idMesa: pedido.idMesa },
+                        data: { estado: 'libre' },
+                    });
+                    mesaLiberadaId = pedido.idMesa;
+                }
+            }
+        });
+        this.emit(idPedido, pedido.idMesa, pedido.idUsuario, tenantId);
+        if (mesaLiberadaId != null && mesaLiberadaId !== pedido.idMesa) {
+            this.emit(idPedido, mesaLiberadaId, pedido.idUsuario, tenantId);
+        }
+        this.gateway.emitConfigActualizada('mesas', tenantId);
+        return {
+            ok: true,
+            id_pedido: idPedido,
+            mesa_liberada: mesaLiberadaId != null,
+            id_mesa_liberada: mesaLiberadaId,
+            movido_a_mostrador: movidoAMostrador,
+        };
     }
     async listarMisActivos(actor) {
         const tenantId = actor.idRestaurante ?? tenant_constants_1.DEFAULT_TENANT_ID;
@@ -3169,8 +3407,24 @@ let PedidosService = class PedidosService {
             select: {
                 idPedido: true,
                 idMesa: true,
+                origenAutoservicio: true,
+                listoParaCobroAutoservicio: true,
                 mesa: { select: { numero: true } },
                 usuario: { select: { nombre: true, apellido: true } },
+                detalles: {
+                    select: {
+                        idFactura: true,
+                        precioUnitario: true,
+                        cantidad: true,
+                        notaCocina: true,
+                        producto: {
+                            select: {
+                                esAcompanamientoMazorca: true,
+                                esCuotaPendienteReparto: true,
+                            },
+                        },
+                    },
+                },
             },
             orderBy: { creadoEn: 'asc' },
             take: operative_limits_1.OPERATIVE_PEDIDOS_MAX,
@@ -3179,10 +3433,41 @@ let PedidosService = class PedidosService {
         let pedidosMostrador = 0;
         let pedidosParaLlevar = 0;
         let pedidosEnMesas = 0;
-        const pedidos = rows.map((p) => {
+        let pedidosAutoservicio = 0;
+        const pedidos = rows
+            .filter((p) => {
+            if (p.origenAutoservicio && !p.listoParaCobroAutoservicio) {
+                return false;
+            }
+            if (p.origenAutoservicio && p.listoParaCobroAutoservicio) {
+                const pendiente = p.detalles.some((d) => {
+                    if (d.idFactura != null)
+                        return false;
+                    if ((0, saldo_restante_1.esNotaSaldoRestantePendiente)(d.notaCocina))
+                        return true;
+                    if ((d.notaCocina ?? '').trim().startsWith(saldo_restante_1.SALDO_ABONO_NOTA)) {
+                        return false;
+                    }
+                    if (d.producto.esCuotaPendienteReparto)
+                        return false;
+                    if (d.producto.esAcompanamientoMazorca)
+                        return false;
+                    return Math.round(Number(d.precioUnitario)) * d.cantidad > 0;
+                });
+                if (!pendiente)
+                    return false;
+            }
+            return true;
+        })
+            .map((p) => {
             const numero = p.mesa.numero;
             let canal = 'mesa';
-            if (numero === mv.numero_mesa_mostrador) {
+            const esAutoservicioListo = p.origenAutoservicio && p.listoParaCobroAutoservicio;
+            if (esAutoservicioListo) {
+                pedidosAutoservicio += 1;
+                canal = 'autoservicio';
+            }
+            else if (numero === mv.numero_mesa_mostrador) {
                 pedidosMostrador += 1;
                 canal = 'mostrador';
             }
@@ -3199,13 +3484,16 @@ let PedidosService = class PedidosService {
                 mesa_numero: numero,
                 canal,
                 mesero: `${p.usuario.nombre} ${p.usuario.apellido}`.trim(),
+                origen_autoservicio: Boolean(p.origenAutoservicio),
+                listo_para_cobro_autoservicio: Boolean(p.listoParaCobroAutoservicio),
             };
         });
         return {
-            total_pedidos: rows.length,
+            total_pedidos: pedidos.length,
             pedidos_mostrador: pedidosMostrador,
             pedidos_para_llevar: pedidosParaLlevar,
             pedidos_en_mesas: pedidosEnMesas,
+            pedidos_autoservicio: pedidosAutoservicio,
             pedidos,
         };
     }
@@ -3903,6 +4191,89 @@ let PedidosService = class PedidosService {
         this.emit(idPedido, pedido.idMesa, pedido.idUsuario, pedido.idRestaurante);
         return this.obtenerPorIdTrasEscritura(idPedido);
     }
+    async setClienteDomicilio(idPedido, dto) {
+        const pedido = await this.prisma.pedido.findUnique({
+            where: { idPedido },
+        });
+        if (!pedido) {
+            throw new common_1.NotFoundException('Pedido no encontrado');
+        }
+        if (pedido.estado === 'facturado') {
+            throw new common_1.ConflictException('El pedido ya fue facturado');
+        }
+        if (!ABIERTOS.includes(pedido.estado)) {
+            throw new common_1.ConflictException('El pedido no admite cambios');
+        }
+        if (pedido.modoServicio !== 'para_llevar') {
+            throw new common_1.ConflictException('Los datos de domicilio solo aplican a pedidos para llevar');
+        }
+        const limpio = (v, max) => {
+            if (v == null)
+                return null;
+            const t = String(v).trim();
+            if (!t)
+                return null;
+            return t.slice(0, max);
+        };
+        await this.prisma.pedido.update({
+            where: { idPedido },
+            data: {
+                ...(dto.cliente_nombre !== undefined
+                    ? { clienteNombre: limpio(dto.cliente_nombre, 120) }
+                    : {}),
+                ...(dto.cliente_telefono !== undefined
+                    ? { clienteTelefono: limpio(dto.cliente_telefono, 40) }
+                    : {}),
+                ...(dto.cliente_direccion !== undefined
+                    ? { clienteDireccion: limpio(dto.cliente_direccion, 500) }
+                    : {}),
+            },
+        });
+        this.emit(idPedido, pedido.idMesa, pedido.idUsuario, pedido.idRestaurante);
+        return this.obtenerPorIdTrasEscritura(idPedido);
+    }
+    async imprimirDomicilio(idPedido, opts = {}) {
+        const pedido = await this.prisma.pedido.findUnique({
+            where: { idPedido },
+            include: {
+                mesa: true,
+                usuario: true,
+            },
+        });
+        if (!pedido) {
+            throw new common_1.NotFoundException('Pedido no encontrado');
+        }
+        if (pedido.modoServicio !== 'para_llevar') {
+            throw new common_1.ConflictException('La ficha de domicilio solo aplica a pedidos para llevar');
+        }
+        const tenantId = pedido.idRestaurante ?? tenant_constants_1.DEFAULT_TENANT_ID;
+        const cachedOp = (0, config_operativa_cache_1.getCachedConfigOperativaRow)(tenantId);
+        const mesero = `${pedido.usuario.nombre} ${pedido.usuario.apellido}`.trim();
+        const ticket = {
+            id_pedido: pedido.idPedido,
+            mesa_etiqueta: (0, comanda_ticket_1.etiquetaMesaComanda)(pedido.mesa.numero, cachedOp),
+            mesero,
+            forzar_blanco: opts.forzar_blanco === true,
+            cliente_nombre: pedido.clienteNombre ?? null,
+            cliente_telefono: pedido.clienteTelefono ?? null,
+            cliente_direccion: pedido.clienteDireccion ?? null,
+            emitida_en: new Date().toISOString(),
+        };
+        const impresion = this.encolarImpresion(() => this.comandaPrinter.imprimirDomicilio(ticket), 'factura', idPedido);
+        return {
+            ok: true,
+            id_pedido: idPedido,
+            forzar_blanco: ticket.forzar_blanco,
+            impresion_domicilio: {
+                impreso: impresion.impreso,
+                en_cola: impresion.en_cola,
+                omitido: impresion.omitido,
+                error: impresion.error,
+                destino: impresion.destino,
+                codigo_error: impresion.codigo_error,
+            },
+        };
+    }
     async setEtiquetasPromocion(idPedido, dto) {
         const pedido = await this.prisma.pedido.findUnique({
             where: { idPedido },
@@ -4408,6 +4779,206 @@ let PedidosService = class PedidosService {
         await this.notificarCompaneroModificoPedido(pedido, idUsuario, lineasAgregadas, 'agregado');
         this.emit(idPedido, pedido.idMesa, pedido.idUsuario, pedido.idRestaurante);
         return this.obtenerPorIdTrasEscritura(idPedido, pedido.idRestaurante, {
+            consolidar: false,
+        });
+    }
+    async actualizarNotasCocinaDetalle(idDetalle, dto, actor) {
+        await this.exigirPermisoMesero(actor, 'editar_cantidades');
+        const idUsuario = actor.idUsuario;
+        const det = await this.prisma.detallePedido.findUnique({
+            where: { idDetalle },
+            include: {
+                pedido: true,
+                producto: { include: { categoria: true } },
+                personalizaciones: true,
+                subitems: true,
+            },
+        });
+        if (!det) {
+            throw new common_1.NotFoundException('Línea no encontrada');
+        }
+        await this.exigirCorreccionAutoservicioMesero(actor, det.pedido.idPedido);
+        if (!ABIERTOS.includes(det.pedido.estado)) {
+            throw new common_1.ConflictException('El pedido no admite cambios en las líneas');
+        }
+        if (det.idFactura != null) {
+            throw new common_1.ConflictException('La línea ya fue cobrada');
+        }
+        if (det.idDetallePadre != null || det.idDetalleComboPadre != null) {
+            throw new common_1.BadRequestException('Las notas se editan en el plato principal, no en empaque ni componentes de combo');
+        }
+        if ((0, mazorca_linea_pedido_1.esDetalleMazorcaAcompanamiento)(det.producto)) {
+            throw new common_1.BadRequestException('La línea de mazorca no admite notas de cocina');
+        }
+        const notaNueva = dto.nota_cocina !== undefined
+            ? dto.nota_cocina?.trim()
+                ? dto.nota_cocina.trim()
+                : null
+            : det.notaCocina;
+        let opcionIds = dto.opcion_ids !== undefined
+            ? [...new Set(dto.opcion_ids.map((n) => Math.round(Number(n))))].filter((n) => Number.isFinite(n) && n > 0)
+            : det.personalizaciones.map((p) => p.idOpcion);
+        if (dto.opcion_ids !== undefined && opcionIds.length > 0) {
+            const opts = await this.prisma.personalizacionOpcion.findMany({
+                where: {
+                    idProducto: det.idProducto,
+                    idOpcion: { in: opcionIds },
+                },
+                select: { idOpcion: true },
+            });
+            if (opts.length !== opcionIds.length) {
+                throw new common_1.BadRequestException('Alguna opción de personalización no pertenece al producto');
+            }
+            opcionIds = opts.map((o) => o.idOpcion);
+        }
+        const aplicarRaw = dto.cantidad_aplicar != null
+            ? Math.round(Number(dto.cantidad_aplicar))
+            : det.cantidad;
+        if (!Number.isFinite(aplicarRaw) || aplicarRaw < 1) {
+            throw new common_1.BadRequestException('cantidad_aplicar inválida');
+        }
+        if (aplicarRaw > det.cantidad) {
+            throw new common_1.BadRequestException(`Solo hay ${det.cantidad} unidad(es) en esta línea`);
+        }
+        const prevIds = det.personalizaciones
+            .map((p) => p.idOpcion)
+            .sort((a, b) => a - b);
+        const nextIds = [...opcionIds].sort((a, b) => a - b);
+        const mismaNota = (det.notaCocina ?? null) === (notaNueva ?? null);
+        const mismasOps = prevIds.length === nextIds.length &&
+            prevIds.every((id, i) => id === nextIds[i]);
+        if (mismaNota && mismasOps && aplicarRaw === det.cantidad) {
+            return this.obtenerPorIdTrasEscritura(det.pedido.idPedido, det.pedido.idRestaurante, {
+                consolidar: false,
+            });
+        }
+        const partir = aplicarRaw < det.cantidad;
+        if (partir && det.subitems.length > 0) {
+            throw new common_1.BadRequestException('Esta línea ya tiene subítems repartidos. Completa o ajusta el reparto antes de partir por notas.');
+        }
+        const historialBase = {
+            idPedido: det.pedido.idPedido,
+            idUsuario,
+            tipo: client_1.TipoEventoPedido.notas_cocina_actualizadas,
+        };
+        await this.prisma.$transaction(async (tx) => {
+            if (!partir) {
+                await tx.detallePedido.update({
+                    where: { idDetalle },
+                    data: { notaCocina: notaNueva },
+                });
+                if (dto.opcion_ids !== undefined) {
+                    await tx.detPersonalizacion.deleteMany({ where: { idDetalle } });
+                    if (opcionIds.length > 0) {
+                        await tx.detPersonalizacion.createMany({
+                            data: opcionIds.map((idOpcion) => ({ idDetalle, idOpcion })),
+                        });
+                    }
+                }
+                return;
+            }
+            const resto = det.cantidad - aplicarRaw;
+            const hijosEmpaque = await tx.detallePedido.findMany({
+                where: { idDetallePadre: idDetalle },
+                include: { producto: true },
+            });
+            await tx.detallePedido.update({
+                where: { idDetalle },
+                data: { cantidad: resto },
+            });
+            const nuevo = await tx.detallePedido.create({
+                data: {
+                    idPedido: det.pedido.idPedido,
+                    idProducto: det.idProducto,
+                    cantidad: aplicarRaw,
+                    precioUnitario: det.precioUnitario,
+                    notaCocina: notaNueva,
+                    enviadoCocina: det.enviadoCocina,
+                    listoCocina: false,
+                    listoParaRecoger: false,
+                },
+            });
+            if (opcionIds.length > 0) {
+                await tx.detPersonalizacion.createMany({
+                    data: opcionIds.map((idOpcion) => ({
+                        idDetalle: nuevo.idDetalle,
+                        idOpcion,
+                    })),
+                });
+            }
+            for (const hijo of hijosEmpaque) {
+                if (!hijo.producto.esEmpacable) {
+                    throw new common_1.BadRequestException('No se puede partir esta línea: tiene ítems hijos que no son empaque.');
+                }
+                const keep = Math.min(hijo.cantidad, resto);
+                const paraNuevo = Math.min(Math.max(0, hijo.cantidad - keep), aplicarRaw);
+                if (keep < 1 && paraNuevo > 0) {
+                    await tx.detallePedido.update({
+                        where: { idDetalle: hijo.idDetalle },
+                        data: {
+                            idDetallePadre: nuevo.idDetalle,
+                            cantidad: paraNuevo,
+                        },
+                    });
+                }
+                else {
+                    if (keep !== hijo.cantidad) {
+                        await tx.detallePedido.update({
+                            where: { idDetalle: hijo.idDetalle },
+                            data: { cantidad: keep },
+                        });
+                    }
+                    if (paraNuevo > 0) {
+                        await tx.detallePedido.create({
+                            data: {
+                                idPedido: det.pedido.idPedido,
+                                idProducto: hijo.idProducto,
+                                idDetallePadre: nuevo.idDetalle,
+                                cantidad: paraNuevo,
+                                precioUnitario: hijo.precioUnitario,
+                                notaCocina: hijo.notaCocina,
+                                enviadoCocina: hijo.enviadoCocina,
+                                listoCocina: false,
+                                listoParaRecoger: false,
+                            },
+                        });
+                    }
+                }
+            }
+        });
+        try {
+            await this.prisma.pedidoHistorial.create({
+                data: {
+                    ...historialBase,
+                    detalleJson: partir
+                        ? {
+                            id_detalle_origen: idDetalle,
+                            nombre_producto: det.producto.nombre,
+                            nota_nueva: notaNueva,
+                            opcion_ids: nextIds,
+                            cantidad_aplicar: aplicarRaw,
+                            cantidad_resto: det.cantidad - aplicarRaw,
+                            partido: true,
+                            enviado_cocina: det.enviadoCocina,
+                        }
+                        : {
+                            id_detalle: idDetalle,
+                            nombre_producto: det.producto.nombre,
+                            nota_anterior: det.notaCocina,
+                            nota_nueva: notaNueva,
+                            opcion_ids: nextIds,
+                            cantidad_aplicar: aplicarRaw,
+                            partido: false,
+                            enviado_cocina: det.enviadoCocina,
+                        },
+                },
+            });
+        }
+        catch (e) {
+            this.logger.warn(`No se pudo registrar historial notas_cocina (pedido ${det.pedido.idPedido}): ${e instanceof Error ? e.message : String(e)}`);
+        }
+        this.emit(det.pedido.idPedido, det.pedido.idMesa, det.pedido.idUsuario, det.pedido.idRestaurante);
+        return this.obtenerPorIdTrasEscritura(det.pedido.idPedido, det.pedido.idRestaurante, {
             consolidar: false,
         });
     }
@@ -5574,14 +6145,28 @@ let PedidosService = class PedidosService {
         const lineas = (0, comanda_lineas_group_1.lineasComandaParaTicket)(catalogo, {
             idsImprimir: detalles.map((d) => d.idDetalle),
         });
-        const mesero = `${pedido.usuario.nombre} ${pedido.usuario.apellido}`.trim();
+        const origenAutoservicio = Boolean(pedido.origenAutoservicio);
+        const mesero = origenAutoservicio
+            ? 'Autoservicio'
+            : `${pedido.usuario.nombre} ${pedido.usuario.apellido}`.trim();
+        const tenantId = pedido.idRestaurante ?? tenant_constants_1.DEFAULT_TENANT_ID;
+        const cachedOp = (0, config_operativa_cache_1.getCachedConfigOperativaRow)(tenantId);
+        const mesasCfg = opts.mesasVirtuales ??
+            cachedOp ??
+            null;
+        const canal = (0, mesa_label_1.resolverCanalComanda)({
+            mesa_numero: pedido.mesa.numero,
+            modo_servicio: pedido.modoServicio,
+        }, mesasCfg);
         return {
             id_pedido: pedido.idPedido,
             mesa_numero: pedido.mesa.numero,
-            mesa_etiqueta: (0, comanda_ticket_1.etiquetaMesaComanda)(pedido.mesa.numero),
+            mesa_etiqueta: (0, comanda_ticket_1.etiquetaMesaComanda)(pedido.mesa.numero, mesasCfg),
             num_comensales: pedido.numComensales,
             mesero,
             modo_servicio: pedido.modoServicio,
+            origen_autoservicio: origenAutoservicio || undefined,
+            canal_comanda: canal,
             lineas,
             emitida_en: emitidaEn.toISOString(),
             es_reimpresion: esReimpresion || undefined,
@@ -6619,7 +7204,9 @@ let PedidosService = class PedidosService {
             throw e;
         }
         this.emit(idPedido, pedido.idMesa, pedido.idUsuario, pedido.idRestaurante);
-        const imprimir = dto.imprimir_factura !== false;
+        const imprimir = pedido.origenAutoservicio
+            ? dto.imprimir_factura === true
+            : dto.imprimir_factura !== false;
         const abrirCajon = dto.metodo_pago === 'efectivo';
         const conCopia = imprimir && dto.factura_con_copia === true;
         if (abrirCajon) {
@@ -7056,7 +7643,9 @@ let PedidosService = class PedidosService {
         const idFacturaImprimir = cobroMixtoGrupo != null
             ? Math.min(...idsFacturas)
             : idsFacturas[idsFacturas.length - 1];
-        const imprimir = dto.imprimir_factura !== false;
+        const imprimir = pedido.origenAutoservicio
+            ? dto.imprimir_factura === true
+            : dto.imprimir_factura !== false;
         const abrirCajon = reparto.efectivoFactura > 0;
         const conCopia = imprimir && dto.factura_con_copia === true;
         if (abrirCajon) {
@@ -7784,6 +8373,7 @@ let PedidosService = class PedidosService {
             destino_libre: destinoLibrePreliminar,
             destino_es_anexa: destinoEsAnexa != null,
             mesas_virtuales: opRow,
+            origen_autoservicio: Boolean(pedido.origenAutoservicio),
         });
         if (validacionPreliminar.accion === 'rechazar') {
             throw new common_1.ConflictException(validacionPreliminar.mensaje);
@@ -7827,6 +8417,7 @@ let PedidosService = class PedidosService {
                 destino_libre: destinoLibre,
                 destino_es_anexa: anexaDestino != null,
                 mesas_virtuales: opRow,
+                origen_autoservicio: Boolean(pedido.origenAutoservicio),
             });
             if (validacion.accion === 'rechazar') {
                 throw new common_1.ConflictException(validacion.mensaje);
@@ -8077,6 +8668,9 @@ let PedidosService = class PedidosService {
             prioridad_cocina_auto: prioridadAuto,
             prioridad_cocina_override: override === null ? null : override,
             cliente_mulero: p.clienteMulero,
+            cliente_nombre: p.clienteNombre ?? null,
+            cliente_telefono: p.clienteTelefono ?? null,
+            cliente_direccion: p.clienteDireccion ?? null,
             origen_autoservicio: Boolean(p.origenAutoservicio),
             listo_para_cobro_autoservicio: Boolean(p.listoParaCobroAutoservicio),
             etiquetas_promocion: this.etiquetasPromocionPedido(p),

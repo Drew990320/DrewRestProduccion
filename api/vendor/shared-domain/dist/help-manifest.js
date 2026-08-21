@@ -80,7 +80,7 @@ exports.HELP_MANIFEST_TARGETS = [
     { id: 'mesa.accion_cocina', label: 'Pasar a cocina', kind: 'action', screenIds: ['mesa_detalle'], activateOnPress: true, permisoMesero: 'enviar_cocina', relatedSignals: ['pedido.platos_en_cocina'] },
     { id: 'mesa.accion_cobrar', label: 'Cobrar / facturar', kind: 'action', screenIds: ['mesa_detalle'], activateOnPress: true, permisoMesero: 'cobrar', relatedSignals: ['pedido.en_factura'] },
     { id: 'mesa.agrupar_mesas', label: 'Agregar mesa libre', kind: 'action', screenIds: ['mesa_detalle'], activateOnPress: true, permisoMesero: 'agrupar_mesas', relatedSignals: ['mesa.mesas_agrupadas'] },
-    { id: 'pedido.modos_seleccion', label: 'Modos de selección', kind: 'form', screenIds: ['pedido_menu'], scrollIntoView: true },
+    { id: 'pedido.modos_seleccion', label: 'Ayuda del menú (agregar)', kind: 'form', screenIds: ['pedido_menu'], scrollIntoView: true },
     { id: 'pedido.producto_tarjeta', label: 'Producto del menú', kind: 'action', screenIds: ['pedido_menu'] },
     { id: 'pedido.agregar_rapido', label: 'Agregar 1 al pedido', kind: 'action', screenIds: ['pedido_menu'], activateOnPress: true, relatedSignals: ['pedido.agrego_item'] },
     { id: 'pedido.agregar_lote', label: 'Agregar', kind: 'action', screenIds: ['pedido_menu'], activateOnPress: true, relatedSignals: ['pedido.agrego_item'] },

@@ -84,7 +84,7 @@ function resolverTargetCoachPaso(step, signals) {
     if (!step?.target)
         return null;
     if (step.target === 'pedido.agregar_item_dinamico') {
-        return signals['pedido.modo_varios'] ? 'pedido.agregar_lote' : 'pedido.agregar_rapido';
+        return 'pedido.agregar_rapido';
     }
     return step.target;
 }
