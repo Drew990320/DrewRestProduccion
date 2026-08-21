@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.PERMISOS_MESERO_META = exports.PERMISOS_MESERO_DEFAULTS = exports.PERMISOS_MESERO_KEYS = void 0;
+exports.PERMISOS_MESERO_GRUPOS = exports.PERMISOS_MESERO_META = exports.PERMISOS_MESERO_DEFAULTS = exports.PERMISOS_MESERO_KEYS = void 0;
 exports.permisosMeseroTodos = permisosMeseroTodos;
 /** Claves de permisos configurables para el rol mesero. */
 exports.PERMISOS_MESERO_KEYS = [
@@ -38,11 +38,11 @@ exports.PERMISOS_MESERO_META = {
     },
     editar_cantidades: {
         titulo: 'Editar cantidades',
-        detalle: 'Botones +/− en las líneas del pedido',
+        detalle: '+/− en líneas aún no enviadas a cocina (lo ya enviado no se reduce)',
     },
     quitar_lineas: {
-        titulo: 'Quitar líneas',
-        detalle: 'Eliminar ítems del pedido',
+        titulo: 'Quitar ítems (antes de cocina)',
+        detalle: 'Borrar productos del pedido solo si aún no se enviaron a cocina. No anula el ticket completo.',
     },
     enviar_cocina: {
         titulo: 'Enviar a cocina',
@@ -65,8 +65,8 @@ exports.PERMISOS_MESERO_META = {
         detalle: 'Reimprimir un cobro ya registrado',
     },
     cancelar_pedido: {
-        titulo: 'Cancelar pedido',
-        detalle: 'Anular el ticket sin cobros',
+        titulo: 'Cancelar pedido completo',
+        detalle: 'Anula todo el ticket (sin cobros). Independiente de quitar ítems sueltos.',
     },
     transferir_mesa: {
         titulo: 'Transferir mesa',
@@ -81,6 +81,35 @@ exports.PERMISOS_MESERO_META = {
         detalle: 'Ver pedidos ajenos, recoger platos y avisar falta',
     },
 };
+/** Agrupa toggles en Permisos para que no se confundan entre sí. */
+exports.PERMISOS_MESERO_GRUPOS = [
+    {
+        titulo: 'Pedido y cocina',
+        detalle: 'Agregar, ajustar o quitar antes de cocina, y enviar/reimprimir comanda.',
+        keys: [
+            'agregar_items',
+            'editar_cantidades',
+            'quitar_lineas',
+            'enviar_cocina',
+            'reimprimir_comanda',
+        ],
+    },
+    {
+        titulo: 'Cobro y anulación',
+        detalle: 'Cobrar es aparte de cancelar. Cancelar anula el ticket entero; quitar ítems no.',
+        keys: [
+            'cobrar',
+            'precuenta',
+            'reimprimir_factura',
+            'cancelar_pedido',
+        ],
+    },
+    {
+        titulo: 'Mesas y equipo',
+        detalle: 'Mover o agrupar mesas y ayudar a otros meseros.',
+        keys: ['transferir_mesa', 'agrupar_mesas', 'ayuda_companeros'],
+    },
+];
 function permisosMeseroTodos() {
     return {
         ...exports.PERMISOS_MESERO_DEFAULTS,

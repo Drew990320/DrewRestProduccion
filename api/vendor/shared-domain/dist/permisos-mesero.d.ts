@@ -9,6 +9,12 @@ export type PermisoMeseroMeta = {
     detalle: string;
 };
 export declare const PERMISOS_MESERO_META: Record<PermisoMeseroKey, PermisoMeseroMeta>;
+/** Agrupa toggles en Permisos para que no se confundan entre sí. */
+export declare const PERMISOS_MESERO_GRUPOS: ReadonlyArray<{
+    titulo: string;
+    detalle: string;
+    keys: readonly PermisoMeseroKey[];
+}>;
 export type PermisosMeseroEfectivos = PermisosMeseroConfig & {
     puede_cerrar_anulando: boolean;
     es_admin: boolean;

@@ -5002,6 +5002,11 @@ let PedidosService = class PedidosService {
         if (!ABIERTOS.includes(det.pedido.estado)) {
             throw new common_1.ConflictException('El pedido no admite cambios en las líneas');
         }
+        const rolActor = actor.rol.nombre;
+        const esAdminActor = rolActor === 'admin' || rolActor === 'superadmin';
+        if (det.enviadoCocina && !esAdminActor) {
+            throw new common_1.ConflictException('Ese ítem ya fue enviado a cocina. Quita solo lo pendiente, o cancela el pedido completo si tienes permiso de cancelar.');
+        }
         if ((0, mazorca_linea_pedido_1.esDetalleMazorcaAcompanamiento)(det.producto)) {
             throw new common_1.BadRequestException('La línea de mazorca se ajusta con el número de comensales');
         }
@@ -5244,6 +5249,13 @@ let PedidosService = class PedidosService {
         const cantidad = dto.cantidad;
         if (det.cantidad === cantidad) {
             return this.obtenerPorIdTrasEscritura(det.pedido.idPedido);
+        }
+        const rolActor = actor.rol.nombre;
+        const esAdminActor = rolActor === 'admin' || rolActor === 'superadmin';
+        if (cantidad < det.cantidad &&
+            det.enviadoCocina &&
+            !esAdminActor) {
+            throw new common_1.ConflictException('No se puede reducir un ítem ya enviado a cocina. Quita o reduce solo lo pendiente, o cancela el pedido si tienes permiso.');
         }
         if (det.producto.esEmpacable && det.idDetallePadre != null) {
             const padre = await this.prisma.detallePedido.findUnique({
