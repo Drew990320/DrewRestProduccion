@@ -329,6 +329,8 @@ model ImpresoraPos {
   nombre          String            @db.VarChar(120)
   /// Destino ESC/POS: printer:NombreWindows | COM3 | \\.\COM4
   destino         String            @db.VarChar(200)
+  /// MAC de red (tcp:IP). Si cambia la IP, se busca esta MAC y se imprime igual.
+  macEsperada     String?           @map("mac_esperada") @db.VarChar(17)
   activa          Boolean           @default(true)
   orden           Int               @default(0)
   baudRate        Int?              @map("baud_rate")

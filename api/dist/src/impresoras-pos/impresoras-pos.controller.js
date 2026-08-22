@@ -60,6 +60,12 @@ let ImpresorasPosController = class ImpresorasPosController {
             margen_fin_lineas: row.margen_fin_lineas,
         });
     }
+    identidad(id, req) {
+        return this.impresoras.consultarIdentidad(id, req.user.idRestaurante);
+    }
+    vincularMac(id, body, req) {
+        return this.impresoras.vincularMac(id, req.user.idRestaurante, body?.mac);
+    }
     obtener(id, req) {
         return this.impresoras.obtener(id, req.user.idRestaurante);
     }
@@ -132,6 +138,27 @@ __decorate([
     __metadata("design:paramtypes", [Number]),
     __metadata("design:returntype", Promise)
 ], ImpresorasPosController.prototype, "pruebaLocal", null);
+__decorate([
+    (0, common_1.Get)(':id/identidad'),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)('admin'),
+    __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
+    __param(1, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number, Object]),
+    __metadata("design:returntype", void 0)
+], ImpresorasPosController.prototype, "identidad", null);
+__decorate([
+    (0, common_1.Post)(':id/vincular-mac'),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)('admin'),
+    __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
+    __param(1, (0, common_1.Body)()),
+    __param(2, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number, Object, Object]),
+    __metadata("design:returntype", void 0)
+], ImpresorasPosController.prototype, "vincularMac", null);
 __decorate([
     (0, common_1.Get)(':id'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),

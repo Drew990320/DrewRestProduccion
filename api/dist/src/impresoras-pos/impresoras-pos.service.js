@@ -22,6 +22,8 @@ const destinos_impresora_cache_1 = require("./destinos-impresora-cache");
 const limpiar_reglas_impresion_cocina_1 = require("./limpiar-reglas-impresion-cocina");
 const impresora_papel_ancho_1 = require("./impresora-papel-ancho");
 const escpos_tcp_1 = require("../pedidos/escpos-tcp");
+const impresora_mac_1 = require("./impresora-mac");
+const impresora_arp_1 = require("./impresora-arp");
 let ImpresorasPosService = ImpresorasPosService_1 = class ImpresorasPosService {
     prisma;
     config;
@@ -134,6 +136,7 @@ let ImpresorasPosService = ImpresorasPosService_1 = class ImpresorasPosService {
             id_impresora: row.idImpresora,
             nombre: row.nombre,
             destino: row.destino,
+            mac_esperada: row.macEsperada ?? null,
             activa: row.activa,
             orden: row.orden,
             baud_rate: row.baudRate,
@@ -204,6 +207,7 @@ let ImpresorasPosService = ImpresorasPosService_1 = class ImpresorasPosService {
             comanda_mostrador: dto.comanda_mostrador,
             comanda_para_llevar: dto.comanda_para_llevar,
         });
+        this.assertMacUnica(tenantId, this.macDesdeDto(dto.mac_esperada, dto.destino));
         const maxOrden = await this.prisma.impresoraPos.aggregate({
             where: { idRestaurante: tenantId },
             _max: { orden: true },
@@ -213,6 +217,7 @@ let ImpresorasPosService = ImpresorasPosService_1 = class ImpresorasPosService {
                 idRestaurante: tenantId,
                 nombre: dto.nombre.trim(),
                 destino: dto.destino.trim(),
+                macEsperada: this.macDesdeDto(dto.mac_esperada, dto.destino),
                 activa: dto.activa ?? true,
                 orden: dto.orden ?? (maxOrden._max.orden ?? -1) + 1,
                 baudRate: dto.baud_rate ?? null,
@@ -246,6 +251,9 @@ let ImpresorasPosService = ImpresorasPosService_1 = class ImpresorasPosService {
         const actual = await this.obtener(id, tenantId);
         if (dto.destino)
             this.validarDestino(dto.destino);
+        if (dto.mac_esperada !== undefined) {
+            this.assertMacUnica(tenantId, this.macDesdeDto(dto.mac_esperada, dto.destino ?? actual.destino), id);
+        }
         if (dto.roles && dto.roles.length === 0) {
             throw new common_1.BadRequestException('Asigne al menos un rol');
         }
@@ -266,6 +274,11 @@ let ImpresorasPosService = ImpresorasPosService_1 = class ImpresorasPosService {
             data: {
                 ...(dto.nombre != null ? { nombre: dto.nombre.trim() } : {}),
                 ...(dto.destino != null ? { destino: dto.destino.trim() } : {}),
+                ...(dto.mac_esperada !== undefined
+                    ? {
+                        macEsperada: this.macDesdeDto(dto.mac_esperada, dto.destino ?? actual.destino),
+                    }
+                    : {}),
                 ...(dto.activa != null ? { activa: dto.activa } : {}),
                 ...(dto.orden != null ? { orden: dto.orden } : {}),
                 ...(dto.baud_rate !== undefined ? { baudRate: dto.baud_rate } : {}),
@@ -362,6 +375,187 @@ let ImpresorasPosService = ImpresorasPosService_1 = class ImpresorasPosService {
     async detectar() {
         const detectadas = await (0, impresoras_pos_detect_1.detectarImpresorasSistema)();
         return { detectadas, plataforma: process.platform };
+    }
+    async consultarIdentidad(id, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
+        const row = await this.obtener(id, tenantId);
+        const red = (0, escpos_tcp_1.parseDestinoTcp)(row.destino);
+        if (!red) {
+            return {
+                tipo: 'local',
+                destino: row.destino,
+                mac_esperada: row.mac_esperada,
+                mac_actual: null,
+                reachable: null,
+                coinciden: true,
+                mensaje: 'USB, COM o cola de Windows: no usan IP. El ancla MAC aplica a impresoras de red (tcp:…).',
+            };
+        }
+        (0, impresora_arp_1.invalidarCacheArp)(red.host);
+        const idn = await (0, impresora_arp_1.resolverIdentidadLan)(red.host, red.port);
+        const esperada = row.mac_esperada;
+        const coinciden = !esperada || (idn.mac != null && (0, impresora_mac_1.macsIguales)(esperada, idn.mac));
+        let mensaje;
+        if (!idn.reachable && !idn.mac) {
+            mensaje = `No responde ${red.host}:${red.port}. Enciende la impresora o revisa el cable/red.`;
+        }
+        else if (!esperada) {
+            mensaje = idn.mac
+                ? `IP activa. MAC vista: ${idn.mac}. Vincula esa MAC para reubicar el ticket si cambia la IP.`
+                : 'IP responde, pero Windows aún no tiene la MAC en ARP. Reintenta en unos segundos.';
+        }
+        else if (!idn.mac) {
+            mensaje = `Hay MAC guardada (${esperada}) pero no se leyó en ${red.host}. Al imprimir se buscará en la red y se mandará igual.`;
+        }
+        else if (coinciden) {
+            mensaje = `OK: ${red.host} es ${row.nombre} (${esperada}).`;
+        }
+        else {
+            mensaje = `IP cruzada: ${red.host} responde con MAC ${idn.mac}, no ${esperada} (${row.nombre}). Al imprimir se busca la MAC anclada y no se corta la comanda.`;
+        }
+        return {
+            tipo: 'tcp',
+            destino: row.destino,
+            host: red.host,
+            port: red.port,
+            mac_esperada: esperada,
+            mac_actual: idn.mac,
+            reachable: idn.reachable,
+            coinciden,
+            mensaje,
+        };
+    }
+    async vincularMac(id, tenantId = tenant_constants_1.DEFAULT_TENANT_ID, macManual) {
+        const row = await this.obtener(id, tenantId);
+        const red = (0, escpos_tcp_1.parseDestinoTcp)(row.destino);
+        if (!red) {
+            throw new common_1.BadRequestException('Solo impresoras de red (tcp:IP) pueden anclarse a una MAC');
+        }
+        let mac = (0, impresora_mac_1.normalizarMac)(macManual ?? '');
+        if (!mac) {
+            (0, impresora_arp_1.invalidarCacheArp)(red.host);
+            const idn = await (0, impresora_arp_1.resolverIdentidadLan)(red.host, red.port);
+            mac = idn.mac;
+        }
+        if (!mac) {
+            throw new common_1.BadRequestException(`No se leyó la MAC de ${red.host}. Enciende la impresora y vuelve a intentar.`);
+        }
+        return this.actualizar(id, { mac_esperada: mac }, tenantId);
+    }
+    async resolverDestinoRedParaImprimir(destino) {
+        const red = (0, escpos_tcp_1.parseDestinoTcp)(destino);
+        if (!red)
+            return null;
+        const row = await this.prisma.impresoraPos.findFirst({
+            where: { destino: destino.trim() },
+            select: {
+                idImpresora: true,
+                idRestaurante: true,
+                nombre: true,
+                macEsperada: true,
+                destino: true,
+            },
+        });
+        if (!row?.macEsperada) {
+            return { host: red.host, port: red.port, destino, aviso: null };
+        }
+        const idn = await (0, impresora_arp_1.resolverIdentidadLan)(red.host, red.port);
+        if (idn.mac && (0, impresora_mac_1.macsIguales)(idn.mac, row.macEsperada)) {
+            return { host: red.host, port: red.port, destino, aviso: null };
+        }
+        const otras = await this.prisma.impresoraPos.findMany({
+            where: { macEsperada: { not: null } },
+            select: { destino: true },
+        });
+        const hosts = otras
+            .map((r) => (0, escpos_tcp_1.parseDestinoTcp)(r.destino))
+            .filter((x) => x != null)
+            .map((x) => ({ host: x.host, port: x.port }));
+        await (0, impresora_arp_1.tocarHosts)(hosts);
+        const found = await (0, impresora_arp_1.buscarHostPorMac)(row.macEsperada);
+        if (found && found !== red.host) {
+            const nuevo = red.port === 9100 ? `tcp:${found}` : `tcp:${found}:${red.port}`;
+            await this.reasignarDestinoTcp(row, nuevo);
+            return {
+                host: found,
+                port: red.port,
+                destino: nuevo,
+                aviso: `${row.nombre} cambió de ${red.host} a ${found}. Se imprimió en la impresora correcta.`,
+            };
+        }
+        return {
+            host: red.host,
+            port: red.port,
+            destino,
+            aviso: idn.mac && !(0, impresora_mac_1.macsIguales)(idn.mac, row.macEsperada)
+                ? `Posible IP cruzada en ${row.nombre}: se imprimió igual en ${red.host}. Revisa Impresoras POS.`
+                : null,
+        };
+    }
+    async reasignarDestinoTcp(row, nuevoDestino) {
+        if (row.destino === nuevoDestino)
+            return;
+        const occupier = await this.prisma.impresoraPos.findFirst({
+            where: {
+                idRestaurante: row.idRestaurante,
+                destino: nuevoDestino,
+                idImpresora: { not: row.idImpresora },
+            },
+            select: { idImpresora: true },
+        });
+        await this.prisma['$transaction'](async (tx) => {
+            if (occupier) {
+                const temp = `tcp:swap-${row.idImpresora}-${Date.now()}`;
+                await tx.impresoraPos.update({
+                    where: { idImpresora: occupier.idImpresora },
+                    data: { destino: temp },
+                });
+                await tx.impresoraPos.update({
+                    where: { idImpresora: row.idImpresora },
+                    data: { destino: nuevoDestino },
+                });
+                await tx.impresoraPos.update({
+                    where: { idImpresora: occupier.idImpresora },
+                    data: { destino: row.destino },
+                });
+            }
+            else {
+                await tx.impresoraPos.update({
+                    where: { idImpresora: row.idImpresora },
+                    data: { destino: nuevoDestino },
+                });
+            }
+        });
+        (0, destinos_impresora_cache_1.invalidateDestinosImpresoraCache)(row.idRestaurante);
+    }
+    macDesdeDto(raw, destino) {
+        if (raw == null)
+            return null;
+        const trimmed = String(raw).trim();
+        if (!trimmed)
+            return null;
+        const mac = (0, impresora_mac_1.normalizarMac)(trimmed);
+        if (!mac) {
+            throw new common_1.BadRequestException('MAC inválida. Usa el formato AA:BB:CC:DD:EE:FF');
+        }
+        if (!(0, escpos_tcp_1.parseDestinoTcp)(destino)) {
+            throw new common_1.BadRequestException('La MAC solo aplica a destinos de red (tcp:IP)');
+        }
+        return mac;
+    }
+    async assertMacUnica(tenantId, mac, exceptId) {
+        if (!mac)
+            return;
+        const other = await this.prisma.impresoraPos.findFirst({
+            where: {
+                idRestaurante: tenantId,
+                macEsperada: mac,
+                ...(exceptId != null ? { idImpresora: { not: exceptId } } : {}),
+            },
+            select: { nombre: true },
+        });
+        if (other) {
+            throw new common_1.BadRequestException(`Esa MAC ya está anclada a «${other.nombre}»`);
+        }
     }
     async upsertPorDestino(tenantId, data) {
         this.validarDestino(data.destino);

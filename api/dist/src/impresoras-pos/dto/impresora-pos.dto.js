@@ -16,6 +16,7 @@ const impresoras_pos_types_1 = require("../impresoras-pos.types");
 class CreateImpresoraPosDto {
     nombre;
     destino;
+    mac_esperada;
     activa;
     orden;
     baud_rate;
@@ -40,6 +41,12 @@ __decorate([
     (0, class_validator_1.MaxLength)(200),
     __metadata("design:type", String)
 ], CreateImpresoraPosDto.prototype, "destino", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(32),
+    __metadata("design:type", Object)
+], CreateImpresoraPosDto.prototype, "mac_esperada", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsBoolean)(),
@@ -117,6 +124,7 @@ __decorate([
 class UpdateImpresoraPosDto {
     nombre;
     destino;
+    mac_esperada;
     activa;
     orden;
     baud_rate;
@@ -143,6 +151,12 @@ __decorate([
     (0, class_validator_1.MaxLength)(200),
     __metadata("design:type", String)
 ], UpdateImpresoraPosDto.prototype, "destino", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(32),
+    __metadata("design:type", Object)
+], UpdateImpresoraPosDto.prototype, "mac_esperada", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsBoolean)(),

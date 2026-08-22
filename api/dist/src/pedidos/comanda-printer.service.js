@@ -811,7 +811,13 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
         }
         const red = (0, escpos_tcp_1.parseDestinoTcp)(target);
         if (red) {
-            await (0, escpos_tcp_1.sendEscPosTcp)(red.host, red.port, buffer);
+            const resuelto = await this.impresorasPos.resolverDestinoRedParaImprimir(target);
+            const host = resuelto?.host ?? red.host;
+            const port = resuelto?.port ?? red.port;
+            await (0, escpos_tcp_1.sendEscPosTcp)(host, port, buffer);
+            if (resuelto?.aviso) {
+                this.logger.warn(resuelto.aviso);
+            }
             return;
         }
         const comPath = this.normalizeComPath(target);
