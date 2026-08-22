@@ -134,7 +134,7 @@ exports.HELP_RECORRIDO_ACTIONS = [
             },
             {
                 title: '10. Modos del menú',
-                body: 'Usa el + para agregar al instante. Las notas a cocina e ingredientes a omitir se editan después en el pedido de la mesa.',
+                body: 'Usa el + para agregar al instante. El ícono de nota abre notas e ingredientes antes de agregar; también se editan después en el pedido.',
                 buscar: 'Botón + del producto · ayuda bajo el título del menú',
                 target: 'pedido.agregar_rapido',
                 confirmarEntendido: true,

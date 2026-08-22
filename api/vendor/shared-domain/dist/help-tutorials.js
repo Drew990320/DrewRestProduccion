@@ -436,7 +436,7 @@ exports.HELP_TUTORIAL_ACTIONS = [
             },
             {
                 title: '3. Agregar del menú',
-                body: 'Usa el + para agregar al instante. Combos y platos con reparto de sabores abren una pantalla corta. Las notas a cocina y omitir ingredientes se agregan después en el pedido de la mesa.',
+                body: 'Usa el + para agregar al instante. El ícono de nota abre cantidad, omitir ingredientes y notas a cocina antes de agregar. Combos abren una pantalla corta. También puedes editar notas después en el pedido.',
                 buscar: 'Botón + del producto · texto de ayuda bajo el título del menú',
                 accion: 'Agrega un plato con el +.',
                 target: 'pedido.agregar_rapido',
