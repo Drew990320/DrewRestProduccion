@@ -663,7 +663,7 @@ exports.HELP_TUTORIAL_ACTIONS = [
         steps: [
             {
                 title: '1. Cuándo transferir',
-                body: 'El cliente cambió de mesa: muévelo a una libre, o a una ocupada para reunirse con otro cliente (queda como segunda cuenta, sin agrupar mesas).',
+                body: 'El cliente cambió de mesa, o un pedido de para llevar/mostrador se sienta: muévelo a una libre, o a una ocupada (segunda cuenta, sin agrupar). El empaque no se quita solo; el administrador lo baja con −.',
                 tip: 'Si quieren una sola cuenta en varias mesas físicas, usa «Agrupar mesas».',
             },
             {

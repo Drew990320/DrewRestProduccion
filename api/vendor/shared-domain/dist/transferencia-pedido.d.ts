@@ -18,10 +18,11 @@ export type ResultadoValidacionTransferencia = {
     mensaje: string;
 };
 /**
- * Transferencia entre mesas físicas (no 98/99), con una excepción:
- * autoservicio sin mesa (origen virtual) sí puede asignarse a mesa física.
- * - Libre: mueve la cuenta y libera el origen.
- * - Ocupada: deja una segunda cuenta en el destino (como bebidas / para llevar), sin agrupar mesas.
+ * Transferencia a mesa física (no 97/98/99).
+ * Origen para llevar o mostrador: se sienta en mesa (el empaque no se quita solo).
+ * Autoservicio en esas colas: igual, asignar mesa.
+ * - Libre: mueve la cuenta.
+ * - Ocupada: segunda cuenta, sin agrupar mesas.
  */
 export declare function validarTransferenciaPedido(input: {
     origen_mesa_numero: number;
@@ -32,5 +33,5 @@ export declare function validarTransferenciaPedido(input: {
     /** Autoservicio en mostrador/para llevar: permite asignar a mesa física. */
     origen_autoservicio?: boolean;
 }): ResultadoValidacionTransferencia;
-export declare const AYUDA_TRANSFERENCIA_PEDIDO = "Elige mesa libre u ocupada. En ocupada queda como segunda cuenta (sin agrupar). Para llevar y mostrador normales: cancela y abre pedido nuevo. Autoservicio sin mesa s\u00ED puede asignarse a una mesa f\u00EDsica.";
+export declare const AYUDA_TRANSFERENCIA_PEDIDO = "Elige mesa libre u ocupada. En ocupada queda como segunda cuenta (sin agrupar). Desde para llevar o mostrador tambi\u00E9n puedes sentar el pedido; el empaque no se quita solo (el administrador lo baja con \u2212).";
 export declare const AYUDA_ASIGNAR_MESA_AUTOSERVICIO = "Elige una mesa f\u00EDsica libre u ocupada para asignar este autoservicio. En ocupada queda como cuenta separada (sin agrupar).";
