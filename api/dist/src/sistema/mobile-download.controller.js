@@ -150,7 +150,7 @@ p{line-height:1.45;color:#334;max-width:28rem;margin:12px auto}
         const apiDirect = `http://${ip}:${apiPort}`;
         const webPort = (0, red_local_1.leerPuertoWeb)();
         const webDirect = `http://${ip}:${webPort}`;
-        const webCamera = `${apiDirect}/abrir-web?to=${encodeURIComponent(webDirect + '/')}`;
+        const webCamera = `${webDirect}/abrir-web`;
         const apkDirect = `${apiDirect}/descargar-app`;
         const apkCamera = `http://${ip}.nip.io:${apiPort}/descargar-app`;
         const vincularDirect = `${apiDirect}/vincular?api=${encodeURIComponent(apiDirect)}`;
