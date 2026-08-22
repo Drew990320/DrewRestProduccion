@@ -249,6 +249,25 @@ async function main() {
   }
 
   await tryMigrateDeploy();
+  await ensureImpresoraMacEsperada();
+}
+
+async function ensureImpresoraMacEsperada() {
+  const prisma = new PrismaClient();
+  try {
+    await prisma.$executeRawUnsafe(
+      `ALTER TABLE "impresora_pos" ADD COLUMN IF NOT EXISTS "mac_esperada" VARCHAR(17)`,
+    );
+  } catch (err) {
+    if (isMissingMigrationsTableError(err)) return;
+    const msg = `${err?.message ?? ''} ${err?.code ?? ''}`;
+    if (/42P01|impresora_pos/i.test(msg) && /does not exist|no existe/i.test(msg)) {
+      return;
+    }
+    throw err;
+  } finally {
+    await prisma.$disconnect();
+  }
 }
 
 main().catch((e) => {

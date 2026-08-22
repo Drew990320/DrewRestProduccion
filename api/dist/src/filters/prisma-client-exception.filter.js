@@ -15,6 +15,7 @@ let PrismaClientExceptionFilter = PrismaClientExceptionFilter_1 = class PrismaCl
     catch(exception, host) {
         const res = host.switchToHttp().getResponse();
         if (exception.code === 'P2022') {
+            this.logger.error(`Prisma P2022 (columna/tabla ausente): ${exception.message}`);
             res.status(common_1.HttpStatus.SERVICE_UNAVAILABLE).json({
                 statusCode: common_1.HttpStatus.SERVICE_UNAVAILABLE,
                 message: 'La base de datos no coincide con el esquema actual. En la carpeta services/api ejecuta: npx prisma db push (o npx prisma migrate deploy si usas migraciones) y reinicia el API.',

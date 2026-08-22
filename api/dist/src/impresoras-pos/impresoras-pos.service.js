@@ -35,6 +35,7 @@ let ImpresorasPosService = ImpresorasPosService_1 = class ImpresorasPosService {
     }
     async onModuleInit() {
         try {
+            await this.asegurarColumnaMacEsperada();
             await this.asegurarMigracionEnv(tenant_constants_1.DEFAULT_TENANT_ID);
             await this.aplicarPendientesLauncher(tenant_constants_1.DEFAULT_TENANT_ID);
         }
@@ -42,6 +43,9 @@ let ImpresorasPosService = ImpresorasPosService_1 = class ImpresorasPosService {
             const msg = e instanceof Error ? e.message : String(e);
             this.logger.warn(`Init impresoras POS: ${msg}`);
         }
+    }
+    async asegurarColumnaMacEsperada() {
+        await this.prisma.$executeRawUnsafe(`ALTER TABLE "impresora_pos" ADD COLUMN IF NOT EXISTS "mac_esperada" VARCHAR(17)`);
     }
     pendingPaths() {
         const cwd = process.cwd();
@@ -162,6 +166,7 @@ let ImpresorasPosService = ImpresorasPosService_1 = class ImpresorasPosService {
         };
     }
     async listar(tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
+        await this.asegurarColumnaMacEsperada();
         await this.asegurarMigracionEnv(tenantId);
         await this.aplicarPendientesLauncher(tenantId);
         await (0, limpiar_reglas_impresion_cocina_1.purgarReglasImpresionMenuInactivo)(this.prisma, tenantId);
@@ -198,6 +203,7 @@ let ImpresorasPosService = ImpresorasPosService_1 = class ImpresorasPosService {
         return this.serializar(row);
     }
     async crear(dto, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
+        await this.asegurarColumnaMacEsperada();
         this.validarDestino(dto.destino);
         if (!dto.roles?.length) {
             throw new common_1.BadRequestException('Asigne al menos un rol');
