@@ -81,6 +81,16 @@ function planificarJobsComanda(lineas, destinos) {
     const hayMaestra = destinos.some((d) => d.es_cocina_maestra);
     const estaciones = destinos.filter(esEstacionConReglas);
     const hayEstaciones = estaciones.length > 0;
+    // Varias cocinas sin zonas: una sola comanda (la primera). Antes cada una
+    // recibía el ticket completo.
+    if (!hayMaestra && !hayEstaciones) {
+        jobs.push({
+            destinoKey: destinos[0].key,
+            lineas: 'completo',
+            motivo: 'compat_sin_estaciones',
+        });
+        return { jobs, huerfanasSinDestino: [], todoOmitido: false };
+    }
     for (const d of destinos) {
         if (d.es_cocina_maestra) {
             jobs.push({ destinoKey: d.key, lineas: 'completo', motivo: 'maestra' });
@@ -97,14 +107,7 @@ function planificarJobsComanda(lineas, destinos) {
             }
             continue;
         }
-        // Sin reglas: solo si no hay esquema maestra/estación (compat).
-        if (!hayMaestra && !hayEstaciones) {
-            jobs.push({
-                destinoKey: d.key,
-                lineas: 'completo',
-                motivo: 'compat_sin_estaciones',
-            });
-        }
+        // Sin reglas, con maestra/estaciones: no recibe el ticket completo.
     }
     const huerfanas = hayEstaciones && !hayMaestra
         ? lineasHuerfanasEstaciones(lineas, estaciones)

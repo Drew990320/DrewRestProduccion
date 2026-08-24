@@ -152,9 +152,9 @@ p{line-height:1.45;color:#334;max-width:28rem;margin:12px auto}
         const webDirect = `http://${ip}:${webPort}`;
         const webCamera = `${webDirect}/abrir-web`;
         const apkDirect = `${apiDirect}/descargar-app`;
-        const apkCamera = `http://${ip}.nip.io:${apiPort}/descargar-app`;
+        const apkCamera = apkDirect;
         const vincularDirect = `${apiDirect}/vincular?api=${encodeURIComponent(apiDirect)}`;
-        const vincularCamera = `http://${ip}.nip.io:${apiPort}/vincular?api=${encodeURIComponent(apiDirect)}`;
+        const vincularCamera = vincularDirect;
         const html = `<!DOCTYPE html>
 <html lang="es"><head>
 <meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>

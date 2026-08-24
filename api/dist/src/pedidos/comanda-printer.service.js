@@ -37,7 +37,7 @@ const windows_printer_status_1 = require("./windows-printer-status");
 const DEFAULT_CHARS = 32;
 const MAX_PRINT_RETRIES = 2;
 const DEFAULT_BURST_WINDOW_MS = 5_000;
-const DEFAULT_INTER_JOB_DELAY_MS = 200;
+const DEFAULT_INTER_JOB_DELAY_MS = 1500;
 function bufferPulsoCajon() {
     return Buffer.concat([
         Buffer.from([0x1b, 0x70, 0x00, 0x19, 0x64]),
@@ -231,13 +231,6 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
         recent.push(now);
         this.encoladosRecientes.set(destinoKey, recent);
     }
-    hayRafagaActiva(destinoKey) {
-        const now = Date.now();
-        const windowMs = this.burstWindowMs();
-        const recent = (this.encoladosRecientes.get(destinoKey) ?? []).filter((t) => now - t <= windowMs);
-        this.encoladosRecientes.set(destinoKey, recent);
-        return recent.length >= 2;
-    }
     sleep(ms) {
         return new Promise((resolve) => setTimeout(resolve, ms));
     }
@@ -273,14 +266,21 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
             return false;
         if (r.codigo_error === 'sin_papel' ||
             r.codigo_error === 'papel_bajo' ||
-            r.codigo_error === 'sin_impresora_configurada') {
+            r.codigo_error === 'sin_impresora_configurada' ||
+            r.codigo_error === 'envio_incierto') {
             return false;
         }
         const err = (r.error ?? '').toLowerCase();
-        if (/timeout|etimedout|aborted|exceeded|hang|timed out/.test(err)) {
+        if (/timeout|etimedout|aborted|exceeded|hang|timed out|econnreset|epipe|econnaborted|broken pipe|reset by peer/.test(err)) {
             return false;
         }
-        return true;
+        return /econnrefused|enotfound|ehostunreach|enotconn|could not open|no se pudo abrir|openprinter|impresora no encontrada|access is denied/.test(err);
+    }
+    falloPudoHaberImpreso(r) {
+        if (r.impreso)
+            return false;
+        const err = (r.error ?? '').toLowerCase();
+        return /timeout|etimedout|aborted|econnreset|epipe|econnaborted|broken pipe|reset by peer/.test(err);
     }
     encolarEnDestino(destino, job, opts = {}) {
         const key = destino.trim().toLowerCase();
@@ -332,11 +332,10 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
             if (ok &&
                 remainingAfter > 0 &&
                 !omitirCooldown &&
-                !this.impresionRapida &&
-                this.hayRafagaActiva(key)) {
+                !this.impresionRapida) {
                 const ms = this.jobCooldownMs();
                 if (ms > 0) {
-                    this.logger.log(`Ticket impreso en ${destino}; pausa ${ms}ms (ráfaga, ${remainingAfter} en cola)`);
+                    this.logger.log(`Ticket impreso en ${destino}; pausa ${ms}ms (${remainingAfter} en cola)`);
                     await this.sleep(ms);
                 }
             }
@@ -535,6 +534,9 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
                 if (!result.impreso) {
                     if (result.error)
                         errors.push(result.error);
+                    if (this.falloPudoHaberImpreso(result)) {
+                        return result;
+                    }
                     continue;
                 }
                 if (!conCopia)
@@ -640,6 +642,9 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
                 return result;
             if (result.error)
                 errors.push(result.error);
+            if (this.falloPudoHaberImpreso(result)) {
+                return result;
+            }
         }
         return {
             impreso: false,
@@ -852,10 +857,11 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
                     }
                     port.drain((drainErr) => {
                         port.close(() => {
-                            if (drainErr)
-                                reject(drainErr);
-                            else
+                            if (drainErr) {
                                 resolve();
+                                return;
+                            }
+                            resolve();
                         });
                     });
                 });

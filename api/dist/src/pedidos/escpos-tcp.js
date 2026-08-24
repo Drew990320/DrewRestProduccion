@@ -44,6 +44,7 @@ async function sendEscPosTcp(host, port, buffer, timeoutMs = 8_000) {
     await new Promise((resolve, reject) => {
         const socket = new node_net_1.default.Socket();
         let settled = false;
+        let wrote = false;
         const finish = (err) => {
             if (settled)
                 return;
@@ -55,14 +56,25 @@ async function sendEscPosTcp(host, port, buffer, timeoutMs = 8_000) {
                 resolve();
         };
         socket.setTimeout(timeoutMs);
-        socket.once('timeout', () => finish(new Error(`Timeout al imprimir en ${host}:${port}`)));
-        socket.once('error', (e) => finish(e instanceof Error ? e : new Error(String(e))));
+        socket.once('timeout', () => {
+            if (wrote)
+                finish();
+            else
+                finish(new Error(`Timeout al imprimir en ${host}:${port}`));
+        });
+        socket.once('error', (e) => {
+            if (wrote)
+                finish();
+            else
+                finish(e instanceof Error ? e : new Error(String(e)));
+        });
         socket.connect(port, host, () => {
             socket.write(buffer, (writeErr) => {
                 if (writeErr) {
                     finish(writeErr);
                     return;
                 }
+                wrote = true;
                 socket.end(() => finish());
             });
         });

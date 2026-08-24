@@ -336,9 +336,9 @@ function sendConectar(res) {
   /** Misma máquina web: IP + /abrir-web (sin nip.io). */
   const webCamera = `http://${ip}:${webPort}/abrir-web`;
   const apkDirect = `${apiDirect}/descargar-app`;
-  const apkCamera = `http://${ip}.nip.io:${apiPort}/descargar-app`;
+  const apkCamera = apkDirect;
   const vincularDirect = `${apiDirect}/vincular?api=${encodeURIComponent(apiDirect)}`;
-  const vincularCamera = `http://${ip}.nip.io:${apiPort}/vincular?api=${encodeURIComponent(apiDirect)}`;
+  const vincularCamera = vincularDirect;
   const html = `<!DOCTYPE html>
 <html lang="es"><head>
 <meta charset="utf-8"/>
