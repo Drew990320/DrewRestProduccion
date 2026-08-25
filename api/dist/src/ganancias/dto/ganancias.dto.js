@@ -172,6 +172,7 @@ class UpsertGastoExtraDto {
     monto;
     fecha;
     notas;
+    usa_fondo;
 }
 exports.UpsertGastoExtraDto = UpsertGastoExtraDto;
 __decorate([
@@ -198,11 +199,18 @@ __decorate([
     (0, class_validator_1.MaxLength)(500),
     __metadata("design:type", Object)
 ], UpsertGastoExtraDto.prototype, "notas", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], UpsertGastoExtraDto.prototype, "usa_fondo", void 0);
 class PatchGastoExtraDto {
     nombre;
     monto;
     fecha;
     notas;
+    usa_fondo;
+    pagado_fondo;
 }
 exports.PatchGastoExtraDto = PatchGastoExtraDto;
 __decorate([
@@ -232,6 +240,16 @@ __decorate([
     (0, class_validator_1.MaxLength)(500),
     __metadata("design:type", Object)
 ], PatchGastoExtraDto.prototype, "notas", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], PatchGastoExtraDto.prototype, "usa_fondo", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], PatchGastoExtraDto.prototype, "pagado_fondo", void 0);
 class PatchProductoCostoDto {
     precio_costo;
 }

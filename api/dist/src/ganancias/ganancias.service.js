@@ -555,6 +555,7 @@ let GananciasService = class GananciasService {
         return this.listarCuotasDia(ymd, tenantId);
     }
     async listarGastosExtras(opts, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
+        await this.asegurarColumnasExtraFondo();
         const rango = this.resolverRango({
             periodo: 'personalizado',
             fecha_desde: opts.fecha_desde,
@@ -567,16 +568,36 @@ let GananciasService = class GananciasService {
             },
             orderBy: [{ fecha: 'desc' }, { idGastoExtra: 'desc' }],
         });
-        return rows.map((r) => ({
+        return rows.map((r) => this.mapExtra(r));
+    }
+    extraFondoAsegurado = false;
+    async asegurarColumnasExtraFondo() {
+        if (this.extraFondoAsegurado)
+            return;
+        try {
+            await this.prisma.$executeRawUnsafe(`ALTER TABLE "gasto_extra_ganancia" ADD COLUMN IF NOT EXISTS "usa_fondo" BOOLEAN NOT NULL DEFAULT false`);
+            await this.prisma.$executeRawUnsafe(`ALTER TABLE "gasto_extra_ganancia" ADD COLUMN IF NOT EXISTS "pagado_fondo" BOOLEAN NOT NULL DEFAULT true`);
+            this.extraFondoAsegurado = true;
+        }
+        catch {
+        }
+    }
+    mapExtra(r) {
+        const usa = Boolean(r.usaFondo);
+        return {
             id_gasto_extra: r.idGastoExtra,
             nombre: r.nombre,
             monto: Math.round(Number(r.monto)),
             fecha: luxon_1.DateTime.fromJSDate(r.fecha).toUTC().toFormat('yyyy-LL-dd'),
             notas: r.notas,
-        }));
+            usa_fondo: usa,
+            pagado_fondo: r.pagadoFondo !== false,
+        };
     }
     async crearGastoExtra(dto, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
+        await this.asegurarColumnasExtraFondo();
         const fecha = this.parseFechaYmd(dto.fecha, 'fecha');
+        const usaFondo = dto.usa_fondo === true;
         const row = await this.prisma.gastoExtraGanancia.create({
             data: {
                 idRestaurante: tenantId,
@@ -584,15 +605,11 @@ let GananciasService = class GananciasService {
                 monto: Math.round(dto.monto),
                 fecha: fecha.toJSDate(),
                 notas: dto.notas?.trim() || null,
+                usaFondo,
+                pagadoFondo: !usaFondo,
             },
         });
-        return {
-            id_gasto_extra: row.idGastoExtra,
-            nombre: row.nombre,
-            monto: Math.round(Number(row.monto)),
-            fecha: fecha.toFormat('yyyy-LL-dd'),
-            notas: row.notas,
-        };
+        return this.mapExtra(row);
     }
     async actualizarGastoExtra(id, dto, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
         const existing = await this.prisma.gastoExtraGanancia.findFirst({
@@ -600,6 +617,7 @@ let GananciasService = class GananciasService {
         });
         if (!existing)
             throw new common_1.NotFoundException('Gasto extra no encontrado');
+        await this.asegurarColumnasExtraFondo();
         const fecha = dto.fecha
             ? this.parseFechaYmd(dto.fecha, 'fecha').toJSDate()
             : undefined;
@@ -612,15 +630,11 @@ let GananciasService = class GananciasService {
                 ...(dto.notas !== undefined
                     ? { notas: dto.notas?.trim() || null }
                     : {}),
+                ...(dto.usa_fondo != null ? { usaFondo: dto.usa_fondo } : {}),
+                ...(dto.pagado_fondo != null ? { pagadoFondo: dto.pagado_fondo } : {}),
             },
         });
-        return {
-            id_gasto_extra: row.idGastoExtra,
-            nombre: row.nombre,
-            monto: Math.round(Number(row.monto)),
-            fecha: luxon_1.DateTime.fromJSDate(row.fecha).toUTC().toFormat('yyyy-LL-dd'),
-            notas: row.notas,
-        };
+        return this.mapExtra(row);
     }
     async eliminarGastoExtra(id, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
         const existing = await this.prisma.gastoExtraGanancia.findFirst({
@@ -765,13 +779,7 @@ let GananciasService = class GananciasService {
             fecha: luxon_1.DateTime.fromJSDate(c.fecha).toUTC().toFormat('yyyy-LL-dd'),
             estado: c.estado,
         })), rango.fecha_desde, rango.fecha_hasta);
-        const gastos_extras_detalle = extras.map((e) => ({
-            id_gasto_extra: e.idGastoExtra,
-            nombre: e.nombre,
-            monto: Math.round(Number(e.monto)),
-            fecha: luxon_1.DateTime.fromJSDate(e.fecha).toUTC().toFormat('yyyy-LL-dd'),
-            notas: e.notas,
-        }));
+        const gastos_extras_detalle = extras.map((e) => this.mapExtra(e));
         const gastos_extras = gastos_extras_detalle.reduce((s, e) => s + e.monto, 0);
         const pagos_meseros = pagosMeseroRows.map((r) => ({
             id_registro: r.idRegistro,
