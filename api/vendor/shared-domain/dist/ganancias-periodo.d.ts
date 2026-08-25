@@ -18,18 +18,23 @@ export type GastoFijoProrrateado = Readonly<{
     monto_periodo: number;
 }>;
 declare function ymd(y: number, m: number, d: number): string;
+export declare function ymdInclusiveList(desde: string, hasta: string): string[];
 /**
  * Prorratea gastos fijos mensuales día a día en el rango [desde, hasta].
  * Cada día aporta monto_mensual / días_del_mes.
  */
 export type ModoRegistroFondoGanancia = 'automatico' | 'confirmar';
 export type EstadoCuotaFondoGanancia = 'aplicada' | 'omitida';
+export type PeriodicidadGasto = 'mensual' | 'diario';
+export declare function parsePeriodicidadGasto(raw: string | null | undefined, fallback: PeriodicidadGasto): PeriodicidadGasto;
 export type GastoFijoConFondo = Readonly<{
     id: number;
     nombre: string;
     monto_mensual: number;
     usa_fondo_diario: boolean;
     cuota_diaria: number | null;
+    periodicidad?: PeriodicidadGasto;
+    modo_registro_fondo?: ModoRegistroFondoGanancia;
 }>;
 export type CuotaFondoAplicadaLike = Readonly<{
     id_gasto_fijo: number;
@@ -45,9 +50,18 @@ export type GastoFijoPeriodoDetalle = Readonly<{
     usa_fondo_diario: boolean;
     cuota_diaria: number | null;
     acumulado_mes: number;
+    periodicidad?: PeriodicidadGasto;
 }>;
 /** Cuota sugerida: monto mensual / 30, en pesos enteros. */
 export declare function cuotaDiariaSugerida(montoMensual: number): number;
+/** El UI envía el monto del chip (mes o día); en BD el mensual sirve de tope/meta. */
+export declare function persistenciaMontoFijo(input: {
+    periodicidad: PeriodicidadGasto;
+    monto_ingresado: number;
+}): {
+    monto_mensual: number;
+    monto_diario: number;
+};
 export declare function topeFondoAlcanzado(acumuladoMes: number, montoMensual: number): boolean;
 /** Lo que queda en el sobre: cuotas aplicadas − pagos ya hechos con el fondo. */
 export declare function disponibleFondo(acumulado: number, pagado: number): number;
@@ -74,10 +88,37 @@ export declare function debeAutoAplicarCuota(input: {
     estado_hoy: EstadoCuotaFondoGanancia | 'pendiente' | null;
     acumulado_mes: number;
     monto_mensual: number;
+    periodicidad?: PeriodicidadGasto;
+}): boolean;
+export declare function parseModoRegistroFondo(raw: string | null | undefined): ModoRegistroFondoGanancia;
+/** Fondo, o diario en modo “puede variar”: hay que registrar (o saltar) el día. */
+export declare function gastoFijoUsaRegistroDiario(g: {
+    usa_fondo_diario?: boolean;
+    periodicidad?: PeriodicidadGasto | string | null;
+    modo_registro_fondo?: ModoRegistroFondoGanancia | string | null;
+}): boolean;
+export declare function montoDiarioFijo(g: {
+    monto_mensual: number;
+    cuota_diaria?: number | null;
+}): number;
+/** Extra diario: cuenta el día. Extra mensual: prorratea el mes de `fecha` en el rango. */
+export declare function montoExtraEnPeriodo(input: {
+    monto: number;
+    fecha: string;
+    periodicidad?: PeriodicidadGasto | string | null;
+    fecha_desde: string;
+    fecha_hasta: string;
+}): number;
+export declare function extraAplicaEnPeriodo(input: {
+    fecha: string;
+    periodicidad?: PeriodicidadGasto | string | null;
+    fecha_desde: string;
+    fecha_hasta: string;
 }): boolean;
 /**
- * Gastos sin fondo: prorrateo mensual.
- * Gastos con fondo: solo cuotas aplicadas del periodo (sin doble conteo).
+ * Mensual sin fondo: prorrateo.
+ * Diario cuota fija sin fondo: monto × días del rango.
+ * Fondo o diario “puede variar”: solo días registrados/aplicados.
  */
 export declare function armarGastosFijosPeriodo(gastos: readonly GastoFijoConFondo[], cuotasAplicadas: readonly CuotaFondoAplicadaLike[], fechaDesdeYmd: string, fechaHastaYmd: string): {
     total: number;

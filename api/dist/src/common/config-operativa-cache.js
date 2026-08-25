@@ -3,7 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.getCachedConfigOperativaRow = getCachedConfigOperativaRow;
 exports.setCachedConfigOperativaRow = setCachedConfigOperativaRow;
 exports.invalidateConfigOperativaCache = invalidateConfigOperativaCache;
-const TTL_MS = 60_000;
+const TTL_MS = 300_000;
 const cache = new Map();
 function getCachedConfigOperativaRow(tenantId) {
     const entry = cache.get(tenantId);

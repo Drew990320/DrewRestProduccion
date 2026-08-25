@@ -3,7 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.getCachedMenuHoy = getCachedMenuHoy;
 exports.setCachedMenuHoy = setCachedMenuHoy;
 exports.invalidateMenuHoyCache = invalidateMenuHoyCache;
-const TTL_MS = 60_000;
+const TTL_MS = 180_000;
 let cache = null;
 function getCachedMenuHoy(key) {
     if (!cache || cache.expiresAt <= Date.now()) {

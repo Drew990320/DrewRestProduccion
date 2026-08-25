@@ -122,16 +122,37 @@ let MesasService = class MesasService {
         const ocupadasIds = mesas
             .filter((m) => m.estado === 'ocupada')
             .map((m) => m.idMesa);
-        const pedidosActivos = ocupadasIds.length > 0
-            ? await this.prisma.pedido.findMany({
+        const [pedidosActivos, anexasActivas] = await Promise.all([
+            ocupadasIds.length > 0
+                ? this.prisma.pedido.findMany({
+                    where: {
+                        idMesa: { in: ocupadasIds },
+                        estado: { in: ['abierto', 'en_cocina'] },
+                    },
+                    select: {
+                        idMesa: true,
+                        usuario: {
+                            select: {
+                                nombre: true,
+                                apellido: true,
+                                rol: { select: { nombre: true } },
+                            },
+                        },
+                    },
+                    orderBy: { idPedido: 'desc' },
+                })
+                : Promise.resolve([]),
+            this.prisma.pedidoMesaAnexa.findMany({
                 where: {
-                    idMesa: { in: ocupadasIds },
-                    estado: { in: ['abierto', 'en_cocina'] },
+                    pedido: { estado: { in: [...PEDIDOS_ABIERTOS] } },
+                    mesa: { idRestaurante: tenantId },
                 },
-                include: { usuario: { include: { rol: true } } },
-                orderBy: { idPedido: 'desc' },
-            })
-            : [];
+                include: {
+                    mesa: { select: { idMesa: true, numero: true } },
+                    pedido: { include: { mesa: { select: { idMesa: true, numero: true } } } },
+                },
+            }),
+        ]);
         const meseroPorMesa = new Map();
         for (const p of pedidosActivos) {
             if (!meseroPorMesa.has(p.idMesa)) {
@@ -140,16 +161,6 @@ let MesasService = class MesasService {
                 });
             }
         }
-        const anexasActivas = await this.prisma.pedidoMesaAnexa.findMany({
-            where: {
-                pedido: { estado: { in: [...PEDIDOS_ABIERTOS] } },
-                mesa: { idRestaurante: tenantId },
-            },
-            include: {
-                mesa: { select: { idMesa: true, numero: true } },
-                pedido: { include: { mesa: { select: { idMesa: true, numero: true } } } },
-            },
-        });
         const anexasPorMesaPrincipal = new Map();
         const pedidoPrincipalPorAnexa = new Map();
         for (const row of anexasActivas) {

@@ -406,17 +406,17 @@ let ImpresorasPosService = ImpresorasPosService_1 = class ImpresorasPosService {
         }
         else if (!esperada) {
             mensaje = idn.mac
-                ? `IP activa. MAC vista: ${idn.mac}. Vincula esa MAC para reubicar el ticket si cambia la IP.`
-                : 'IP responde, pero Windows aún no tiene la MAC en ARP. Reintenta en unos segundos.';
+                ? `IP activa. MAC vista: ${idn.mac}.`
+                : 'IP responde, pero Windows aún no tiene la MAC en ARP.';
         }
         else if (!idn.mac) {
-            mensaje = `Hay MAC guardada (${esperada}) pero no se leyó en ${red.host}. Al imprimir se buscará en la red y se mandará igual.`;
+            mensaje = `Hay MAC guardada (${esperada}) pero no se leyó en ${red.host}. La impresión usa la IP configurada.`;
         }
         else if (coinciden) {
             mensaje = `OK: ${red.host} es ${row.nombre} (${esperada}).`;
         }
         else {
-            mensaje = `IP cruzada: ${red.host} responde con MAC ${idn.mac}, no ${esperada} (${row.nombre}). Al imprimir se busca la MAC anclada y no se corta la comanda.`;
+            mensaje = `La IP ${red.host} responde con MAC ${idn.mac}, no ${esperada} (${row.nombre}). Corrige la IP en Impresoras POS. La impresión no busca por MAC.`;
         }
         return {
             tipo: 'tcp',
@@ -446,92 +446,6 @@ let ImpresorasPosService = ImpresorasPosService_1 = class ImpresorasPosService {
             throw new common_1.BadRequestException(`No se leyó la MAC de ${red.host}. Enciende la impresora y vuelve a intentar.`);
         }
         return this.actualizar(id, { mac_esperada: mac }, tenantId);
-    }
-    async resolverDestinoRedParaImprimir(destino) {
-        const red = (0, escpos_tcp_1.parseDestinoTcp)(destino);
-        if (!red)
-            return null;
-        const row = await this.prisma.impresoraPos.findFirst({
-            where: { destino: destino.trim() },
-            select: {
-                idImpresora: true,
-                idRestaurante: true,
-                nombre: true,
-                macEsperada: true,
-                destino: true,
-            },
-        });
-        if (!row?.macEsperada) {
-            return { host: red.host, port: red.port, destino, aviso: null };
-        }
-        const idn = await (0, impresora_arp_1.resolverIdentidadLan)(red.host, red.port);
-        if (idn.mac && (0, impresora_mac_1.macsIguales)(idn.mac, row.macEsperada)) {
-            return { host: red.host, port: red.port, destino, aviso: null };
-        }
-        const otras = await this.prisma.impresoraPos.findMany({
-            where: { macEsperada: { not: null } },
-            select: { destino: true },
-        });
-        const hosts = otras
-            .map((r) => (0, escpos_tcp_1.parseDestinoTcp)(r.destino))
-            .filter((x) => x != null)
-            .map((x) => ({ host: x.host, port: x.port }));
-        await (0, impresora_arp_1.tocarHosts)(hosts);
-        const found = await (0, impresora_arp_1.buscarHostPorMac)(row.macEsperada);
-        if (found && found !== red.host) {
-            const nuevo = red.port === 9100 ? `tcp:${found}` : `tcp:${found}:${red.port}`;
-            await this.reasignarDestinoTcp(row, nuevo);
-            return {
-                host: found,
-                port: red.port,
-                destino: nuevo,
-                aviso: `${row.nombre} cambió de ${red.host} a ${found}. Se imprimió en la impresora correcta.`,
-            };
-        }
-        return {
-            host: red.host,
-            port: red.port,
-            destino,
-            aviso: idn.mac && !(0, impresora_mac_1.macsIguales)(idn.mac, row.macEsperada)
-                ? `Posible IP cruzada en ${row.nombre}: se imprimió igual en ${red.host}. Revisa Impresoras POS.`
-                : null,
-        };
-    }
-    async reasignarDestinoTcp(row, nuevoDestino) {
-        if (row.destino === nuevoDestino)
-            return;
-        const occupier = await this.prisma.impresoraPos.findFirst({
-            where: {
-                idRestaurante: row.idRestaurante,
-                destino: nuevoDestino,
-                idImpresora: { not: row.idImpresora },
-            },
-            select: { idImpresora: true },
-        });
-        await this.prisma['$transaction'](async (tx) => {
-            if (occupier) {
-                const temp = `tcp:swap-${row.idImpresora}-${Date.now()}`;
-                await tx.impresoraPos.update({
-                    where: { idImpresora: occupier.idImpresora },
-                    data: { destino: temp },
-                });
-                await tx.impresoraPos.update({
-                    where: { idImpresora: row.idImpresora },
-                    data: { destino: nuevoDestino },
-                });
-                await tx.impresoraPos.update({
-                    where: { idImpresora: occupier.idImpresora },
-                    data: { destino: row.destino },
-                });
-            }
-            else {
-                await tx.impresoraPos.update({
-                    where: { idImpresora: row.idImpresora },
-                    data: { destino: nuevoDestino },
-                });
-            }
-        });
-        (0, destinos_impresora_cache_1.invalidateDestinosImpresoraCache)(row.idRestaurante);
     }
     macDesdeDto(raw, destino) {
         if (raw == null)

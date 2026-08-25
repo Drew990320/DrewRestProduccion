@@ -2894,11 +2894,15 @@ let PedidosService = class PedidosService {
                 throw new common_1.ConflictException(`Ya tienes un pedido en curso (#${activo.idPedido}). Continúalo o envíalo a caja antes de abrir otro.`);
             }
         }
-        const [virtual, opRow, op] = await Promise.all([
-            this.esMesaVirtualNumero(mesa.numero, tenantId),
-            this.obtenerConfigOperativaRow(tenantId),
-            this.ctxOperativa(tenantId),
-        ]);
+        const opRow = await this.obtenerConfigOperativaRow(tenantId);
+        const virtual = await this.esMesaVirtualNumero(mesa.numero, tenantId);
+        const op = {
+            mazorcaActiva: opRow.mazorcaActiva,
+            idProductoMazorca: opRow.idProductoMazorca,
+            precioEmpaque: Math.round(Number(opRow.precioEmpaqueParaLlevar)),
+            prioridadCocinaAutomatica: opRow.prioridadCocinaAutomatica,
+            prioridadCocinaModo: opRow.prioridadCocinaModo,
+        };
         const modoServicio = (0, mesa_label_1.esMesaParaLlevarNumero)(mesa.numero, opRow)
             ? 'para_llevar'
             : 'en_mesa';

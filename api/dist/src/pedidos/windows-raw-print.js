@@ -40,77 +40,7 @@ const fs = __importStar(require("fs"));
 const os = __importStar(require("os"));
 const path = __importStar(require("path"));
 const execFileAsync = (0, util_1.promisify)(child_process_1.execFile);
-const SCRIPT_PATH = path.join(os.tmpdir(), 'drewrest-raw-print-v2.ps1');
-let scriptReady = null;
 let resolvedExe;
-const SCRIPT_BODY = `
-param(
-  [Parameter(Mandatory=$true)][string]$PrinterName,
-  [Parameter(Mandatory=$true)][string]$FilePath
-)
-$ErrorActionPreference = 'Stop'
-$bytes = [System.IO.File]::ReadAllBytes($FilePath)
-if (-not ([System.Management.Automation.PSTypeName]'DrewRestRawPrinter').Type) {
-  Add-Type -TypeDefinition @"
-using System;
-using System.Runtime.InteropServices;
-public class DrewRestRawPrinter {
-  [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-  public struct DOCINFO {
-    [MarshalAs(UnmanagedType.LPWStr)] public string pDocName;
-    [MarshalAs(UnmanagedType.LPWStr)] public string pOutputFile;
-    [MarshalAs(UnmanagedType.LPWStr)] public string pDataType;
-  }
-  [DllImport("winspool.drv", CharSet = CharSet.Unicode, SetLastError = true)]
-  public static extern bool OpenPrinter(string pPrinterName, out IntPtr phPrinter, IntPtr pDefault);
-  [DllImport("winspool.drv", SetLastError = true)]
-  public static extern bool ClosePrinter(IntPtr hPrinter);
-  [DllImport("winspool.drv", CharSet = CharSet.Unicode, SetLastError = true)]
-  public static extern bool StartDocPrinter(IntPtr hPrinter, int Level, ref DOCINFO di);
-  [DllImport("winspool.drv", SetLastError = true)]
-  public static extern bool EndDocPrinter(IntPtr hPrinter);
-  [DllImport("winspool.drv", SetLastError = true)]
-  public static extern bool StartPagePrinter(IntPtr hPrinter);
-  [DllImport("winspool.drv", SetLastError = true)]
-  public static extern bool EndPagePrinter(IntPtr hPrinter);
-  [DllImport("winspool.drv", SetLastError = true)]
-  public static extern bool WritePrinter(IntPtr hPrinter, byte[] pBytes, int dwCount, out int dwWritten);
-  public static bool SendBytes(string printer, byte[] bytes) {
-    IntPtr h;
-    if (!OpenPrinter(printer, out h, IntPtr.Zero)) return false;
-    try {
-      var di = new DOCINFO { pDocName = "DrewRestComanda", pDataType = "RAW" };
-      if (!StartDocPrinter(h, 1, ref di)) return false;
-      try {
-        if (!StartPagePrinter(h)) return false;
-        try {
-          int written;
-          return WritePrinter(h, bytes, bytes.Length, out written);
-        } finally { EndPagePrinter(h); }
-      } finally { EndDocPrinter(h); }
-    } finally { ClosePrinter(h); }
-  }
-}
-"@
-}
-$ok = [DrewRestRawPrinter]::SendBytes($PrinterName, $bytes)
-$err = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
-if (-not $ok) {
-  throw "WritePrinter falló para impresora: $PrinterName (Win32=$err)"
-}
-Write-Output "OK"
-`.trim();
-function ensureScript() {
-    if (!scriptReady) {
-        scriptReady = fs.promises
-            .writeFile(SCRIPT_PATH, SCRIPT_BODY, 'utf8')
-            .catch((e) => {
-            scriptReady = null;
-            throw e;
-        });
-    }
-    return scriptReady;
-}
 function candidateRawPrintExes() {
     const fromEnv = process.env.DREWREST_RAW_PRINT_EXE?.trim();
     const cwd = process.cwd();
@@ -140,48 +70,39 @@ function resolveRawPrintExe() {
     resolvedExe = null;
     return null;
 }
-async function printViaExe(exe, printerName, binPath) {
-    await execFileAsync(exe, [printerName, binPath], {
-        timeout: 10_000,
-        windowsHide: true,
-    });
-}
-async function printViaPowerShell(printerName, binPath) {
-    await ensureScript();
-    await execFileAsync('powershell.exe', [
-        '-NoProfile',
-        '-NonInteractive',
-        '-ExecutionPolicy',
-        'Bypass',
-        '-File',
-        SCRIPT_PATH,
-        '-PrinterName',
-        printerName,
-        '-FilePath',
-        binPath,
-    ], { timeout: 10_000, windowsHide: true });
+function mensajeErrorExe(err) {
+    if (!err || typeof err !== 'object')
+        return String(err);
+    const e = err;
+    const stderr = Buffer.isBuffer(e.stderr)
+        ? e.stderr.toString('utf8')
+        : (e.stderr ?? '').toString();
+    const stdout = Buffer.isBuffer(e.stdout)
+        ? e.stdout.toString('utf8')
+        : (e.stdout ?? '').toString();
+    const detail = (stderr || stdout || e.message || '').trim();
+    if (e.killed || e.code === 'ETIMEDOUT') {
+        return detail
+            ? `Timeout enviando a la impresora: ${detail}`
+            : 'Timeout enviando a la impresora Windows';
+    }
+    return detail || 'No se pudo imprimir (RawPrint)';
 }
 async function printRawWindows(printerName, data) {
+    const exe = resolveRawPrintExe();
+    if (!exe) {
+        throw new Error('Falta DrewRest.RawPrint.exe. Reinstala o actualiza DrewRest; no se usa PowerShell para imprimir.');
+    }
     const binPath = path.join(os.tmpdir(), `drewrest-comanda-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.bin`);
     await fs.promises.writeFile(binPath, data);
     try {
-        const exe = resolveRawPrintExe();
-        if (exe) {
-            try {
-                await printViaExe(exe, printerName, binPath);
-                return;
-            }
-            catch (e) {
-                const msg = e instanceof Error ? e.message : String(e);
-                if (/timeout|etimedout|aborted|exceeded/i.test(msg)) {
-                    throw e instanceof Error
-                        ? e
-                        : new Error(`RawPrint timeout: ${msg}`);
-                }
-                resolvedExe = null;
-            }
-        }
-        await printViaPowerShell(printerName, binPath);
+        await execFileAsync(exe, [printerName, binPath], {
+            timeout: 10_000,
+            windowsHide: true,
+        });
+    }
+    catch (e) {
+        throw new Error(mensajeErrorExe(e));
     }
     finally {
         await fs.promises.unlink(binPath).catch(() => undefined);

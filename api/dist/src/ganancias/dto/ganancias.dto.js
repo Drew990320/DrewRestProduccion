@@ -9,7 +9,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.PatchProductoCostoDto = exports.PatchGastoExtraDto = exports.UpsertGastoExtraDto = exports.RegistrarPagoFondoDto = exports.CuotaDiaGastoDto = exports.CuotaDiaFechaDto = exports.PatchGastoFijoDto = exports.UpsertGastoFijoDto = void 0;
+exports.PatchProductoCostoDto = exports.PatchGastoExtraDto = exports.UpsertGastoExtraDto = exports.RegistrarPagoFondoDto = exports.CuotaDiaGastoDto = exports.CuotaPeriodoDto = exports.CuotaDiaFechaDto = exports.PatchGastoFijoDto = exports.UpsertGastoFijoDto = void 0;
 const class_transformer_1 = require("class-transformer");
 const class_validator_1 = require("class-validator");
 class UpsertGastoFijoDto {
@@ -20,6 +20,7 @@ class UpsertGastoFijoDto {
     usa_fondo_diario;
     cuota_diaria;
     modo_registro_fondo;
+    periodicidad;
 }
 exports.UpsertGastoFijoDto = UpsertGastoFijoDto;
 __decorate([
@@ -62,6 +63,11 @@ __decorate([
     (0, class_validator_1.IsIn)(['automatico', 'confirmar']),
     __metadata("design:type", String)
 ], UpsertGastoFijoDto.prototype, "modo_registro_fondo", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsIn)(['mensual', 'diario']),
+    __metadata("design:type", String)
+], UpsertGastoFijoDto.prototype, "periodicidad", void 0);
 class PatchGastoFijoDto {
     nombre;
     monto_mensual;
@@ -70,6 +76,7 @@ class PatchGastoFijoDto {
     usa_fondo_diario;
     cuota_diaria;
     modo_registro_fondo;
+    periodicidad;
 }
 exports.PatchGastoFijoDto = PatchGastoFijoDto;
 __decorate([
@@ -114,8 +121,15 @@ __decorate([
     (0, class_validator_1.IsIn)(['automatico', 'confirmar']),
     __metadata("design:type", String)
 ], PatchGastoFijoDto.prototype, "modo_registro_fondo", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsIn)(['mensual', 'diario']),
+    __metadata("design:type", String)
+], PatchGastoFijoDto.prototype, "periodicidad", void 0);
 class CuotaDiaFechaDto {
     fecha;
+    fecha_desde;
+    fecha_hasta;
 }
 exports.CuotaDiaFechaDto = CuotaDiaFechaDto;
 __decorate([
@@ -123,9 +137,55 @@ __decorate([
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], CuotaDiaFechaDto.prototype, "fecha", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MinLength)(10),
+    (0, class_validator_1.MaxLength)(10),
+    __metadata("design:type", String)
+], CuotaDiaFechaDto.prototype, "fecha_desde", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MinLength)(10),
+    (0, class_validator_1.MaxLength)(10),
+    __metadata("design:type", String)
+], CuotaDiaFechaDto.prototype, "fecha_hasta", void 0);
+class CuotaPeriodoDto {
+    id_gasto_fijo;
+    fecha_desde;
+    fecha_hasta;
+    monto;
+}
+exports.CuotaPeriodoDto = CuotaPeriodoDto;
+__decorate([
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsNumber)(),
+    __metadata("design:type", Number)
+], CuotaPeriodoDto.prototype, "id_gasto_fijo", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MinLength)(10),
+    (0, class_validator_1.MaxLength)(10),
+    __metadata("design:type", String)
+], CuotaPeriodoDto.prototype, "fecha_desde", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MinLength)(10),
+    (0, class_validator_1.MaxLength)(10),
+    __metadata("design:type", String)
+], CuotaPeriodoDto.prototype, "fecha_hasta", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.Min)(1),
+    __metadata("design:type", Number)
+], CuotaPeriodoDto.prototype, "monto", void 0);
 class CuotaDiaGastoDto {
     id_gasto_fijo;
     fecha;
+    monto;
 }
 exports.CuotaDiaGastoDto = CuotaDiaGastoDto;
 __decorate([
@@ -138,6 +198,13 @@ __decorate([
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], CuotaDiaGastoDto.prototype, "fecha", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.Min)(1),
+    __metadata("design:type", Number)
+], CuotaDiaGastoDto.prototype, "monto", void 0);
 class RegistrarPagoFondoDto {
     id_gasto_fijo;
     monto;
@@ -173,6 +240,7 @@ class UpsertGastoExtraDto {
     fecha;
     notas;
     usa_fondo;
+    periodicidad;
 }
 exports.UpsertGastoExtraDto = UpsertGastoExtraDto;
 __decorate([
@@ -204,6 +272,11 @@ __decorate([
     (0, class_validator_1.IsBoolean)(),
     __metadata("design:type", Boolean)
 ], UpsertGastoExtraDto.prototype, "usa_fondo", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsIn)(['mensual', 'diario']),
+    __metadata("design:type", String)
+], UpsertGastoExtraDto.prototype, "periodicidad", void 0);
 class PatchGastoExtraDto {
     nombre;
     monto;
@@ -211,6 +284,7 @@ class PatchGastoExtraDto {
     notas;
     usa_fondo;
     pagado_fondo;
+    periodicidad;
 }
 exports.PatchGastoExtraDto = PatchGastoExtraDto;
 __decorate([
@@ -250,6 +324,11 @@ __decorate([
     (0, class_validator_1.IsBoolean)(),
     __metadata("design:type", Boolean)
 ], PatchGastoExtraDto.prototype, "pagado_fondo", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsIn)(['mensual', 'diario']),
+    __metadata("design:type", String)
+], PatchGastoExtraDto.prototype, "periodicidad", void 0);
 class PatchProductoCostoDto {
     precio_costo;
 }

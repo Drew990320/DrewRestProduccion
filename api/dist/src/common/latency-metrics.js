@@ -7,6 +7,7 @@ exports.trackPrintJobFinished = trackPrintJobFinished;
 exports.trackPrintRetry = trackPrintRetry;
 exports.countPendingPrintJobs = countPendingPrintJobs;
 exports.snapshotRendimiento = snapshotRendimiento;
+const print_destino_health_1 = require("../pedidos/print-destino-health");
 const MAX_SAMPLES = 200;
 const MAX_PRINT_HISTORY = 100;
 const routes = new Map();
@@ -128,6 +129,7 @@ function snapshotRendimiento(extra) {
             avg_cola_a_envio_ms: printQueueToSentCount
                 ? Math.round(printTotalQueueToSentMs / printQueueToSentCount)
                 : null,
+            destinos: (0, print_destino_health_1.snapshotPrintDestinoHealth)(),
             activas: [...printActive.values()].map((j) => ({
                 job_id: j.jobId,
                 destino: j.destino,

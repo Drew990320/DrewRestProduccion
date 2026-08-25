@@ -89,7 +89,7 @@ function buildGananciasPdf(data) {
             .fillColor(MUTED)
             .fontSize(10)
             .font('Helvetica-Bold')
-            .text('GANANCIA NETA', left + 16, y + 12);
+            .text('DESPUÉS DE GASTOS', left + 16, y + 12);
         doc
             .fillColor(netaColor)
             .fontSize(22)
@@ -136,11 +136,12 @@ function buildGananciasPdf(data) {
                 kv('  Otros', cop(vm.otros));
         }
         kv('Costo de ventas', cop(r.costo_ventas));
-        kv('Ganancia bruta', `${cop(r.ganancia_bruta)}${r.margen_bruto_pct != null ? ` (${r.margen_bruto_pct}%)` : ''}`, true);
-        kv('Gastos fijos', cop(r.gastos_fijos));
+        kv('Ganancia neta (después de costo)', `${cop(r.ganancia_bruta)}${r.margen_bruto_pct != null ? ` (${r.margen_bruto_pct}%)` : ''}`, true);
+        kv('Gastos fijos / fondo', cop(r.gastos_fijos));
         kv('Gastos extras', cop(r.gastos_extras));
         kv('Pagos a meseros', cop(r.gastos_meseros ?? 0));
-        kv('Total gastos', cop(r.gastos_total), true);
+        kv('Total gastos (de la neta)', cop(r.gastos_total), true);
+        kv('Después de gastos', `${cop(r.ganancia_neta)}${r.margen_neto_pct != null ? ` (${r.margen_neto_pct}%)` : ''}`, true);
         kv('Unidades vendidas', String(r.unidades_vendidas));
         y += 8;
         if (r.productos_sin_costo > 0) {
@@ -172,7 +173,7 @@ function buildGananciasPdf(data) {
         y = drawTableSection(doc, 'Gastos extras', ['Fecha', 'Concepto', 'Monto'], data.gastos_extras.map((g) => [
             formatFechaEs(g.fecha),
             g.nombre,
-            cop(g.monto),
+            cop(g.monto_en_periodo ?? g.monto),
         ]), [0.22, 0.53, 0.25], left, contentW, y, data.gastos_extras.length === 0 ? 'Ninguno' : undefined);
         y = drawTableSection(doc, 'Pagos a meseros', ['Fecha', 'Mesero', 'Monto'], (data.pagos_meseros ?? []).map((g) => [
             formatFechaEs(g.fecha),

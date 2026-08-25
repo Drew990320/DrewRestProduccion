@@ -34,6 +34,7 @@ const serialport_loader_1 = require("./serialport-loader");
 const pedidos_gateway_1 = require("./pedidos.gateway");
 const windows_raw_print_1 = require("./windows-raw-print");
 const windows_printer_status_1 = require("./windows-printer-status");
+const print_destino_health_1 = require("./print-destino-health");
 const DEFAULT_CHARS = 32;
 const MAX_PRINT_RETRIES = 2;
 const DEFAULT_BURST_WINDOW_MS = 5_000;
@@ -331,7 +332,9 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
             const nextTipo = colaTipos[0];
             this.tiposPendientesPorDestino.set(key, colaTipos);
             const remainingAfter = (this.trabajosPorDestino.get(key) ?? 1) - 1;
-            const omitirCooldown = skipCooldownAfter || nextTipo === 'cajon';
+            const omitirCooldown = skipCooldownAfter ||
+                nextTipo === 'cajon' ||
+                (0, escpos_tcp_1.parseDestinoTcp)(destino) != null;
             if (ok &&
                 remainingAfter > 0 &&
                 !omitirCooldown &&
@@ -630,6 +633,10 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
         }
         const errors = [];
         for (const destino of destinos) {
+            if ((0, print_destino_health_1.destinoPrintCaido)(destino.destino).caido) {
+                errors.push(`${destino.destino}: circuito abierto (impresora no responde)`);
+                continue;
+            }
             let buffer;
             try {
                 buffer = await build(this.layoutOptsForDestino(destino));
@@ -672,6 +679,12 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
         const errors = [];
         const chequearPapelPrevio = !opts.ignorarSensorPapel && this.paperCheckAntesDeEnviar();
         for (const target of targets) {
+            const circuito = (0, print_destino_health_1.destinoPrintCaido)(target);
+            if (circuito.caido) {
+                (0, print_destino_health_1.registrarFailFastDestino)();
+                errors.push(`${target}: circuito abierto (${circuito.reason ?? 'offline'})`);
+                continue;
+            }
             if (chequearPapelPrevio) {
                 const papel = await this.consultarPapel(target, baudRate);
                 if (papel?.sinPapel) {
@@ -685,6 +698,7 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
             }
             try {
                 await this.sendBuffer(target, buffer, baudRate);
+                (0, print_destino_health_1.marcarDestinoOk)(target);
                 this.logger.log(`${tipo} impresa vía ${target}`);
                 this.scheduleTakeReminder(target, baudRate, tipo);
                 return { impreso: true, destino: target };
@@ -693,7 +707,12 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
                 const msg = e instanceof Error ? e.message : String(e);
                 errors.push(`${target}: ${msg}`);
                 this.logger.warn(`Impresión ${tipo} falló (${target}): ${msg}`);
-                if (!opts.ignorarSensorPapel && (0, escpos_tcp_1.parseDestinoTcp)(target)) {
+                if ((0, print_destino_health_1.esFalloDestinoCaido)(msg)) {
+                    (0, print_destino_health_1.marcarDestinoCaido)(target, msg);
+                }
+                if (!opts.ignorarSensorPapel &&
+                    (0, escpos_tcp_1.parseDestinoTcp)(target) &&
+                    !(0, print_destino_health_1.esFalloDestinoCaido)(msg)) {
                     try {
                         const trasFallo = await this.consultarPapel(target, baudRate);
                         if (trasFallo?.sinPapel) {
@@ -815,13 +834,7 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
         }
         const red = (0, escpos_tcp_1.parseDestinoTcp)(target);
         if (red) {
-            const resuelto = await this.impresorasPos.resolverDestinoRedParaImprimir(target);
-            const host = resuelto?.host ?? red.host;
-            const port = resuelto?.port ?? red.port;
-            await (0, escpos_tcp_1.sendEscPosTcp)(host, port, buffer);
-            if (resuelto?.aviso) {
-                this.logger.warn(resuelto.aviso);
-            }
+            await (0, escpos_tcp_1.sendEscPosTcp)(red.host, red.port, buffer);
             return;
         }
         const comPath = this.normalizeComPath(target);

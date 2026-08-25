@@ -41,7 +41,12 @@ function datasourceUrl() {
 let PrismaService = class PrismaService extends client_1.PrismaClient {
     constructor() {
         const url = datasourceUrl();
-        super(url ? { datasources: { db: { url } } } : undefined);
+        super(url
+            ? {
+                datasources: { db: { url } },
+                log: process.env.PRISMA_LOG === '1' ? ['query', 'warn'] : ['warn'],
+            }
+            : { log: process.env.PRISMA_LOG === '1' ? ['query', 'warn'] : ['warn'] });
     }
     async onModuleInit() {
         await this.$connect();

@@ -41,7 +41,14 @@ function structuredRequestLogger() {
                 ip: req.ip,
             };
             const line = `${JSON.stringify(entry)}\n`;
-            process.stdout.write(line);
+            const path = req.originalUrl ?? req.url ?? '';
+            const isHealth = path.includes('/health') || path.includes('/ping');
+            const skipStdout = isHealth || (req.method === 'GET' && res.statusCode < 400);
+            if (!skipStdout) {
+                process.stdout.write(line);
+            }
+            if (isHealth)
+                return;
             const file = logFilePath();
             if (file && dirReady) {
                 void dirReady

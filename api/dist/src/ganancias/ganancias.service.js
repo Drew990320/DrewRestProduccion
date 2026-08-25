@@ -87,6 +87,22 @@ let GananciasService = class GananciasService {
         const ymd = fecha?.trim() || this.hoyYmd();
         return { ymd, fechaOnly: this.fechaOnlyFromYmd(ymd) };
     }
+    resolverRangoCuotas(fechaDesde, fechaHasta) {
+        const desde = fechaDesde?.trim() || this.hoyYmd();
+        const hasta = fechaHasta?.trim() || desde;
+        const dias = (0, ganancias_periodo_1.ymdInclusiveList)(desde, hasta);
+        if (!dias.length) {
+            throw new common_1.BadRequestException('Rango de fechas inválido (YYYY-MM-DD)');
+        }
+        if (dias.length > 366) {
+            throw new common_1.BadRequestException('El rango no puede superar 366 días');
+        }
+        return {
+            fecha_desde: dias[0],
+            fecha_hasta: dias[dias.length - 1],
+            dias,
+        };
+    }
     mapPagoFondo(p) {
         return {
             id_pago_fondo: p.idPagoFondo,
@@ -109,6 +125,7 @@ let GananciasService = class GananciasService {
             usa_fondo_diario: r.usaFondoDiario,
             cuota_diaria: r.cuotaDiaria != null ? Math.round(Number(r.cuotaDiaria)) : null,
             modo_registro_fondo: r.modoRegistroFondo,
+            periodicidad: (0, ganancias_periodo_1.parsePeriodicidadGasto)(r.periodicidad, 'mensual'),
             acumulado_mes,
             acumulado_fondo,
             pagado_fondo,
@@ -204,6 +221,59 @@ let GananciasService = class GananciasService {
         }
         return { acumulado, acumuladoMes, pagado, pagadoMes, pagosMes };
     }
+    columnasPeriodicidadOk = false;
+    async asegurarColumnasPeriodicidad() {
+        if (this.columnasPeriodicidadOk)
+            return;
+        try {
+            await this.prisma.$executeRawUnsafe(`ALTER TABLE "gasto_fijo_ganancia" ADD COLUMN IF NOT EXISTS "periodicidad" VARCHAR(16) NOT NULL DEFAULT 'mensual'`);
+            await this.prisma.$executeRawUnsafe(`ALTER TABLE "gasto_extra_ganancia" ADD COLUMN IF NOT EXISTS "periodicidad" VARCHAR(16) NOT NULL DEFAULT 'diario'`);
+            this.columnasPeriodicidadOk = true;
+        }
+        catch {
+        }
+    }
+    ventanaConsultaExtras(fechaDesde, fechaHasta) {
+        const desdeMes = this.parseFechaYmd(fechaDesde, 'fecha_desde').startOf('month');
+        const hastaMes = this.parseFechaYmd(fechaHasta, 'fecha_hasta').endOf('month');
+        return {
+            startDateOnly: this.fechaOnlyFromYmd(desdeMes.toFormat('yyyy-LL-dd')),
+            endDateOnly: this.fechaOnlyFromYmd(hastaMes.toFormat('yyyy-LL-dd')),
+        };
+    }
+    montosFijoPersistidos(dto, existing) {
+        const per = (0, ganancias_periodo_1.parsePeriodicidadGasto)(dto.periodicidad, (0, ganancias_periodo_1.parsePeriodicidadGasto)(existing?.periodicidad, 'mensual'));
+        let ingresado = dto.monto_mensual != null ? Math.round(dto.monto_mensual) : null;
+        if (ingresado == null && existing && dto.periodicidad) {
+            const prev = (0, ganancias_periodo_1.parsePeriodicidadGasto)(existing.periodicidad, 'mensual');
+            if (per !== prev) {
+                ingresado =
+                    per === 'diario'
+                        ? existing.cuotaDiaria != null
+                            ? Math.round(Number(existing.cuotaDiaria))
+                            : (0, ganancias_periodo_1.cuotaDiariaSugerida)(Number(existing.montoMensual))
+                        : Math.round(Number(existing.montoMensual));
+            }
+        }
+        if (ingresado != null) {
+            const p = (0, ganancias_periodo_1.persistenciaMontoFijo)({
+                periodicidad: per,
+                monto_ingresado: ingresado,
+            });
+            return {
+                periodicidad: per,
+                montoMensual: p.monto_mensual,
+                montoDiario: p.monto_diario,
+            };
+        }
+        return {
+            periodicidad: per,
+            montoMensual: Math.round(Number(existing?.montoMensual ?? 0)),
+            montoDiario: existing?.cuotaDiaria != null
+                ? Math.round(Number(existing.cuotaDiaria))
+                : (0, ganancias_periodo_1.cuotaDiariaSugerida)(Number(existing?.montoMensual ?? 0)),
+        };
+    }
     mapFijoConSaldos(r, saldos) {
         const id = r.idGastoFijo;
         return this.mapGastoFijo(r, {
@@ -275,6 +345,7 @@ let GananciasService = class GananciasService {
         return rows.find((r) => r.id_producto === idProducto);
     }
     async listarGastosFijos(tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
+        await this.asegurarColumnasPeriodicidad();
         const rows = await this.prisma.gastoFijoGanancia.findMany({
             where: { idRestaurante: tenantId },
             orderBy: [{ activo: 'desc' }, { nombre: 'asc' }],
@@ -283,44 +354,54 @@ let GananciasService = class GananciasService {
         return rows.map((r) => this.mapFijoConSaldos(r, saldos));
     }
     async crearGastoFijo(dto, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
-        const montoMensual = Math.round(dto.monto_mensual);
-        const fondo = this.resolverFondoFields(dto, montoMensual);
+        await this.asegurarColumnasPeriodicidad();
+        const montos = this.montosFijoPersistidos(dto);
+        const cuotaDto = montos.periodicidad === 'diario' ? montos.montoDiario : dto.cuota_diaria;
+        const fondo = this.resolverFondoFields({ ...dto, cuota_diaria: cuotaDto }, montos.montoMensual);
         const row = await this.prisma.gastoFijoGanancia.create({
             data: {
                 idRestaurante: tenantId,
                 nombre: dto.nombre.trim(),
-                montoMensual,
+                montoMensual: montos.montoMensual,
                 activo: dto.activo !== false,
                 notas: dto.notas?.trim() || null,
                 usaFondoDiario: fondo.usaFondoDiario,
-                cuotaDiaria: fondo.cuotaDiaria,
+                cuotaDiaria: montos.periodicidad === 'diario'
+                    ? montos.montoDiario
+                    : fondo.cuotaDiaria,
                 modoRegistroFondo: fondo.modoRegistroFondo,
+                periodicidad: montos.periodicidad,
             },
         });
         return this.mapFijoConSaldos(row, await this.saldosFondo(tenantId, this.hoyYmd()));
     }
     async actualizarGastoFijo(id, dto, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
+        await this.asegurarColumnasPeriodicidad();
         const existing = await this.prisma.gastoFijoGanancia.findFirst({
             where: { idGastoFijo: id, idRestaurante: tenantId },
         });
         if (!existing)
             throw new common_1.NotFoundException('Gasto fijo no encontrado');
-        const montoMensual = dto.monto_mensual != null
-            ? Math.round(dto.monto_mensual)
-            : Math.round(Number(existing.montoMensual));
-        const fondo = this.resolverFondoFields(dto, montoMensual, existing);
+        const montos = this.montosFijoPersistidos(dto, existing);
+        const cuotaDto = montos.periodicidad === 'diario'
+            ? montos.montoDiario
+            : dto.cuota_diaria;
+        const fondo = this.resolverFondoFields({ ...dto, cuota_diaria: cuotaDto }, montos.montoMensual, existing);
         const row = await this.prisma.gastoFijoGanancia.update({
             where: { idGastoFijo: id },
             data: {
                 ...(dto.nombre != null ? { nombre: dto.nombre.trim() } : {}),
-                ...(dto.monto_mensual != null ? { montoMensual } : {}),
+                montoMensual: montos.montoMensual,
                 ...(dto.activo != null ? { activo: dto.activo } : {}),
                 ...(dto.notas !== undefined
                     ? { notas: dto.notas?.trim() || null }
                     : {}),
                 usaFondoDiario: fondo.usaFondoDiario,
-                cuotaDiaria: fondo.cuotaDiaria,
+                cuotaDiaria: montos.periodicidad === 'diario'
+                    ? montos.montoDiario
+                    : fondo.cuotaDiaria,
                 modoRegistroFondo: fondo.modoRegistroFondo,
+                periodicidad: montos.periodicidad,
             },
         });
         return this.mapFijoConSaldos(row, await this.saldosFondo(tenantId, this.hoyYmd()));
@@ -398,10 +479,15 @@ let GananciasService = class GananciasService {
     }
     async listarCuotasDia(fecha, tenantId) {
         const { ymd, fechaOnly } = this.resolverFechaCuota(fecha);
-        const fijos = await this.prisma.gastoFijoGanancia.findMany({
-            where: { idRestaurante: tenantId, activo: true, usaFondoDiario: true },
+        const fijosAll = await this.prisma.gastoFijoGanancia.findMany({
+            where: { idRestaurante: tenantId, activo: true },
             orderBy: { nombre: 'asc' },
         });
+        const fijos = fijosAll.filter((g) => (0, ganancias_periodo_1.gastoFijoUsaRegistroDiario)({
+            usa_fondo_diario: g.usaFondoDiario,
+            periodicidad: g.periodicidad,
+            modo_registro_fondo: g.modoRegistroFondo,
+        }));
         const cuotasHoy = await this.prisma.cuotaFondoGastoFijo.findMany({
             where: { idRestaurante: tenantId, fecha: fechaOnly },
         });
@@ -424,7 +510,11 @@ let GananciasService = class GananciasService {
                 monto: row ? Math.round(Number(row.monto)) : null,
                 acumulado_mes: acumulado,
                 monto_mensual: montoMensual,
-                tope_alcanzado: (0, ganancias_periodo_1.topeFondoAlcanzado)(acumulado, montoMensual),
+                tope_alcanzado: (0, ganancias_periodo_1.parsePeriodicidadGasto)(g.periodicidad, 'mensual') === 'diario'
+                    ? false
+                    : (0, ganancias_periodo_1.topeFondoAlcanzado)(acumulado, montoMensual),
+                periodicidad: (0, ganancias_periodo_1.parsePeriodicidadGasto)(g.periodicidad, 'mensual'),
+                usa_fondo_diario: g.usaFondoDiario,
             };
         });
         return { fecha: ymd, items };
@@ -449,6 +539,7 @@ let GananciasService = class GananciasService {
                 estado_hoy: item.estado,
                 acumulado_mes: item.acumulado_mes,
                 monto_mensual: item.monto_mensual,
+                periodicidad: (0, ganancias_periodo_1.parsePeriodicidadGasto)(g.periodicidad, 'mensual'),
             })) {
                 continue;
             }
@@ -458,19 +549,27 @@ let GananciasService = class GananciasService {
         const after = await this.listarCuotasDia(ymd, tenantId);
         return { ...after, aplicadas_ahora };
     }
-    async aplicarCuotaDia(idGastoFijo, fecha, tenantId, _idUsuario) {
+    async aplicarCuotaDia(idGastoFijo, fecha, tenantId, _idUsuario, montoDia) {
         const { ymd, fechaOnly } = this.resolverFechaCuota(fecha);
         const gasto = await this.prisma.gastoFijoGanancia.findFirst({
             where: { idGastoFijo, idRestaurante: tenantId },
         });
         if (!gasto)
             throw new common_1.NotFoundException('Gasto fijo no encontrado');
-        if (!gasto.activo || !gasto.usaFondoDiario) {
-            throw new common_1.BadRequestException('Este gasto no tiene fondo diario activo');
+        const puede = (0, ganancias_periodo_1.gastoFijoUsaRegistroDiario)({
+            usa_fondo_diario: gasto.usaFondoDiario,
+            periodicidad: gasto.periodicidad,
+            modo_registro_fondo: gasto.modoRegistroFondo,
+        });
+        if (!gasto.activo || !puede) {
+            throw new common_1.BadRequestException('Este gasto no se registra por día');
         }
-        const cuotaDiaria = gasto.cuotaDiaria != null ? Math.round(Number(gasto.cuotaDiaria)) : 0;
+        const sugerida = gasto.cuotaDiaria != null ? Math.round(Number(gasto.cuotaDiaria)) : 0;
+        const cuotaDiaria = montoDia != null && Number(montoDia) > 0
+            ? Math.round(Number(montoDia))
+            : sugerida;
         if (cuotaDiaria <= 0) {
-            throw new common_1.BadRequestException('Configura la cuota diaria de este gasto');
+            throw new common_1.BadRequestException('Indica el monto de este día');
         }
         const existing = await this.prisma.cuotaFondoGastoFijo.findUnique({
             where: { idGastoFijo_fecha: { idGastoFijo, fecha: fechaOnly } },
@@ -522,8 +621,13 @@ let GananciasService = class GananciasService {
         });
         if (!gasto)
             throw new common_1.NotFoundException('Gasto fijo no encontrado');
-        if (!gasto.usaFondoDiario) {
-            throw new common_1.BadRequestException('Este gasto no tiene fondo diario activo');
+        const puede = (0, ganancias_periodo_1.gastoFijoUsaRegistroDiario)({
+            usa_fondo_diario: gasto.usaFondoDiario,
+            periodicidad: gasto.periodicidad,
+            modo_registro_fondo: gasto.modoRegistroFondo,
+        });
+        if (!puede) {
+            throw new common_1.BadRequestException('Este gasto no se registra por día');
         }
         const cuotaDiaria = gasto.cuotaDiaria != null ? Math.round(Number(gasto.cuotaDiaria)) : 0;
         const existing = await this.prisma.cuotaFondoGastoFijo.findUnique({
@@ -554,21 +658,155 @@ let GananciasService = class GananciasService {
         });
         return this.listarCuotasDia(ymd, tenantId);
     }
+    async listarCuotasPeriodo(fechaDesde, fechaHasta, tenantId) {
+        const rango = this.resolverRangoCuotas(fechaDesde, fechaHasta);
+        const fijosAll = await this.prisma.gastoFijoGanancia.findMany({
+            where: { idRestaurante: tenantId, activo: true },
+            orderBy: { nombre: 'asc' },
+        });
+        const fijos = fijosAll.filter((g) => (0, ganancias_periodo_1.gastoFijoUsaRegistroDiario)({
+            usa_fondo_diario: g.usaFondoDiario,
+            periodicidad: g.periodicidad,
+            modo_registro_fondo: g.modoRegistroFondo,
+        }));
+        const cuotasRango = await this.prisma.cuotaFondoGastoFijo.findMany({
+            where: {
+                idRestaurante: tenantId,
+                fecha: {
+                    gte: this.fechaOnlyFromYmd(rango.fecha_desde),
+                    lte: this.fechaOnlyFromYmd(rango.fecha_hasta),
+                },
+            },
+        });
+        const ancla = rango.fecha_hasta;
+        const acum = await this.acumuladosMes(tenantId, ancla);
+        const items = fijos.map((g) => {
+            const rows = cuotasRango.filter((c) => c.idGastoFijo === g.idGastoFijo);
+            const porFecha = new Map(rows.map((c) => [
+                luxon_1.DateTime.fromJSDate(c.fecha).toUTC().toFormat('yyyy-LL-dd'),
+                c,
+            ]));
+            let aplicadas = 0;
+            let omitidas = 0;
+            let pendientes = 0;
+            let monto_aplicado = 0;
+            for (const ymd of rango.dias) {
+                const row = porFecha.get(ymd);
+                if (row?.estado === 'aplicada') {
+                    aplicadas += 1;
+                    monto_aplicado += Math.round(Number(row.monto));
+                }
+                else if (row?.estado === 'omitida') {
+                    omitidas += 1;
+                }
+                else {
+                    pendientes += 1;
+                }
+            }
+            const cuotaDiaria = g.cuotaDiaria != null ? Math.round(Number(g.cuotaDiaria)) : 0;
+            const montoMensual = Math.round(Number(g.montoMensual));
+            const acumulado = acum.get(g.idGastoFijo) ?? 0;
+            const estado = pendientes === 0 && omitidas === 0
+                ? 'aplicada'
+                : pendientes === 0 && aplicadas === 0
+                    ? 'omitida'
+                    : pendientes === rango.dias.length
+                        ? 'pendiente'
+                        : 'parcial';
+            return {
+                id_gasto_fijo: g.idGastoFijo,
+                nombre: g.nombre,
+                cuota_diaria: cuotaDiaria,
+                modo_registro_fondo: g.modoRegistroFondo,
+                estado,
+                monto: aplicadas === 1 && pendientes === 0 && omitidas === 0
+                    ? monto_aplicado
+                    : aplicadas > 0
+                        ? monto_aplicado
+                        : null,
+                acumulado_mes: acumulado,
+                monto_mensual: montoMensual,
+                tope_alcanzado: (0, ganancias_periodo_1.parsePeriodicidadGasto)(g.periodicidad, 'mensual') === 'diario'
+                    ? false
+                    : (0, ganancias_periodo_1.topeFondoAlcanzado)(acumulado, montoMensual),
+                periodicidad: (0, ganancias_periodo_1.parsePeriodicidadGasto)(g.periodicidad, 'mensual'),
+                usa_fondo_diario: g.usaFondoDiario,
+                dias_periodo: rango.dias.length,
+                aplicadas,
+                omitidas,
+                pendientes,
+                monto_aplicado,
+            };
+        });
+        return {
+            fecha: rango.fecha_desde,
+            fecha_desde: rango.fecha_desde,
+            fecha_hasta: rango.fecha_hasta,
+            dias: rango.dias.length,
+            items,
+        };
+    }
+    async asegurarCuotasAutomaticasPeriodo(fechaDesde, fechaHasta, tenantId, idUsuario) {
+        const rango = this.resolverRangoCuotas(fechaDesde, fechaHasta);
+        let aplicadas_ahora = 0;
+        for (const ymd of rango.dias) {
+            const r = await this.asegurarCuotasAutomaticas(ymd, tenantId, idUsuario);
+            aplicadas_ahora += r.aplicadas_ahora ?? 0;
+        }
+        const after = await this.listarCuotasPeriodo(rango.fecha_desde, rango.fecha_hasta, tenantId);
+        return { ...after, aplicadas_ahora };
+    }
+    async aplicarCuotaPeriodo(idGastoFijo, fechaDesde, fechaHasta, tenantId, idUsuario, montoDia) {
+        const rango = this.resolverRangoCuotas(fechaDesde, fechaHasta);
+        for (const ymd of rango.dias) {
+            const { fechaOnly } = this.resolverFechaCuota(ymd);
+            const existing = await this.prisma.cuotaFondoGastoFijo.findUnique({
+                where: { idGastoFijo_fecha: { idGastoFijo, fecha: fechaOnly } },
+            });
+            if (existing?.estado === 'aplicada' || existing?.estado === 'omitida') {
+                continue;
+            }
+            await this.aplicarCuotaDia(idGastoFijo, ymd, tenantId, idUsuario, montoDia);
+        }
+        return this.listarCuotasPeriodo(rango.fecha_desde, rango.fecha_hasta, tenantId);
+    }
+    async omitirCuotaPeriodo(idGastoFijo, fechaDesde, fechaHasta, tenantId, idUsuario) {
+        const rango = this.resolverRangoCuotas(fechaDesde, fechaHasta);
+        for (const ymd of rango.dias) {
+            const { fechaOnly } = this.resolverFechaCuota(ymd);
+            const existing = await this.prisma.cuotaFondoGastoFijo.findUnique({
+                where: { idGastoFijo_fecha: { idGastoFijo, fecha: fechaOnly } },
+            });
+            if (existing?.estado === 'aplicada')
+                continue;
+            await this.omitirCuotaDia(idGastoFijo, ymd, tenantId, idUsuario);
+        }
+        return this.listarCuotasPeriodo(rango.fecha_desde, rango.fecha_hasta, tenantId);
+    }
     async listarGastosExtras(opts, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
         await this.asegurarColumnasExtraFondo();
+        await this.asegurarColumnasPeriodicidad();
         const rango = this.resolverRango({
             periodo: 'personalizado',
             fecha_desde: opts.fecha_desde,
             fecha_hasta: opts.fecha_hasta ?? opts.fecha_desde,
         });
+        const ventana = this.ventanaConsultaExtras(rango.fecha_desde, rango.fecha_hasta);
         const rows = await this.prisma.gastoExtraGanancia.findMany({
             where: {
                 idRestaurante: tenantId,
-                fecha: { gte: rango.startDateOnly, lte: rango.endDateOnly },
+                fecha: { gte: ventana.startDateOnly, lte: ventana.endDateOnly },
             },
             orderBy: [{ fecha: 'desc' }, { idGastoExtra: 'desc' }],
         });
-        return rows.map((r) => this.mapExtra(r));
+        return rows
+            .filter((r) => (0, ganancias_periodo_1.extraAplicaEnPeriodo)({
+            fecha: luxon_1.DateTime.fromJSDate(r.fecha).toUTC().toFormat('yyyy-LL-dd'),
+            periodicidad: r.periodicidad,
+            fecha_desde: rango.fecha_desde,
+            fecha_hasta: rango.fecha_hasta,
+        }))
+            .map((r) => this.mapExtra(r, rango.fecha_desde, rango.fecha_hasta));
     }
     extraFondoAsegurado = false;
     async asegurarColumnasExtraFondo() {
@@ -582,22 +820,38 @@ let GananciasService = class GananciasService {
         catch {
         }
     }
-    mapExtra(r) {
+    mapExtra(r, fechaDesde, fechaHasta) {
         const usa = Boolean(r.usaFondo);
+        const fecha = luxon_1.DateTime.fromJSDate(r.fecha).toUTC().toFormat('yyyy-LL-dd');
+        const periodicidad = (0, ganancias_periodo_1.parsePeriodicidadGasto)(r.periodicidad, 'diario');
+        const monto = Math.round(Number(r.monto));
+        const monto_en_periodo = fechaDesde && fechaHasta
+            ? (0, ganancias_periodo_1.montoExtraEnPeriodo)({
+                monto,
+                fecha,
+                periodicidad,
+                fecha_desde: fechaDesde,
+                fecha_hasta: fechaHasta,
+            })
+            : monto;
         return {
             id_gasto_extra: r.idGastoExtra,
             nombre: r.nombre,
-            monto: Math.round(Number(r.monto)),
-            fecha: luxon_1.DateTime.fromJSDate(r.fecha).toUTC().toFormat('yyyy-LL-dd'),
+            monto,
+            monto_en_periodo,
+            fecha,
             notas: r.notas,
             usa_fondo: usa,
             pagado_fondo: r.pagadoFondo !== false,
+            periodicidad,
         };
     }
     async crearGastoExtra(dto, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
         await this.asegurarColumnasExtraFondo();
+        await this.asegurarColumnasPeriodicidad();
         const fecha = this.parseFechaYmd(dto.fecha, 'fecha');
         const usaFondo = dto.usa_fondo === true;
+        const periodicidad = (0, ganancias_periodo_1.parsePeriodicidadGasto)(dto.periodicidad, 'diario');
         const row = await this.prisma.gastoExtraGanancia.create({
             data: {
                 idRestaurante: tenantId,
@@ -607,6 +861,7 @@ let GananciasService = class GananciasService {
                 notas: dto.notas?.trim() || null,
                 usaFondo,
                 pagadoFondo: !usaFondo,
+                periodicidad,
             },
         });
         return this.mapExtra(row);
@@ -618,6 +873,7 @@ let GananciasService = class GananciasService {
         if (!existing)
             throw new common_1.NotFoundException('Gasto extra no encontrado');
         await this.asegurarColumnasExtraFondo();
+        await this.asegurarColumnasPeriodicidad();
         const fecha = dto.fecha
             ? this.parseFechaYmd(dto.fecha, 'fecha').toJSDate()
             : undefined;
@@ -632,6 +888,9 @@ let GananciasService = class GananciasService {
                     : {}),
                 ...(dto.usa_fondo != null ? { usaFondo: dto.usa_fondo } : {}),
                 ...(dto.pagado_fondo != null ? { pagadoFondo: dto.pagado_fondo } : {}),
+                ...(dto.periodicidad != null
+                    ? { periodicidad: (0, ganancias_periodo_1.parsePeriodicidadGasto)(dto.periodicidad, 'diario') }
+                    : {}),
             },
         });
         return this.mapExtra(row);
@@ -647,6 +906,8 @@ let GananciasService = class GananciasService {
     }
     async reporte(opts, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
         const rango = this.resolverRango(opts);
+        await this.asegurarColumnasExtraFondo();
+        await this.asegurarColumnasPeriodicidad();
         const mesHasta = (0, ganancias_periodo_1.rangoMesCalendario)(rango.fecha_hasta);
         const cuotasDesde = mesHasta && mesHasta.desde < rango.fecha_desde
             ? mesHasta.desde
@@ -654,6 +915,7 @@ let GananciasService = class GananciasService {
         const cuotasHasta = mesHasta && mesHasta.hasta > rango.fecha_hasta
             ? mesHasta.hasta
             : rango.fecha_hasta;
+        const ventanaExtras = this.ventanaConsultaExtras(rango.fecha_desde, rango.fecha_hasta);
         const fechaDesdeDb = luxon_1.DateTime.fromISO(rango.fecha_desde, {
             zone: 'America/Bogota',
         });
@@ -714,7 +976,10 @@ let GananciasService = class GananciasService {
             this.prisma.gastoExtraGanancia.findMany({
                 where: {
                     idRestaurante: tenantId,
-                    fecha: { gte: rango.startDateOnly, lte: rango.endDateOnly },
+                    fecha: {
+                        gte: ventanaExtras.startDateOnly,
+                        lte: ventanaExtras.endDateOnly,
+                    },
                 },
                 orderBy: [{ fecha: 'asc' }, { idGastoExtra: 'asc' }],
             }),
@@ -773,14 +1038,23 @@ let GananciasService = class GananciasService {
             monto_mensual: Number(g.montoMensual),
             usa_fondo_diario: g.usaFondoDiario,
             cuota_diaria: g.cuotaDiaria != null ? Math.round(Number(g.cuotaDiaria)) : null,
+            periodicidad: (0, ganancias_periodo_1.parsePeriodicidadGasto)(g.periodicidad, 'mensual'),
+            modo_registro_fondo: g.modoRegistroFondo === 'confirmar' ? 'confirmar' : 'automatico',
         })), cuotasRows.map((c) => ({
             id_gasto_fijo: c.idGastoFijo,
             monto: Math.round(Number(c.monto)),
             fecha: luxon_1.DateTime.fromJSDate(c.fecha).toUTC().toFormat('yyyy-LL-dd'),
             estado: c.estado,
         })), rango.fecha_desde, rango.fecha_hasta);
-        const gastos_extras_detalle = extras.map((e) => this.mapExtra(e));
-        const gastos_extras = gastos_extras_detalle.reduce((s, e) => s + e.monto, 0);
+        const gastos_extras_detalle = extras
+            .filter((e) => (0, ganancias_periodo_1.extraAplicaEnPeriodo)({
+            fecha: luxon_1.DateTime.fromJSDate(e.fecha).toUTC().toFormat('yyyy-LL-dd'),
+            periodicidad: e.periodicidad,
+            fecha_desde: rango.fecha_desde,
+            fecha_hasta: rango.fecha_hasta,
+        }))
+            .map((e) => this.mapExtra(e, rango.fecha_desde, rango.fecha_hasta));
+        const gastos_extras = gastos_extras_detalle.reduce((s, e) => s + e.monto_en_periodo, 0);
         const pagos_meseros = pagosMeseroRows.map((r) => ({
             id_registro: r.idRegistro,
             id_usuario: r.idUsuario,
@@ -813,6 +1087,7 @@ let GananciasService = class GananciasService {
                 usa_fondo_diario: d.usa_fondo_diario,
                 cuota_diaria: d.cuota_diaria,
                 acumulado_mes: d.acumulado_mes,
+                periodicidad: d.periodicidad,
             })),
             gastos_extras: gastos_extras_detalle,
             pagos_meseros,

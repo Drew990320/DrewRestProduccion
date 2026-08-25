@@ -100,7 +100,7 @@ p{line-height:1.45;color:#334;max-width:28rem;margin:12px auto}
         const lan = (0, red_local_1.detectarRedLocal)();
         const webPort = (0, red_local_1.leerPuertoWeb)();
         const ip = lan?.ip ?? null;
-        let target = ip ? `http://${ip}:${webPort}/` : '';
+        let target = ip ? `http://${ip}:${webPort}/login` : '';
         if (toRaw?.trim() && ip) {
             try {
                 const u = new URL(toRaw.trim());
@@ -150,7 +150,7 @@ p{line-height:1.45;color:#334;max-width:28rem;margin:12px auto}
         const apiDirect = `http://${ip}:${apiPort}`;
         const webPort = (0, red_local_1.leerPuertoWeb)();
         const webDirect = `http://${ip}:${webPort}`;
-        const webCamera = `${webDirect}/abrir-web`;
+        const webCamera = `${webDirect}/login`;
         const apkDirect = `${apiDirect}/descargar-app`;
         const apkCamera = apkDirect;
         const vincularDirect = `${apiDirect}/vincular?api=${encodeURIComponent(apiDirect)}`;

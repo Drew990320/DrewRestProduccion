@@ -3,7 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.getCachedDestinos = getCachedDestinos;
 exports.setCachedDestinos = setCachedDestinos;
 exports.invalidateDestinosImpresoraCache = invalidateDestinosImpresoraCache;
-const TTL_MS = 30_000;
+const TTL_MS = 120_000;
 const cache = new Map();
 function key(tenantId, rol) {
     return `${tenantId}:${rol}`;

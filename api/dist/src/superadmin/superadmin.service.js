@@ -53,6 +53,7 @@ const mesa_admin_validacion_1 = require("@drewrest/shared-domain/mesa-admin-vali
 const prisma_service_1 = require("../prisma/prisma.service");
 const pedidos_gateway_1 = require("../pedidos/pedidos.gateway");
 const auth_user_cache_1 = require("../auth/auth-user-cache");
+const restaurante_acceso_cache_1 = require("../tenant/restaurante-acceso-cache");
 const deduccion_contexto_cache_1 = require("../inventario/deduccion-contexto-cache");
 const config_inventario_cache_1 = require("../inventario/config-inventario-cache");
 const restaurant_branding_1 = require("../common/restaurant-branding");
@@ -385,6 +386,7 @@ let SuperadminService = class SuperadminService {
             where: { idRestaurante: tenantId },
             data,
         });
+        (0, restaurante_acceso_cache_1.invalidateRestauranteAcceso)(tenantId);
         if (dto.activo === false) {
             const usuarios = await this.prisma.usuario.findMany({
                 where: {

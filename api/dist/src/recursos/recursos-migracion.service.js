@@ -22,6 +22,7 @@ const UBICACIONES_SEED = [
 ];
 let RecursosMigracionService = class RecursosMigracionService {
     prisma;
+    skipHasta = new Map();
     constructor(prisma) {
         this.prisma = prisma;
     }
@@ -181,12 +182,24 @@ let RecursosMigracionService = class RecursosMigracionService {
         });
     }
     async migrarSiNecesario(tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
+        const skip = this.skipHasta.get(tenantId) ?? 0;
+        if (Date.now() < skip) {
+            return {
+                creados: 0,
+                omitidos: 1,
+                lineas_actualizadas: 0,
+                total_inventario: 0,
+                skipped: true,
+            };
+        }
         await this.asegurarCategoriasYUbicaciones(tenantId);
         const [nRec, nInv] = await Promise.all([
             this.prisma.recurso.count({ where: { idRestaurante: tenantId } }),
             this.prisma.inventario.count({ where: { idRestaurante: tenantId } }),
         ]);
+        this.skipHasta.set(tenantId, Date.now() + 60_000);
         if (nRec === 0 && nInv > 0) {
+            this.skipHasta.delete(tenantId);
             return this.migrarDesdeInventario(tenantId);
         }
         return {
