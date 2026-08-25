@@ -7226,10 +7226,15 @@ let PedidosService = class PedidosService {
         }
         let impresionComandaAutoservicio = null;
         if (cocinaAutoservicioTrasCobro) {
-            impresionComandaAutoservicio =
-                await this.imprimirComandaAutoservicioTrasCobro(idPedido, cocinaAutoservicioTrasCobro);
+            impresionComandaAutoservicio = { impreso: false, en_cola: true };
+            void this.imprimirComandaAutoservicioTrasCobro(idPedido, cocinaAutoservicioTrasCobro).catch((err) => {
+                const msg = err instanceof Error ? err.message : String(err);
+                this.logger.warn(`Comanda autoservicio tras cobro: ${msg}`);
+            });
         }
-        const completo = await this.obtenerPorIdTrasEscritura(idPedido);
+        const completo = await this.obtenerPorIdTrasEscritura(idPedido, pedido.idRestaurante, {
+            consolidar: dto.cobro_mixto_grupo != null || dto.persona_plan_indice != null,
+        });
         let impresionFactura = { impreso: false, omitido: true };
         if (imprimir) {
             const ticketFactura = this.construirTicketFactura(completo, idFacturaCreada, false, detalleExcesoCobro);
@@ -7665,10 +7670,13 @@ let PedidosService = class PedidosService {
         }
         let impresionComandaAutoservicio = null;
         if (cocinaAutoservicioTrasCobro) {
-            impresionComandaAutoservicio =
-                await this.imprimirComandaAutoservicioTrasCobro(idPedido, cocinaAutoservicioTrasCobro);
+            impresionComandaAutoservicio = { impreso: false, en_cola: true };
+            void this.imprimirComandaAutoservicioTrasCobro(idPedido, cocinaAutoservicioTrasCobro).catch((err) => {
+                const msg = err instanceof Error ? err.message : String(err);
+                this.logger.warn(`Comanda autoservicio tras cobro mixto: ${msg}`);
+            });
         }
-        const completo = await this.obtenerPorIdTrasEscritura(idPedido);
+        const completo = await this.obtenerPorIdTrasEscritura(idPedido, pedido.idRestaurante, { consolidar: true });
         let impresionFactura = { impreso: false, omitido: true };
         if (imprimir) {
             const ticketFactura = this.construirTicketFactura(completo, idFacturaImprimir, false, detalleExcesoCobro);

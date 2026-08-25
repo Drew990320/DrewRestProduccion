@@ -37,7 +37,7 @@ const windows_printer_status_1 = require("./windows-printer-status");
 const DEFAULT_CHARS = 32;
 const MAX_PRINT_RETRIES = 2;
 const DEFAULT_BURST_WINDOW_MS = 5_000;
-const DEFAULT_INTER_JOB_DELAY_MS = 1500;
+const DEFAULT_INTER_JOB_DELAY_MS = 300;
 function bufferPulsoCajon() {
     return Buffer.concat([
         Buffer.from([0x1b, 0x70, 0x00, 0x19, 0x64]),
@@ -155,6 +155,9 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
     scheduleTakeReminder(target, baudRate, tipo) {
         if (tipo !== 'comanda' || !this.takeReminderEnabled())
             return;
+        if (process.platform === 'win32' && !(0, escpos_tcp_1.parseDestinoTcp)(target)) {
+            return;
+        }
         const key = this.destinoKey(target);
         this.cancelTakeReminder(target);
         const abort = new AbortController();
@@ -680,9 +683,6 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
                     await this.alertarSinPapelBeep(target, baudRate, { times: 1 });
                 }
             }
-            const papelEnParalelo = !opts.ignorarSensorPapel && !chequearPapelPrevio
-                ? this.consultarPapel(target, baudRate)
-                : null;
             try {
                 await this.sendBuffer(target, buffer, baudRate);
                 this.logger.log(`${tipo} impresa vía ${target}`);
@@ -693,10 +693,9 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
                 const msg = e instanceof Error ? e.message : String(e);
                 errors.push(`${target}: ${msg}`);
                 this.logger.warn(`Impresión ${tipo} falló (${target}): ${msg}`);
-                if (!opts.ignorarSensorPapel) {
+                if (!opts.ignorarSensorPapel && (0, escpos_tcp_1.parseDestinoTcp)(target)) {
                     try {
-                        const trasFallo = (await papelEnParalelo) ??
-                            (await this.consultarPapel(target, baudRate));
+                        const trasFallo = await this.consultarPapel(target, baudRate);
                         if (trasFallo?.sinPapel) {
                             this.logger.warn(`Papel no arrancado / sin papel en ${target} tras fallo`);
                             await this.alertarSinPapelBeep(target, baudRate);
