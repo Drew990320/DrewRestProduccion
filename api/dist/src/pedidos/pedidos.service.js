@@ -7204,7 +7204,7 @@ let PedidosService = class PedidosService {
                             idUsuario,
                         });
                 }
-            });
+            }, prisma_lock_1.TX_COBRO);
         }
         catch (e) {
             if (e instanceof client_1.Prisma.PrismaClientKnownRequestError &&
@@ -7640,7 +7640,7 @@ let PedidosService = class PedidosService {
                             idUsuario,
                         });
                 }
-            });
+            }, prisma_lock_1.TX_COBRO);
         }
         catch (e) {
             if (e instanceof client_1.Prisma.PrismaClientKnownRequestError &&

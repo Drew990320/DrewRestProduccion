@@ -21,8 +21,9 @@ function impactoMovimientoCajaEfectivo(m) {
             return metodoMovimientoCaja(m) === 'efectivo' ? -monto : 0;
         case 'pago_domicilio':
         case 'pago_mesero':
-        case 'cuota_gasto_fijo':
             return -monto;
+        case 'cuota_gasto_fijo':
+            return 0;
         case 'devolucion_exceso_transferencia':
             return m.metodo_devolucion === 'efectivo' ? -monto : 0;
         default:
@@ -104,6 +105,7 @@ function resumenImpactoMovimientosCaja(movimientos) {
  * Cuadre de efectivo físico en caja.
  * Prioriza agrupar entradas y salidas antes de restar:
  *   (base + ventas + entradas) − (pagos meseros + salidas + devoluciones + domicilios + mesero exceso)
+ * Las cuotas de fondo de gasto fijo se descuentan de ganancia, no del efectivo.
  */
 function calcularEfectivoEsperadoEnCaja(input) {
     const monto_base_efectivo = Math.round(Number(input.monto_base_efectivo) || 0);
@@ -115,8 +117,7 @@ function calcularEfectivoEsperadoEnCaja(input) {
         impacto.total_salidas_manual +
         impacto.total_devoluciones_efectivo +
         impacto.total_pagos_domicilio +
-        impacto.total_pagos_mesero_exceso +
-        impacto.total_cuotas_gasto_fijo;
+        impacto.total_pagos_mesero_exceso;
     const efectivo_esperado_en_caja = subtotal_entradas_caja - subtotal_salidas_caja;
     return {
         monto_base_efectivo,

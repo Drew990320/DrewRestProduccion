@@ -26,7 +26,9 @@ let ContabilidadPostingService = class ContabilidadPostingService {
     async postEvento(tx, input) {
         const db = tx ?? this.prisma;
         const tenantId = input.tenantId || tenant_constants_1.DEFAULT_TENANT_ID;
-        await this.seed.asegurarTenant(tenantId);
+        if (!tx) {
+            await this.seed.asegurarTenant(tenantId);
+        }
         const cfg = await db.configContabilidad.findUnique({
             where: { idRestaurante: tenantId },
         });

@@ -122,6 +122,19 @@ function buildGananciasPdf(data) {
         sectionTitle(doc, 'Resumen operativo', left, y);
         y += 20;
         kv('Ventas', cop(r.ventas));
+        const vm = data.ventas_por_metodo;
+        if (vm) {
+            if (vm.efectivo > 0)
+                kv('  Efectivo', cop(vm.efectivo));
+            if (vm.transferencia > 0)
+                kv('  Transferencia', cop(vm.transferencia));
+            if (vm.tarjeta > 0)
+                kv('  Tarjeta', cop(vm.tarjeta));
+            if (vm.fiado > 0)
+                kv('  Fiado', cop(vm.fiado));
+            if (vm.otros > 0)
+                kv('  Otros', cop(vm.otros));
+        }
         kv('Costo de ventas', cop(r.costo_ventas));
         kv('Ganancia bruta', `${cop(r.ganancia_bruta)}${r.margen_bruto_pct != null ? ` (${r.margen_bruto_pct}%)` : ''}`, true);
         kv('Gastos fijos', cop(r.gastos_fijos));

@@ -45,7 +45,7 @@ export type CuadreCajaEfectivo = {
     total_cuotas_gasto_fijo: number;
     /** Caja inicial + ventas efectivo + entradas manuales */
     subtotal_entradas_caja: number;
-    /** Pagos meseros + salidas manuales + devoluciones + domicilios + mesero (exceso) + fondos */
+    /** Pagos meseros + salidas manuales + devoluciones + domicilios + mesero (exceso). Fondos de gasto fijo no salen de caja. */
     subtotal_salidas_caja: number;
     /** subtotal_entradas_caja − subtotal_salidas_caja */
     efectivo_esperado_en_caja: number;
@@ -55,5 +55,6 @@ export type CuadreCajaEfectivo = {
  * Cuadre de efectivo físico en caja.
  * Prioriza agrupar entradas y salidas antes de restar:
  *   (base + ventas + entradas) − (pagos meseros + salidas + devoluciones + domicilios + mesero exceso)
+ * Las cuotas de fondo de gasto fijo se descuentan de ganancia, no del efectivo.
  */
 export declare function calcularEfectivoEsperadoEnCaja(input: CuadreCajaEfectivoInput): CuadreCajaEfectivo;

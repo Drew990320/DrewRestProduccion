@@ -458,7 +458,7 @@ let GananciasService = class GananciasService {
         const after = await this.listarCuotasDia(ymd, tenantId);
         return { ...after, aplicadas_ahora };
     }
-    async aplicarCuotaDia(idGastoFijo, fecha, tenantId, idUsuario) {
+    async aplicarCuotaDia(idGastoFijo, fecha, tenantId, _idUsuario) {
         const { ymd, fechaOnly } = this.resolverFechaCuota(fecha);
         const gasto = await this.prisma.gastoFijoGanancia.findFirst({
             where: { idGastoFijo, idRestaurante: tenantId },
@@ -475,7 +475,13 @@ let GananciasService = class GananciasService {
         const existing = await this.prisma.cuotaFondoGastoFijo.findUnique({
             where: { idGastoFijo_fecha: { idGastoFijo, fecha: fechaOnly } },
         });
-        if (existing?.estado === 'aplicada' && existing.idMovimientoCaja) {
+        if (existing?.estado === 'aplicada') {
+            if (existing.idMovimientoCaja) {
+                await this.prisma.cuotaFondoGastoFijo.update({
+                    where: { idCuotaFondo: existing.idCuotaFondo },
+                    data: { idMovimientoCaja: null },
+                });
+            }
             return this.listarCuotasDia(ymd, tenantId);
         }
         await this.prisma.$transaction(async (tx) => {
@@ -484,26 +490,14 @@ let GananciasService = class GananciasService {
                     where: { idCuotaFondo: existing.idCuotaFondo },
                     data: { idMovimientoCaja: null },
                 });
-                await tx.movimientoCaja.delete({
-                    where: { idMovimientoCaja: existing.idMovimientoCaja },
-                });
             }
-            const mov = await tx.movimientoCaja.create({
-                data: {
-                    fecha: fechaOnly,
-                    tipo: 'cuota_gasto_fijo',
-                    monto: cuotaDiaria,
-                    motivo: gasto.nombre,
-                    idUsuario,
-                },
-            });
             if (existing) {
                 await tx.cuotaFondoGastoFijo.update({
                     where: { idCuotaFondo: existing.idCuotaFondo },
                     data: {
                         monto: cuotaDiaria,
                         estado: 'aplicada',
-                        idMovimientoCaja: mov.idMovimientoCaja,
+                        idMovimientoCaja: null,
                     },
                 });
             }
@@ -515,7 +509,6 @@ let GananciasService = class GananciasService {
                         fecha: fechaOnly,
                         monto: cuotaDiaria,
                         estado: 'aplicada',
-                        idMovimientoCaja: mov.idMovimientoCaja,
                     },
                 });
             }
@@ -537,15 +530,6 @@ let GananciasService = class GananciasService {
             where: { idGastoFijo_fecha: { idGastoFijo, fecha: fechaOnly } },
         });
         await this.prisma.$transaction(async (tx) => {
-            if (existing?.idMovimientoCaja) {
-                await tx.cuotaFondoGastoFijo.update({
-                    where: { idCuotaFondo: existing.idCuotaFondo },
-                    data: { idMovimientoCaja: null },
-                });
-                await tx.movimientoCaja.delete({
-                    where: { idMovimientoCaja: existing.idMovimientoCaja },
-                });
-            }
             if (existing) {
                 await tx.cuotaFondoGastoFijo.update({
                     where: { idCuotaFondo: existing.idCuotaFondo },
@@ -649,42 +633,98 @@ let GananciasService = class GananciasService {
     }
     async reporte(opts, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
         const rango = this.resolverRango(opts);
-        const cfg = await this.prisma.configRestaurante.findUnique({
-            where: { idRestaurante: tenantId },
-            select: { nombreComercial: true },
+        const mesHasta = (0, ganancias_periodo_1.rangoMesCalendario)(rango.fecha_hasta);
+        const cuotasDesde = mesHasta && mesHasta.desde < rango.fecha_desde
+            ? mesHasta.desde
+            : rango.fecha_desde;
+        const cuotasHasta = mesHasta && mesHasta.hasta > rango.fecha_hasta
+            ? mesHasta.hasta
+            : rango.fecha_hasta;
+        const fechaDesdeDb = luxon_1.DateTime.fromISO(rango.fecha_desde, {
+            zone: 'America/Bogota',
         });
-        const facturas = await this.prisma.factura.findMany({
-            where: {
-                emitidaEn: { gte: rango.start, lt: rango.end },
-                pedido: { idRestaurante: tenantId },
-            },
-            select: {
-                idFactura: true,
-                total: true,
-                detalles: {
-                    where: {
-                        idDetalleComboPadre: null,
-                        producto: {
-                            esAcompanamientoMazorca: false,
-                            esCuotaPendienteReparto: false,
+        const fechaHastaDb = luxon_1.DateTime.fromISO(rango.fecha_hasta, {
+            zone: 'America/Bogota',
+        });
+        const facturaWhere = {
+            emitidaEn: { gte: rango.start, lt: rango.end },
+            pedido: { idRestaurante: tenantId },
+        };
+        const [cfg, facturas, fijos, cuotasRows, extras, pagosMeseroRows] = await Promise.all([
+            this.prisma.configRestaurante.findUnique({
+                where: { idRestaurante: tenantId },
+                select: { nombreComercial: true },
+            }),
+            this.prisma.factura.findMany({
+                where: facturaWhere,
+                select: {
+                    idFactura: true,
+                    total: true,
+                    metodoPago: true,
+                    detalles: {
+                        where: {
+                            idDetalleComboPadre: null,
+                            producto: {
+                                esAcompanamientoMazorca: false,
+                                esCuotaPendienteReparto: false,
+                            },
                         },
-                    },
-                    select: {
-                        cantidad: true,
-                        precioUnitario: true,
-                        idProducto: true,
-                        producto: {
-                            select: {
-                                nombre: true,
-                                precioCosto: true,
-                                receta: { select: { costoCalculado: true, activa: true } },
+                        select: {
+                            cantidad: true,
+                            precioUnitario: true,
+                            idProducto: true,
+                            producto: {
+                                select: {
+                                    nombre: true,
+                                    precioCosto: true,
+                                    receta: { select: { costoCalculado: true, activa: true } },
+                                },
                             },
                         },
                     },
                 },
-            },
-        });
-        const ventas = facturas.reduce((s, f) => s + Math.round(Number(f.total)), 0);
+            }),
+            this.prisma.gastoFijoGanancia.findMany({
+                where: { idRestaurante: tenantId, activo: true },
+            }),
+            this.prisma.cuotaFondoGastoFijo.findMany({
+                where: {
+                    idRestaurante: tenantId,
+                    estado: 'aplicada',
+                    fecha: {
+                        gte: this.fechaOnlyFromYmd(cuotasDesde),
+                        lte: this.fechaOnlyFromYmd(cuotasHasta),
+                    },
+                },
+            }),
+            this.prisma.gastoExtraGanancia.findMany({
+                where: {
+                    idRestaurante: tenantId,
+                    fecha: { gte: rango.startDateOnly, lte: rango.endDateOnly },
+                },
+                orderBy: [{ fecha: 'asc' }, { idGastoExtra: 'asc' }],
+            }),
+            this.prisma.registroBeneficioMesero.findMany({
+                where: {
+                    fecha: {
+                        gte: new Date(Date.UTC(fechaDesdeDb.year, fechaDesdeDb.month - 1, fechaDesdeDb.day)),
+                        lte: new Date(Date.UTC(fechaHastaDb.year, fechaHastaDb.month - 1, fechaHastaDb.day)),
+                    },
+                    tipo: 'pago_turno',
+                    monto: { not: null },
+                    mesero: { idRestaurante: tenantId },
+                },
+                include: {
+                    mesero: { select: { nombre: true, apellido: true } },
+                },
+                orderBy: [{ fecha: 'asc' }, { idRegistro: 'asc' }],
+            }),
+        ]);
+        const ventas_por_metodo = (0, ganancias_periodo_1.agruparVentasPorMetodoPago)(facturas.map((f) => ({
+            metodo_pago: f.metodoPago,
+            total: Number(f.total),
+        })));
+        const ventas = ventas_por_metodo.total;
         const lineasRaw = [];
         for (const f of facturas) {
             for (const d of f.detalles) {
@@ -713,26 +753,6 @@ let GananciasService = class GananciasService {
             }
         }
         const por_producto = (0, ganancias_periodo_1.consolidarLineasCostoVenta)(lineasRaw);
-        const fijos = await this.prisma.gastoFijoGanancia.findMany({
-            where: { idRestaurante: tenantId, activo: true },
-        });
-        const mesHasta = (0, ganancias_periodo_1.rangoMesCalendario)(rango.fecha_hasta);
-        const cuotasDesde = mesHasta && mesHasta.desde < rango.fecha_desde
-            ? mesHasta.desde
-            : rango.fecha_desde;
-        const cuotasHasta = mesHasta && mesHasta.hasta > rango.fecha_hasta
-            ? mesHasta.hasta
-            : rango.fecha_hasta;
-        const cuotasRows = await this.prisma.cuotaFondoGastoFijo.findMany({
-            where: {
-                idRestaurante: tenantId,
-                estado: 'aplicada',
-                fecha: {
-                    gte: this.fechaOnlyFromYmd(cuotasDesde),
-                    lte: this.fechaOnlyFromYmd(cuotasHasta),
-                },
-            },
-        });
         const fijosPeriodo = (0, ganancias_periodo_1.armarGastosFijosPeriodo)(fijos.map((g) => ({
             id: g.idGastoFijo,
             nombre: g.nombre,
@@ -745,13 +765,6 @@ let GananciasService = class GananciasService {
             fecha: luxon_1.DateTime.fromJSDate(c.fecha).toUTC().toFormat('yyyy-LL-dd'),
             estado: c.estado,
         })), rango.fecha_desde, rango.fecha_hasta);
-        const extras = await this.prisma.gastoExtraGanancia.findMany({
-            where: {
-                idRestaurante: tenantId,
-                fecha: { gte: rango.startDateOnly, lte: rango.endDateOnly },
-            },
-            orderBy: [{ fecha: 'asc' }, { idGastoExtra: 'asc' }],
-        });
         const gastos_extras_detalle = extras.map((e) => ({
             id_gasto_extra: e.idGastoExtra,
             nombre: e.nombre,
@@ -760,27 +773,6 @@ let GananciasService = class GananciasService {
             notas: e.notas,
         }));
         const gastos_extras = gastos_extras_detalle.reduce((s, e) => s + e.monto, 0);
-        const fechaDesdeDb = luxon_1.DateTime.fromISO(rango.fecha_desde, {
-            zone: 'America/Bogota',
-        });
-        const fechaHastaDb = luxon_1.DateTime.fromISO(rango.fecha_hasta, {
-            zone: 'America/Bogota',
-        });
-        const pagosMeseroRows = await this.prisma.registroBeneficioMesero.findMany({
-            where: {
-                fecha: {
-                    gte: new Date(Date.UTC(fechaDesdeDb.year, fechaDesdeDb.month - 1, fechaDesdeDb.day)),
-                    lte: new Date(Date.UTC(fechaHastaDb.year, fechaHastaDb.month - 1, fechaHastaDb.day)),
-                },
-                tipo: 'pago_turno',
-                monto: { not: null },
-                mesero: { idRestaurante: tenantId },
-            },
-            include: {
-                mesero: { select: { nombre: true, apellido: true } },
-            },
-            orderBy: [{ fecha: 'asc' }, { idRegistro: 'asc' }],
-        });
         const pagos_meseros = pagosMeseroRows.map((r) => ({
             id_registro: r.idRegistro,
             id_usuario: r.idUsuario,
@@ -817,6 +809,7 @@ let GananciasService = class GananciasService {
             gastos_extras: gastos_extras_detalle,
             pagos_meseros,
             facturas_count: facturas.length,
+            ventas_por_metodo,
         };
     }
     async reportePdf(opts, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {

@@ -68,9 +68,6 @@ async function buildCierreCajaEscPos(ticket, charWidth = escpos_utils_1.DEFAULT_
     if ((ticket.total_pagos_mesero_exceso ?? 0) > 0) {
         await printer.println((0, escpos_utils_1.lineaConPrecio)('Mesero (exceso)', (0, escpos_utils_1.formatCopEscPos)(-(ticket.total_pagos_mesero_exceso ?? 0)), w));
     }
-    if ((ticket.total_cuotas_gasto_fijo ?? 0) > 0) {
-        await printer.println((0, escpos_utils_1.lineaConPrecio)('Fondos gasto fijo', (0, escpos_utils_1.formatCopEscPos)(-(ticket.total_cuotas_gasto_fijo ?? 0)), w));
-    }
     if ((ticket.subtotal_salidas_caja ?? 0) > 0) {
         await printer.bold(true);
         await printer.println((0, escpos_utils_1.lineaConPrecio)('Total salidas', (0, escpos_utils_1.formatCopEscPos)(-(ticket.subtotal_salidas_caja ?? 0)), w));

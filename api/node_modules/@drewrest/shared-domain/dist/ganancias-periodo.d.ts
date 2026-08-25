@@ -123,4 +123,17 @@ export declare function armarResumenGanancias(input: {
 /** Agrupa líneas del mismo producto (suma cantidades / totales). */
 export declare function consolidarLineasCostoVenta(lineas: readonly LineaCostoVenta[]): LineaCostoVenta[];
 export declare function ymdEnRango(fechaYmd: string, desdeYmd: string, hastaYmd: string): boolean;
+/** Totales de facturas del periodo por método de cobro (incluye mixto: una factura por método). */
+export type VentasPorMetodoPago = {
+    efectivo: number;
+    transferencia: number;
+    tarjeta: number;
+    fiado: number;
+    otros: number;
+    total: number;
+};
+export declare function agruparVentasPorMetodoPago(facturas: ReadonlyArray<{
+    metodo_pago: string;
+    total: number;
+}>): VentasPorMetodoPago;
 export { ymd as ymdGanancias };

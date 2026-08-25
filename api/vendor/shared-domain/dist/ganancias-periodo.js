@@ -16,6 +16,7 @@ exports.prorratearGastosFijos = prorratearGastosFijos;
 exports.armarResumenGanancias = armarResumenGanancias;
 exports.consolidarLineasCostoVenta = consolidarLineasCostoVenta;
 exports.ymdEnRango = ymdEnRango;
+exports.agruparVentasPorMetodoPago = agruparVentasPorMetodoPago;
 exports.ymdGanancias = ymd;
 function costoEfectivoProducto(precioCosto, costoReceta) {
     if (precioCosto != null) {
@@ -296,4 +297,32 @@ function ymdEnRango(fechaYmd, desdeYmd, hastaYmd) {
         return false;
     const ms = Date.UTC(f.y, f.m - 1, f.d);
     return ms >= Date.UTC(a.y, a.m - 1, a.d) && ms <= Date.UTC(b.y, b.m - 1, b.d);
+}
+function agruparVentasPorMetodoPago(facturas) {
+    const out = {
+        efectivo: 0,
+        transferencia: 0,
+        tarjeta: 0,
+        fiado: 0,
+        otros: 0,
+        total: 0,
+    };
+    for (const f of facturas) {
+        const t = Math.round(Number(f.total) || 0);
+        out.total += t;
+        const m = String(f.metodo_pago ?? '')
+            .toLowerCase()
+            .trim();
+        if (m === 'efectivo')
+            out.efectivo += t;
+        else if (m === 'transferencia')
+            out.transferencia += t;
+        else if (m === 'tarjeta')
+            out.tarjeta += t;
+        else if (m === 'fiado')
+            out.fiado += t;
+        else
+            out.otros += t;
+    }
+    return out;
 }

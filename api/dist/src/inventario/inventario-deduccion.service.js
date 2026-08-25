@@ -41,11 +41,11 @@ let InventarioDeduccionService = class InventarioDeduccionService {
     esEventoDeduccion(v) {
         return inventario_deduccion_1.EVENTOS_DEDUCCION.includes(v);
     }
-    async moduloActivo(tenantId) {
+    async moduloActivo(tenantId, db = this.prisma) {
         const cached = (0, config_restaurante_cache_1.getCachedConfigRestaurante)(tenantId);
         if (cached)
             return Boolean(cached.moduloInventarioActivo);
-        const cfg = await this.prisma.configRestaurante.findUnique({
+        const cfg = await db.configRestaurante.findUnique({
             where: { idRestaurante: tenantId },
         });
         if (cfg)
@@ -114,15 +114,15 @@ let InventarioDeduccionService = class InventarioDeduccionService {
         (0, config_inventario_cache_1.setCachedConfigInventario)(tenantId, row);
         return this.obtenerConfig(tenantId);
     }
-    async obtenerConfigRow(tenantId) {
+    async obtenerConfigRow(tenantId, db = this.prisma) {
         const cached = (0, config_inventario_cache_1.getCachedConfigInventario)(tenantId);
         if (cached)
             return cached;
-        let row = await this.prisma.configInventario.findUnique({
+        let row = await db.configInventario.findUnique({
             where: { idRestaurante: tenantId },
         });
         if (!row) {
-            row = await this.prisma.configInventario.create({
+            row = await db.configInventario.create({
                 data: { idRestaurante: tenantId },
             });
         }
@@ -577,11 +577,11 @@ let InventarioDeduccionService = class InventarioDeduccionService {
         }
     }
     async aplicarEventoLineasEnTx(tx, input) {
-        if (!(await this.moduloActivo(input.tenantId)))
+        if (!(await this.moduloActivo(input.tenantId, tx)))
             return;
         if (!input.lineas.length)
             return;
-        const configRow = await this.obtenerConfigRow(input.tenantId);
+        const configRow = await this.obtenerConfigRow(input.tenantId, tx);
         const politica = this.politicaDesdeRow(configRow);
         const productIds = input.lineas.map((l) => l.id_producto);
         const ctx = await this.cargarContextoDeduccion(tx, input.tenantId, productIds);
@@ -615,11 +615,11 @@ let InventarioDeduccionService = class InventarioDeduccionService {
         }
     }
     async ajustarCantidadLineaEnTx(tx, input) {
-        if (!(await this.moduloActivo(input.tenantId)))
+        if (!(await this.moduloActivo(input.tenantId, tx)))
             return;
         if (input.deltaCantidad === 0)
             return;
-        const configRow = await this.obtenerConfigRow(input.tenantId);
+        const configRow = await this.obtenerConfigRow(input.tenantId, tx);
         const politica = this.politicaDesdeRow(configRow);
         const ctx = await this.cargarContextoDeduccion(tx, input.tenantId, [
             input.linea.id_producto,
@@ -676,9 +676,9 @@ let InventarioDeduccionService = class InventarioDeduccionService {
         }
     }
     async revertirLineaEnTx(tx, input) {
-        if (!(await this.moduloActivo(input.tenantId)))
+        if (!(await this.moduloActivo(input.tenantId, tx)))
             return;
-        const configRow = await this.obtenerConfigRow(input.tenantId);
+        const configRow = await this.obtenerConfigRow(input.tenantId, tx);
         const politica = this.politicaDesdeRow(configRow);
         const ctx = await this.cargarContextoDeduccion(tx, input.tenantId, [
             input.linea.id_producto,
@@ -704,9 +704,7 @@ let InventarioDeduccionService = class InventarioDeduccionService {
         }
     }
     async consumirRecetaProduccionEnTx(tx, input) {
-        if (input.cantidadEnteras <= 0)
-            return false;
-        const configRow = await this.obtenerConfigRow(input.tenantId);
+        const configRow = await this.obtenerConfigRow(input.tenantId, tx);
         const politica = this.politicaDesdeRow(configRow);
         const evento = politica.evento_receta;
         const ctx = await this.cargarContextoDeduccion(tx, input.tenantId, [

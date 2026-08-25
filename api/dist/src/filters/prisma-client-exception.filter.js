@@ -44,6 +44,15 @@ let PrismaClientExceptionFilter = PrismaClientExceptionFilter_1 = class PrismaCl
             });
             return;
         }
+        if (exception.code === 'P2024' ||
+            exception.code === 'P2028' ||
+            exception.code === 'P1008') {
+            res.status(common_1.HttpStatus.SERVICE_UNAVAILABLE).json({
+                statusCode: common_1.HttpStatus.SERVICE_UNAVAILABLE,
+                message: 'El servidor estaba ocupado. Espera un segundo e intenta cobrar de nuevo.',
+            });
+            return;
+        }
         res.status(common_1.HttpStatus.INTERNAL_SERVER_ERROR).json({
             statusCode: common_1.HttpStatus.INTERNAL_SERVER_ERROR,
             message: 'Error de base de datos. Revisa los logs del servidor.',
