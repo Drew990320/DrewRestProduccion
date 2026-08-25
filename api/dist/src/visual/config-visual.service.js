@@ -53,6 +53,7 @@ const mesa_visual_1 = require("@drewrest/shared-domain/mesa-visual");
 const tenant_constants_1 = require("../tenant/tenant.constants");
 const prisma_service_1 = require("../prisma/prisma.service");
 const config_restaurante_cache_1 = require("../restaurante/config-restaurante-cache");
+const restaurant_branding_1 = require("../common/restaurant-branding");
 const logo_upload_util_1 = require("../restaurante/logo-upload.util");
 const visual_assets_util_1 = require("./visual-assets.util");
 const asset_file_cache_1 = require("./asset-file-cache");
@@ -65,7 +66,18 @@ let ConfigVisualService = class ConfigVisualService {
     }
     async onModuleInit() {
         cachedRowByTenant.clear();
-        await this.ensureRow(tenant_constants_1.DEFAULT_TENANT_ID);
+        try {
+            (0, restaurant_branding_1.resolveImagesDir)();
+        }
+        catch {
+        }
+        try {
+            await this.ensureRow(tenant_constants_1.DEFAULT_TENANT_ID);
+        }
+        catch (e) {
+            const msg = e instanceof Error ? e.message : String(e);
+            console.warn(`[ConfigVisual] Init: ${msg}`);
+        }
     }
     async ensureRow(tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
         const cached = cachedRowByTenant.get(tenantId);
@@ -371,8 +383,14 @@ let ConfigVisualService = class ConfigVisualService {
         let uploadBuffer = buffer;
         let uploadMime = mime;
         if (image_png_util_1.LOGO_TIPOS_IMPRESION.has(tipo)) {
-            uploadBuffer = await (0, image_png_util_1.normalizarBufferLogoPng)(buffer, mime);
-            uploadMime = 'image/png';
+            try {
+                uploadBuffer = await (0, image_png_util_1.normalizarBufferLogoPng)(buffer, mime);
+                uploadMime = 'image/png';
+            }
+            catch (e) {
+                const msg = e instanceof Error ? e.message : String(e);
+                throw new common_1.BadRequestException(msg);
+            }
         }
         const { archivo } = (0, visual_assets_util_1.guardarAssetVisual)(tipo, uploadBuffer, uploadMime, originalName);
         const field = (0, visual_assets_util_1.campoArchivoPorTipo)(tipo);

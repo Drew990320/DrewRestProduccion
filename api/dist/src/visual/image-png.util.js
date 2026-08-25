@@ -46,8 +46,14 @@ async function normalizarBufferLogoPng(buffer, mime) {
     const normalized = mime?.toLowerCase().split(';')[0]?.trim() ?? '';
     if (normalized === 'image/png')
         return buffer;
-    const sharp = await sharpModule();
-    return sharp(buffer).png().toBuffer();
+    try {
+        const sharp = await sharpModule();
+        return await sharp(buffer).png().toBuffer();
+    }
+    catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        throw new Error(`No se pudo convertir la imagen a PNG (${msg}). Usa un archivo PNG, o reinstala el paquete (falta el módulo sharp).`);
+    }
 }
 async function leerImagenComoPngBuffer(sourcePath) {
     const ext = path.extname(sourcePath).toLowerCase();

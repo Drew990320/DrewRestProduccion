@@ -8,19 +8,32 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
+var GananciasService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.GananciasService = void 0;
 const common_1 = require("@nestjs/common");
 const luxon_1 = require("luxon");
+const client_1 = require("@prisma/client");
 const ganancias_periodo_1 = require("@drewrest/shared-domain/ganancias-periodo");
 const resumen_periodo_1 = require("@drewrest/shared-domain/resumen-periodo");
 const prisma_service_1 = require("../prisma/prisma.service");
 const tenant_constants_1 = require("../tenant/tenant.constants");
 const ganancias_pdf_1 = require("./ganancias-pdf");
-let GananciasService = class GananciasService {
+let GananciasService = GananciasService_1 = class GananciasService {
     prisma;
+    logger = new common_1.Logger(GananciasService_1.name);
+    esquemaGananciasOk = false;
     constructor(prisma) {
         this.prisma = prisma;
+    }
+    async onModuleInit() {
+        try {
+            await this.asegurarEsquemaGanancias();
+        }
+        catch (e) {
+            const msg = e instanceof Error ? e.message : String(e);
+            this.logger.warn(`Init esquema ganancias: ${msg}`);
+        }
     }
     parseFechaYmd(raw, label) {
         const dt = luxon_1.DateTime.fromISO(raw.trim(), { zone: 'America/Bogota' });
@@ -222,16 +235,101 @@ let GananciasService = class GananciasService {
         return { acumulado, acumuladoMes, pagado, pagadoMes, pagosMes };
     }
     columnasPeriodicidadOk = false;
-    async asegurarColumnasPeriodicidad() {
-        if (this.columnasPeriodicidadOk)
+    async asegurarEsquemaGanancias() {
+        if (this.esquemaGananciasOk)
             return;
         try {
+            await this.prisma.$executeRawUnsafe(`ALTER TABLE "producto" ADD COLUMN IF NOT EXISTS "precio_costo" DECIMAL(12,2)`);
+            await this.prisma.$executeRawUnsafe(`ALTER TABLE "producto" ADD COLUMN IF NOT EXISTS "es_cuota_pendiente_reparto" BOOLEAN NOT NULL DEFAULT false`);
+            await this.prisma.$executeRawUnsafe(`ALTER TABLE "detalle_pedido" ADD COLUMN IF NOT EXISTS "id_detalle_combo_padre" INTEGER`);
+            await this.prisma.$executeRawUnsafe(`ALTER TABLE "config_restaurante" ADD COLUMN IF NOT EXISTS "modulo_ganancias_activo" BOOLEAN NOT NULL DEFAULT false`);
+            await this.prisma.$executeRawUnsafe(`
+        DO $$ BEGIN
+          CREATE TYPE "ModoRegistroFondoGanancia" AS ENUM ('automatico', 'confirmar');
+        EXCEPTION WHEN duplicate_object THEN NULL;
+        END $$;
+      `);
+            await this.prisma.$executeRawUnsafe(`
+        DO $$ BEGIN
+          CREATE TYPE "EstadoCuotaFondoGanancia" AS ENUM ('aplicada', 'omitida');
+        EXCEPTION WHEN duplicate_object THEN NULL;
+        END $$;
+      `);
+            await this.prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "gasto_fijo_ganancia" (
+          "id_gasto_fijo" SERIAL NOT NULL,
+          "id_restaurante" INTEGER NOT NULL DEFAULT 1,
+          "nombre" VARCHAR(120) NOT NULL,
+          "monto_mensual" DECIMAL(12,2) NOT NULL,
+          "activo" BOOLEAN NOT NULL DEFAULT true,
+          "notas" VARCHAR(500),
+          "creado_en" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "actualizado_en" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          CONSTRAINT "gasto_fijo_ganancia_pkey" PRIMARY KEY ("id_gasto_fijo")
+        )
+      `);
+            await this.prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "gasto_extra_ganancia" (
+          "id_gasto_extra" SERIAL NOT NULL,
+          "id_restaurante" INTEGER NOT NULL DEFAULT 1,
+          "nombre" VARCHAR(120) NOT NULL,
+          "monto" DECIMAL(12,2) NOT NULL,
+          "fecha" DATE NOT NULL,
+          "notas" VARCHAR(500),
+          "creado_en" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "actualizado_en" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          CONSTRAINT "gasto_extra_ganancia_pkey" PRIMARY KEY ("id_gasto_extra")
+        )
+      `);
+            await this.prisma.$executeRawUnsafe(`ALTER TABLE "gasto_fijo_ganancia" ADD COLUMN IF NOT EXISTS "usa_fondo_diario" BOOLEAN NOT NULL DEFAULT false`);
+            await this.prisma.$executeRawUnsafe(`ALTER TABLE "gasto_fijo_ganancia" ADD COLUMN IF NOT EXISTS "cuota_diaria" DECIMAL(12,2)`);
+            await this.prisma.$executeRawUnsafe(`ALTER TABLE "gasto_fijo_ganancia" ADD COLUMN IF NOT EXISTS "modo_registro_fondo" "ModoRegistroFondoGanancia" NOT NULL DEFAULT 'automatico'`);
             await this.prisma.$executeRawUnsafe(`ALTER TABLE "gasto_fijo_ganancia" ADD COLUMN IF NOT EXISTS "periodicidad" VARCHAR(16) NOT NULL DEFAULT 'mensual'`);
+            await this.prisma.$executeRawUnsafe(`ALTER TABLE "gasto_extra_ganancia" ADD COLUMN IF NOT EXISTS "usa_fondo" BOOLEAN NOT NULL DEFAULT false`);
+            await this.prisma.$executeRawUnsafe(`ALTER TABLE "gasto_extra_ganancia" ADD COLUMN IF NOT EXISTS "pagado_fondo" BOOLEAN NOT NULL DEFAULT true`);
             await this.prisma.$executeRawUnsafe(`ALTER TABLE "gasto_extra_ganancia" ADD COLUMN IF NOT EXISTS "periodicidad" VARCHAR(16) NOT NULL DEFAULT 'diario'`);
+            await this.prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "cuota_fondo_gasto_fijo" (
+          "id_cuota_fondo" SERIAL NOT NULL,
+          "id_gasto_fijo" INTEGER NOT NULL,
+          "id_restaurante" INTEGER NOT NULL DEFAULT 1,
+          "fecha" DATE NOT NULL,
+          "monto" DECIMAL(12,2) NOT NULL,
+          "estado" "EstadoCuotaFondoGanancia" NOT NULL,
+          "id_movimiento_caja" INTEGER,
+          "creado_en" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "actualizado_en" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          CONSTRAINT "cuota_fondo_gasto_fijo_pkey" PRIMARY KEY ("id_cuota_fondo")
+        )
+      `);
+            await this.prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "pago_fondo_gasto_fijo" (
+          "id_pago_fondo" SERIAL NOT NULL,
+          "id_gasto_fijo" INTEGER NOT NULL,
+          "id_restaurante" INTEGER NOT NULL DEFAULT 1,
+          "fecha" DATE NOT NULL,
+          "monto" DECIMAL(12,2) NOT NULL,
+          "notas" VARCHAR(500),
+          "creado_en" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          CONSTRAINT "pago_fondo_gasto_fijo_pkey" PRIMARY KEY ("id_pago_fondo")
+        )
+      `);
+            await this.prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "gasto_fijo_ganancia_id_restaurante_activo_idx" ON "gasto_fijo_ganancia"("id_restaurante", "activo")`);
+            await this.prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "gasto_extra_ganancia_id_restaurante_fecha_idx" ON "gasto_extra_ganancia"("id_restaurante", "fecha")`);
+            await this.prisma.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "cuota_fondo_gasto_fijo_id_gasto_fijo_fecha_key" ON "cuota_fondo_gasto_fijo"("id_gasto_fijo", "fecha")`);
+            await this.prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "cuota_fondo_gasto_fijo_id_restaurante_fecha_idx" ON "cuota_fondo_gasto_fijo"("id_restaurante", "fecha")`);
+            await this.prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "pago_fondo_gasto_fijo_id_restaurante_fecha_idx" ON "pago_fondo_gasto_fijo"("id_restaurante", "fecha")`);
+            this.esquemaGananciasOk = true;
             this.columnasPeriodicidadOk = true;
+            this.extraFondoAsegurado = true;
         }
-        catch {
+        catch (e) {
+            const msg = e instanceof Error ? e.message : String(e);
+            this.logger.warn(`asegurarEsquemaGanancias: ${msg}`);
         }
+    }
+    async asegurarColumnasPeriodicidad() {
+        await this.asegurarEsquemaGanancias();
     }
     ventanaConsultaExtras(fechaDesde, fechaHasta) {
         const desdeMes = this.parseFechaYmd(fechaDesde, 'fecha_desde').startOf('month');
@@ -810,15 +908,7 @@ let GananciasService = class GananciasService {
     }
     extraFondoAsegurado = false;
     async asegurarColumnasExtraFondo() {
-        if (this.extraFondoAsegurado)
-            return;
-        try {
-            await this.prisma.$executeRawUnsafe(`ALTER TABLE "gasto_extra_ganancia" ADD COLUMN IF NOT EXISTS "usa_fondo" BOOLEAN NOT NULL DEFAULT false`);
-            await this.prisma.$executeRawUnsafe(`ALTER TABLE "gasto_extra_ganancia" ADD COLUMN IF NOT EXISTS "pagado_fondo" BOOLEAN NOT NULL DEFAULT true`);
-            this.extraFondoAsegurado = true;
-        }
-        catch {
-        }
+        await this.asegurarEsquemaGanancias();
     }
     mapExtra(r, fechaDesde, fechaHasta) {
         const usa = Boolean(r.usaFondo);
@@ -906,8 +996,7 @@ let GananciasService = class GananciasService {
     }
     async reporte(opts, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
         const rango = this.resolverRango(opts);
-        await this.asegurarColumnasExtraFondo();
-        await this.asegurarColumnasPeriodicidad();
+        await this.asegurarEsquemaGanancias();
         const mesHasta = (0, ganancias_periodo_1.rangoMesCalendario)(rango.fecha_hasta);
         const cuotasDesde = mesHasta && mesHasta.desde < rango.fecha_desde
             ? mesHasta.desde
@@ -926,40 +1015,82 @@ let GananciasService = class GananciasService {
             emitidaEn: { gte: rango.start, lt: rango.end },
             pedido: { idRestaurante: tenantId },
         };
+        const detalleSelectConReceta = {
+            where: {
+                idDetalleComboPadre: null,
+                producto: {
+                    esAcompanamientoMazorca: false,
+                    esCuotaPendienteReparto: false,
+                },
+            },
+            select: {
+                cantidad: true,
+                precioUnitario: true,
+                idProducto: true,
+                producto: {
+                    select: {
+                        nombre: true,
+                        precioCosto: true,
+                        receta: { select: { costoCalculado: true, activa: true } },
+                    },
+                },
+            },
+        };
+        const detalleSelectSinReceta = {
+            where: {
+                idDetalleComboPadre: null,
+                producto: {
+                    esAcompanamientoMazorca: false,
+                    esCuotaPendienteReparto: false,
+                },
+            },
+            select: {
+                cantidad: true,
+                precioUnitario: true,
+                idProducto: true,
+                producto: {
+                    select: {
+                        nombre: true,
+                        precioCosto: true,
+                    },
+                },
+            },
+        };
+        const cargarFacturas = async () => {
+            try {
+                return (await this.prisma.factura.findMany({
+                    where: facturaWhere,
+                    select: {
+                        idFactura: true,
+                        total: true,
+                        metodoPago: true,
+                        detalles: detalleSelectConReceta,
+                    },
+                }));
+            }
+            catch (e) {
+                if (e instanceof client_1.Prisma.PrismaClientKnownRequestError &&
+                    (e.code === 'P2021' || e.code === 'P2022')) {
+                    this.logger.warn(`Reporte ganancias: facturas sin join receta (${e.code})`);
+                    return (await this.prisma.factura.findMany({
+                        where: facturaWhere,
+                        select: {
+                            idFactura: true,
+                            total: true,
+                            metodoPago: true,
+                            detalles: detalleSelectSinReceta,
+                        },
+                    }));
+                }
+                throw e;
+            }
+        };
         const [cfg, facturas, fijos, cuotasRows, extras, pagosMeseroRows] = await Promise.all([
             this.prisma.configRestaurante.findUnique({
                 where: { idRestaurante: tenantId },
                 select: { nombreComercial: true },
             }),
-            this.prisma.factura.findMany({
-                where: facturaWhere,
-                select: {
-                    idFactura: true,
-                    total: true,
-                    metodoPago: true,
-                    detalles: {
-                        where: {
-                            idDetalleComboPadre: null,
-                            producto: {
-                                esAcompanamientoMazorca: false,
-                                esCuotaPendienteReparto: false,
-                            },
-                        },
-                        select: {
-                            cantidad: true,
-                            precioUnitario: true,
-                            idProducto: true,
-                            producto: {
-                                select: {
-                                    nombre: true,
-                                    precioCosto: true,
-                                    receta: { select: { costoCalculado: true, activa: true } },
-                                },
-                            },
-                        },
-                    },
-                },
-            }),
+            cargarFacturas(),
             this.prisma.gastoFijoGanancia.findMany({
                 where: { idRestaurante: tenantId, activo: true },
             }),
@@ -983,7 +1114,8 @@ let GananciasService = class GananciasService {
                 },
                 orderBy: [{ fecha: 'asc' }, { idGastoExtra: 'asc' }],
             }),
-            this.prisma.registroBeneficioMesero.findMany({
+            this.prisma.registroBeneficioMesero
+                .findMany({
                 where: {
                     fecha: {
                         gte: new Date(Date.UTC(fechaDesdeDb.year, fechaDesdeDb.month - 1, fechaDesdeDb.day)),
@@ -997,6 +1129,11 @@ let GananciasService = class GananciasService {
                     mesero: { select: { nombre: true, apellido: true } },
                 },
                 orderBy: [{ fecha: 'asc' }, { idRegistro: 'asc' }],
+            })
+                .catch((e) => {
+                const msg = e instanceof Error ? e.message : String(e);
+                this.logger.warn(`Reporte ganancias: pagos mesero omitidos (${msg})`);
+                return [];
             }),
         ]);
         const ventas_por_metodo = (0, ganancias_periodo_1.agruparVentasPorMetodoPago)(facturas.map((f) => ({
@@ -1101,7 +1238,7 @@ let GananciasService = class GananciasService {
     }
 };
 exports.GananciasService = GananciasService;
-exports.GananciasService = GananciasService = __decorate([
+exports.GananciasService = GananciasService = GananciasService_1 = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [prisma_service_1.PrismaService])
 ], GananciasService);

@@ -171,17 +171,22 @@ function resolveImagesDir() {
     const envDir = process.env.RESTAURANT_IMAGES_DIR?.trim();
     if (envDir) {
         try {
-            if (fs.existsSync(envDir))
-                return path.resolve(envDir);
+            const resolved = path.resolve(envDir);
+            if (!fs.existsSync(resolved)) {
+                fs.mkdirSync(resolved, { recursive: true });
+            }
+            if (fs.existsSync(resolved))
+                return resolved;
         }
         catch {
         }
     }
     const candidates = [
+        path.join(process.cwd(), '..', 'images'),
+        path.join(process.cwd(), '..', 'Images'),
+        path.join(process.cwd(), 'images'),
         path.join(process.cwd(), '..', '..', 'Images'),
         path.join(process.cwd(), '..', '..', 'images'),
-        path.join(process.cwd(), 'images'),
-        path.join(process.cwd(), '..', 'images'),
         path.join(__dirname, '..', '..', 'images'),
         path.join(__dirname, '..', '..', '..', 'images'),
         path.join(__dirname, '..', '..', '..', '..', 'images'),
@@ -195,7 +200,16 @@ function resolveImagesDir() {
         catch {
         }
     }
-    return path.resolve(process.cwd(), 'images');
+    const preferred = path.resolve(process.cwd(), '..', 'images');
+    try {
+        fs.mkdirSync(preferred, { recursive: true });
+        return preferred;
+    }
+    catch {
+        const fallback = path.resolve(process.cwd(), 'images');
+        fs.mkdirSync(fallback, { recursive: true });
+        return fallback;
+    }
 }
 function logoCandidatesFromConfig() {
     const row = rowOrNull();

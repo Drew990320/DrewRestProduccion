@@ -35,7 +35,7 @@ let ImpresorasPosService = ImpresorasPosService_1 = class ImpresorasPosService {
     }
     async onModuleInit() {
         try {
-            await this.asegurarColumnaMacEsperada();
+            await this.asegurarEsquemaImpresoras();
             await this.asegurarMigracionEnv(tenant_constants_1.DEFAULT_TENANT_ID);
             await this.aplicarPendientesLauncher(tenant_constants_1.DEFAULT_TENANT_ID);
         }
@@ -44,8 +44,19 @@ let ImpresorasPosService = ImpresorasPosService_1 = class ImpresorasPosService {
             this.logger.warn(`Init impresoras POS: ${msg}`);
         }
     }
-    async asegurarColumnaMacEsperada() {
+    async asegurarEsquemaImpresoras() {
         await this.prisma.$executeRawUnsafe(`ALTER TABLE "impresora_pos" ADD COLUMN IF NOT EXISTS "mac_esperada" VARCHAR(17)`);
+        await this.prisma.$executeRawUnsafe(`ALTER TABLE "impresora_pos" ADD COLUMN IF NOT EXISTS "ancho_papel_mm" INTEGER NOT NULL DEFAULT 58`);
+        await this.prisma.$executeRawUnsafe(`ALTER TABLE "impresora_pos" ADD COLUMN IF NOT EXISTS "tamano_fuente" INTEGER NOT NULL DEFAULT 1`);
+        await this.prisma.$executeRawUnsafe(`ALTER TABLE "impresora_pos" ADD COLUMN IF NOT EXISTS "margen_inicio_lineas" INTEGER NOT NULL DEFAULT 0`);
+        await this.prisma.$executeRawUnsafe(`ALTER TABLE "impresora_pos" ADD COLUMN IF NOT EXISTS "margen_fin_lineas" INTEGER NOT NULL DEFAULT 2`);
+        await this.prisma.$executeRawUnsafe(`ALTER TABLE "impresora_pos" ADD COLUMN IF NOT EXISTS "comanda_mesa" BOOLEAN NOT NULL DEFAULT true`);
+        await this.prisma.$executeRawUnsafe(`ALTER TABLE "impresora_pos" ADD COLUMN IF NOT EXISTS "comanda_mostrador" BOOLEAN NOT NULL DEFAULT true`);
+        await this.prisma.$executeRawUnsafe(`ALTER TABLE "impresora_pos" ADD COLUMN IF NOT EXISTS "comanda_para_llevar" BOOLEAN NOT NULL DEFAULT true`);
+        await this.prisma.$executeRawUnsafe(`ALTER TABLE "regla_impresion_cocina" ADD COLUMN IF NOT EXISTS "omitir" BOOLEAN NOT NULL DEFAULT false`);
+    }
+    async asegurarColumnaMacEsperada() {
+        await this.asegurarEsquemaImpresoras();
     }
     pendingPaths() {
         const cwd = process.cwd();
@@ -504,29 +515,51 @@ let ImpresorasPosService = ImpresorasPosService_1 = class ImpresorasPosService {
         const cached = (0, destinos_impresora_cache_1.getCachedDestinos)(tenantId, rol);
         if (cached)
             return cached;
+        try {
+            await this.asegurarEsquemaImpresoras();
+        }
+        catch (e) {
+            const msg = e instanceof Error ? e.message : String(e);
+            this.logger.warn(`destinosParaRol esquema: ${msg}`);
+        }
         await this.asegurarMigracionEnv(tenantId);
-        const rows = await this.prisma.impresoraPos.findMany({
-            where: {
-                idRestaurante: tenantId,
-                activa: true,
-                roles: { has: rol },
-            },
-            include: {
-                reglasCocina: {
-                    orderBy: { orden: 'asc' },
-                    where: {
-                        OR: [
-                            { alcance: 'categoria', categoria: { activo: true } },
-                            {
-                                alcance: 'producto',
-                                producto: { activo: true, categoria: { activo: true } },
-                            },
-                        ],
+        let rows;
+        try {
+            rows = await this.prisma.impresoraPos.findMany({
+                where: {
+                    idRestaurante: tenantId,
+                    activa: true,
+                    roles: { has: rol },
+                },
+                include: {
+                    reglasCocina: {
+                        orderBy: { orden: 'asc' },
+                        where: {
+                            OR: [
+                                { alcance: 'categoria', categoria: { activo: true } },
+                                {
+                                    alcance: 'producto',
+                                    producto: { activo: true, categoria: { activo: true } },
+                                },
+                            ],
+                        },
                     },
                 },
-            },
-            orderBy: [{ orden: 'asc' }, { idImpresora: 'asc' }],
-        });
+                orderBy: [{ orden: 'asc' }, { idImpresora: 'asc' }],
+            });
+        }
+        catch (e) {
+            this.logger.warn(`destinosParaRol con reglas falló; reintento sin reglas: ${e instanceof Error ? e.message : String(e)}`);
+            const bare = await this.prisma.impresoraPos.findMany({
+                where: {
+                    idRestaurante: tenantId,
+                    activa: true,
+                    roles: { has: rol },
+                },
+                orderBy: [{ orden: 'asc' }, { idImpresora: 'asc' }],
+            });
+            rows = bare.map((r) => ({ ...r, reglasCocina: [] }));
+        }
         const anchoEnv = (0, impresora_papel_ancho_1.papelMmDesdeChars)(Number(this.config.get('PRINTER_WIDTH') ?? 32));
         let destinos;
         if (rows.length > 0) {
@@ -535,15 +568,15 @@ let ImpresorasPosService = ImpresorasPosService_1 = class ImpresorasPosService {
                 nombre: r.nombre,
                 destino: r.destino,
                 baud_rate: r.baudRate,
-                ancho_papel_mm: (0, impresora_papel_ancho_1.normalizarAnchoPapelMm)(r.anchoPapelMm),
-                tamano_fuente: (0, impresora_papel_ancho_1.normalizarTamanoFuente)(r.tamanoFuente),
-                margen_inicio_lineas: (0, impresora_papel_ancho_1.normalizarMargenLineas)(r.margenInicioLineas, 0),
-                margen_fin_lineas: (0, impresora_papel_ancho_1.normalizarMargenLineas)(r.margenFinLineas, 2),
+                ancho_papel_mm: (0, impresora_papel_ancho_1.normalizarAnchoPapelMm)('anchoPapelMm' in r ? r.anchoPapelMm : 58),
+                tamano_fuente: (0, impresora_papel_ancho_1.normalizarTamanoFuente)('tamanoFuente' in r ? r.tamanoFuente : 1),
+                margen_inicio_lineas: (0, impresora_papel_ancho_1.normalizarMargenLineas)('margenInicioLineas' in r ? r.margenInicioLineas : 0, 0),
+                margen_fin_lineas: (0, impresora_papel_ancho_1.normalizarMargenLineas)('margenFinLineas' in r ? r.margenFinLineas : 2, 2),
                 es_cocina_maestra: r.esCocinaMaestra,
-                comanda_mesa: r.comandaMesa !== false,
-                comanda_mostrador: r.comandaMostrador !== false,
-                comanda_para_llevar: r.comandaParaLlevar !== false,
-                reglas: r.reglasCocina.map((regla) => ({
+                comanda_mesa: !('comandaMesa' in r) || r.comandaMesa !== false,
+                comanda_mostrador: !('comandaMostrador' in r) || r.comandaMostrador !== false,
+                comanda_para_llevar: !('comandaParaLlevar' in r) || r.comandaParaLlevar !== false,
+                reglas: (r.reglasCocina ?? []).map((regla) => ({
                     alcance: regla.alcance,
                     id_categoria: regla.idCategoria,
                     id_producto: regla.idProducto,
