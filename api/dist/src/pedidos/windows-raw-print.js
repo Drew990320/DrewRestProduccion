@@ -40,7 +40,7 @@ const fs = __importStar(require("fs"));
 const os = __importStar(require("os"));
 const path = __importStar(require("path"));
 const execFileAsync = (0, util_1.promisify)(child_process_1.execFile);
-let resolvedExe;
+let resolvedExe = null;
 function candidateRawPrintExes() {
     const fromEnv = process.env.DREWREST_RAW_PRINT_EXE?.trim();
     const cwd = process.cwd();
@@ -55,7 +55,7 @@ function candidateRawPrintExes() {
     ].filter((p) => Boolean(p && p.length > 0));
 }
 function resolveRawPrintExe() {
-    if (resolvedExe !== undefined)
+    if (resolvedExe)
         return resolvedExe;
     for (const p of candidateRawPrintExes()) {
         try {
@@ -67,7 +67,6 @@ function resolveRawPrintExe() {
         catch {
         }
     }
-    resolvedExe = null;
     return null;
 }
 function mensajeErrorExe(err) {

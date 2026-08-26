@@ -38,6 +38,7 @@ let ImpresorasPosService = ImpresorasPosService_1 = class ImpresorasPosService {
             await this.asegurarEsquemaImpresoras();
             await this.asegurarMigracionEnv(tenant_constants_1.DEFAULT_TENANT_ID);
             await this.aplicarPendientesLauncher(tenant_constants_1.DEFAULT_TENANT_ID);
+            await this.activarSiHayImpresoras(tenant_constants_1.DEFAULT_TENANT_ID);
         }
         catch (e) {
             const msg = e instanceof Error ? e.message : String(e);
@@ -45,15 +46,39 @@ let ImpresorasPosService = ImpresorasPosService_1 = class ImpresorasPosService {
         }
     }
     async asegurarEsquemaImpresoras() {
-        await this.prisma.$executeRawUnsafe(`ALTER TABLE "impresora_pos" ADD COLUMN IF NOT EXISTS "mac_esperada" VARCHAR(17)`);
-        await this.prisma.$executeRawUnsafe(`ALTER TABLE "impresora_pos" ADD COLUMN IF NOT EXISTS "ancho_papel_mm" INTEGER NOT NULL DEFAULT 58`);
-        await this.prisma.$executeRawUnsafe(`ALTER TABLE "impresora_pos" ADD COLUMN IF NOT EXISTS "tamano_fuente" INTEGER NOT NULL DEFAULT 1`);
-        await this.prisma.$executeRawUnsafe(`ALTER TABLE "impresora_pos" ADD COLUMN IF NOT EXISTS "margen_inicio_lineas" INTEGER NOT NULL DEFAULT 0`);
-        await this.prisma.$executeRawUnsafe(`ALTER TABLE "impresora_pos" ADD COLUMN IF NOT EXISTS "margen_fin_lineas" INTEGER NOT NULL DEFAULT 2`);
-        await this.prisma.$executeRawUnsafe(`ALTER TABLE "impresora_pos" ADD COLUMN IF NOT EXISTS "comanda_mesa" BOOLEAN NOT NULL DEFAULT true`);
-        await this.prisma.$executeRawUnsafe(`ALTER TABLE "impresora_pos" ADD COLUMN IF NOT EXISTS "comanda_mostrador" BOOLEAN NOT NULL DEFAULT true`);
-        await this.prisma.$executeRawUnsafe(`ALTER TABLE "impresora_pos" ADD COLUMN IF NOT EXISTS "comanda_para_llevar" BOOLEAN NOT NULL DEFAULT true`);
-        await this.prisma.$executeRawUnsafe(`ALTER TABLE "regla_impresion_cocina" ADD COLUMN IF NOT EXISTS "omitir" BOOLEAN NOT NULL DEFAULT false`);
+        const stmts = [
+            `ALTER TABLE "impresora_pos" ADD COLUMN IF NOT EXISTS "mac_esperada" VARCHAR(17)`,
+            `ALTER TABLE "impresora_pos" ADD COLUMN IF NOT EXISTS "ancho_papel_mm" INTEGER NOT NULL DEFAULT 58`,
+            `ALTER TABLE "impresora_pos" ADD COLUMN IF NOT EXISTS "tamano_fuente" INTEGER NOT NULL DEFAULT 1`,
+            `ALTER TABLE "impresora_pos" ADD COLUMN IF NOT EXISTS "margen_inicio_lineas" INTEGER NOT NULL DEFAULT 0`,
+            `ALTER TABLE "impresora_pos" ADD COLUMN IF NOT EXISTS "margen_fin_lineas" INTEGER NOT NULL DEFAULT 2`,
+            `ALTER TABLE "impresora_pos" ADD COLUMN IF NOT EXISTS "comanda_mesa" BOOLEAN NOT NULL DEFAULT true`,
+            `ALTER TABLE "impresora_pos" ADD COLUMN IF NOT EXISTS "comanda_mostrador" BOOLEAN NOT NULL DEFAULT true`,
+            `ALTER TABLE "impresora_pos" ADD COLUMN IF NOT EXISTS "comanda_para_llevar" BOOLEAN NOT NULL DEFAULT true`,
+            `ALTER TABLE "regla_impresion_cocina" ADD COLUMN IF NOT EXISTS "omitir" BOOLEAN NOT NULL DEFAULT false`,
+        ];
+        for (const sql of stmts) {
+            try {
+                await this.prisma.$executeRawUnsafe(sql);
+            }
+            catch (e) {
+                const msg = e instanceof Error ? e.message : String(e);
+                this.logger.warn(`asegurarEsquemaImpresoras: ${msg}`);
+            }
+        }
+    }
+    async activarSiHayImpresoras(tenantId) {
+        try {
+            const activas = await this.prisma.impresoraPos.count({
+                where: { idRestaurante: tenantId, activa: true },
+            });
+            if (activas > 0)
+                this.enablePrinterEnv();
+        }
+        catch (e) {
+            const msg = e instanceof Error ? e.message : String(e);
+            this.logger.warn(`activarSiHayImpresoras: ${msg}`);
+        }
     }
     async asegurarColumnaMacEsperada() {
         await this.asegurarEsquemaImpresoras();
@@ -523,7 +548,7 @@ let ImpresorasPosService = ImpresorasPosService_1 = class ImpresorasPosService {
             this.logger.warn(`destinosParaRol esquema: ${msg}`);
         }
         await this.asegurarMigracionEnv(tenantId);
-        let rows;
+        let rows = [];
         try {
             rows = await this.prisma.impresoraPos.findMany({
                 where: {
@@ -550,19 +575,26 @@ let ImpresorasPosService = ImpresorasPosService_1 = class ImpresorasPosService {
         }
         catch (e) {
             this.logger.warn(`destinosParaRol con reglas falló; reintento sin reglas: ${e instanceof Error ? e.message : String(e)}`);
-            const bare = await this.prisma.impresoraPos.findMany({
-                where: {
-                    idRestaurante: tenantId,
-                    activa: true,
-                    roles: { has: rol },
-                },
-                orderBy: [{ orden: 'asc' }, { idImpresora: 'asc' }],
-            });
-            rows = bare.map((r) => ({ ...r, reglasCocina: [] }));
+            try {
+                const bare = await this.prisma.impresoraPos.findMany({
+                    where: {
+                        idRestaurante: tenantId,
+                        activa: true,
+                        roles: { has: rol },
+                    },
+                    orderBy: [{ orden: 'asc' }, { idImpresora: 'asc' }],
+                });
+                rows = bare.map((r) => ({ ...r, reglasCocina: [] }));
+            }
+            catch (e2) {
+                this.logger.warn(`destinosParaRol sin reglas también falló: ${e2 instanceof Error ? e2.message : String(e2)}`);
+                rows = [];
+            }
         }
         const anchoEnv = (0, impresora_papel_ancho_1.papelMmDesdeChars)(Number(this.config.get('PRINTER_WIDTH') ?? 32));
         let destinos;
         if (rows.length > 0) {
+            this.enablePrinterEnv();
             destinos = rows.map((r) => ({
                 id_impresora: r.idImpresora,
                 nombre: r.nombre,
