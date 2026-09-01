@@ -1126,7 +1126,13 @@ let GananciasService = GananciasService_1 = class GananciasService {
                     mesero: { idRestaurante: tenantId },
                 },
                 include: {
-                    mesero: { select: { nombre: true, apellido: true } },
+                    mesero: {
+                        select: {
+                            nombre: true,
+                            apellido: true,
+                            rol: { select: { nombre: true } },
+                        },
+                    },
                 },
                 orderBy: [{ fecha: 'asc' }, { idRegistro: 'asc' }],
             })
@@ -1196,6 +1202,7 @@ let GananciasService = GananciasService_1 = class GananciasService {
             id_registro: r.idRegistro,
             id_usuario: r.idUsuario,
             mesero: `${r.mesero.nombre} ${r.mesero.apellido}`.trim(),
+            rol: r.mesero.rol.nombre,
             monto: Math.round(Number(r.monto ?? 0)),
             fecha: luxon_1.DateTime.fromJSDate(r.fecha).toUTC().toFormat('yyyy-LL-dd'),
         }));

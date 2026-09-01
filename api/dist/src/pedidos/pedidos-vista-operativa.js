@@ -28,6 +28,7 @@ exports.pedidoVistaOperativaInclude = {
             cantidad: true,
             notaCocina: true,
             enviadoCocina: true,
+            impresoCocina: true,
             listoParaRecoger: true,
             listoCocina: true,
             producto: {
@@ -101,6 +102,7 @@ function serializarPedidoVistaOperativa(p, opts) {
             producto_prioridad_cocina_baja: d.producto.prioridadCocinaBaja,
             marcar_cocina: marcar,
             enviado_cocina: d.enviadoCocina,
+            impreso_cocina: d.impresoCocina,
             listo_para_recoger: d.listoParaRecoger,
             listo_cocina: d.listoCocina,
             cantidad: d.cantidad,

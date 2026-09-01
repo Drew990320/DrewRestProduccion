@@ -539,8 +539,13 @@ function findRestaurantLanIp() {
     /Loopback|VirtualBox|VMware|Hyper-V|vEthernet|WSL|Docker|Virtual|TAP|TUN|Npcap|Bluetooth|VPN|Host-Only|Default Switch|Kernel Debug/i;
   const wifi = /Wi-Fi|WLAN|Wireless|802\.11/i;
   const eth = /Ethernet|Etherneto|Conexi.n de .rea local|\bLAN\b/i;
+  const preferred = (
+    process.env.SERVER_LAN_IP ||
+    process.env.LAN_PREFERRED_IP ||
+    ''
+  ).trim();
 
-  /** @type {{ name: string; address: string; kind: string }[]} */
+  /** @type {{ name: string; address: string; kind: string; priority: number }[]} */
   const candidates = [];
 
   for (const [name, addrs] of Object.entries(os.networkInterfaces())) {
@@ -552,18 +557,25 @@ function findRestaurantLanIp() {
       if (addr.address.startsWith('169.254.')) continue;
       if (addr.address.startsWith('192.168.56.')) continue;
       let kind = 'other';
-      if (wifi.test(name)) kind = 'wifi';
-      else if (eth.test(name) && !wifi.test(name)) kind = 'eth';
-      candidates.push({ name, address: addr.address, kind });
+      let priority = 1;
+      if (wifi.test(name)) {
+        kind = 'wifi';
+        priority = /^wi-?fi$/i.test(name.trim()) ? 4 : 3;
+      } else if (eth.test(name) && !wifi.test(name)) {
+        kind = 'eth';
+        priority = 2;
+      }
+      candidates.push({ name, address: addr.address, kind, priority });
     }
   }
 
-  return (
-    candidates.find((c) => c.kind === 'wifi') ||
-    candidates.find((c) => c.kind === 'eth') ||
-    candidates[0] ||
-    null
-  );
+  if (preferred && /^\d{1,3}(\.\d{1,3}){3}$/.test(preferred)) {
+    const hit = candidates.find((c) => c.address === preferred);
+    if (hit) return hit;
+  }
+
+  candidates.sort((a, b) => b.priority - a.priority);
+  return candidates[0] || null;
 }
 
 function onListening(port, preferred) {

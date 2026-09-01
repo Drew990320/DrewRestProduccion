@@ -16,6 +16,8 @@ export type LineaComandaAgrupable = LineaCocinaTipoInput & {
 };
 export type LineaComandaTicket = {
     id_detalle: number;
+    /** IDs de todos los detalles fusionados en esta línea de ticket. */
+    ids_detalle?: number[];
     cantidad: number;
     nombre_producto: string;
     nota_cocina: string | null;
@@ -42,3 +44,12 @@ export declare function notaCocinaComandaEfectiva(linea: {
  */
 export declare function prepararLineasComandaParaTicket(catalogo: LineaComandaAgrupable[], idsImprimir?: ReadonlySet<number>): LineaComandaAgrupable[];
 export declare function lineasComandaParaTicket(detalles: LineaComandaAgrupable[], opts?: LineasComandaParaTicketOpts): LineaComandaTicket[];
+/** Ids de detalle cubiertos por una línea de comanda (incluye agrupación). */
+export declare function idsDetalleDeLineaComanda(linea: {
+    id_detalle: number;
+    ids_detalle?: number[];
+}): number[];
+export declare function idsDetalleDeLineasComanda(lineas: ReadonlyArray<{
+    id_detalle: number;
+    ids_detalle?: number[];
+}>): number[];

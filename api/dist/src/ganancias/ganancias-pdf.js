@@ -139,7 +139,7 @@ function buildGananciasPdf(data) {
         kv('Ganancia neta (después de costo)', `${cop(r.ganancia_bruta)}${r.margen_bruto_pct != null ? ` (${r.margen_bruto_pct}%)` : ''}`, true);
         kv('Gastos fijos / fondo', cop(r.gastos_fijos));
         kv('Gastos extras', cop(r.gastos_extras));
-        kv('Pagos a meseros', cop(r.gastos_meseros ?? 0));
+        kv('Pagos al personal', cop(r.gastos_meseros ?? 0));
         kv('Total gastos (de la neta)', cop(r.gastos_total), true);
         kv('Después de gastos', `${cop(r.ganancia_neta)}${r.margen_neto_pct != null ? ` (${r.margen_neto_pct}%)` : ''}`, true);
         kv('Unidades vendidas', String(r.unidades_vendidas));
@@ -175,7 +175,7 @@ function buildGananciasPdf(data) {
             g.nombre,
             cop(g.monto_en_periodo ?? g.monto),
         ]), [0.22, 0.53, 0.25], left, contentW, y, data.gastos_extras.length === 0 ? 'Ninguno' : undefined);
-        y = drawTableSection(doc, 'Pagos a meseros', ['Fecha', 'Mesero', 'Monto'], (data.pagos_meseros ?? []).map((g) => [
+        y = drawTableSection(doc, 'Pagos al personal', ['Fecha', 'Mesero', 'Monto'], (data.pagos_meseros ?? []).map((g) => [
             formatFechaEs(g.fecha),
             g.mesero,
             cop(g.monto),

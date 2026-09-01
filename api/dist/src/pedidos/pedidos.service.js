@@ -121,6 +121,7 @@ let PedidosService = class PedidosService {
     contabilidadPosting;
     menuActivo;
     logger = new common_1.Logger(PedidosService_1.name);
+    esquemaImpresoCocinaOk = false;
     configDescuentosCache = new Map();
     static CONFIG_CACHE_TTL_MS = 60_000;
     constructor(prisma, gateway, comandaPrinter, facturaEmail, permisos, inventarioDeduccion, contabilidadPosting, menuActivo) {
@@ -132,6 +133,34 @@ let PedidosService = class PedidosService {
         this.inventarioDeduccion = inventarioDeduccion;
         this.contabilidadPosting = contabilidadPosting;
         this.menuActivo = menuActivo;
+    }
+    async onModuleInit() {
+        await this.asegurarEsquemaImpresoCocina();
+    }
+    async asegurarEsquemaImpresoCocina() {
+        if (this.esquemaImpresoCocinaOk)
+            return;
+        try {
+            const rows = await this.prisma.$queryRawUnsafe(`SELECT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'detalle_pedido'
+            AND column_name = 'impreso_cocina'
+        ) AS col_existe`);
+            const existed = Boolean(rows[0]?.col_existe);
+            await this.prisma.$executeRawUnsafe(`ALTER TABLE "detalle_pedido" ADD COLUMN IF NOT EXISTS "impreso_cocina" BOOLEAN NOT NULL DEFAULT false`);
+            if (!existed) {
+                await this.prisma.$executeRawUnsafe(`UPDATE "detalle_pedido" SET "impreso_cocina" = true WHERE "enviado_cocina" = true`);
+            }
+            this.esquemaImpresoCocinaOk = true;
+            if (!existed) {
+                this.logger.log('Columna detalle_pedido.impreso_cocina creada');
+            }
+        }
+        catch (e) {
+            const msg = e instanceof Error ? e.message : String(e);
+            this.logger.warn(`asegurarEsquemaImpresoCocina: ${msg}`);
+        }
     }
     async exigirPermisoMesero(actor, permiso, opts) {
         if (!actor)
@@ -371,6 +400,37 @@ let PedidosService = class PedidosService {
             at: new Date().toISOString(),
         });
     }
+    async aplicarResultadoImpresionComanda(impresion, comanda, idPedido) {
+        await this.asegurarEsquemaImpresoCocina();
+        const idsOk = impresion.ids_detalle_impresos ?? [];
+        if (idsOk.length > 0) {
+            await this.prisma.detallePedido.updateMany({
+                where: { idPedido, idDetalle: { in: idsOk } },
+                data: { impresoCocina: true },
+            });
+        }
+        this.emitirAlertaImpresora(impresion, 'comanda', idPedido);
+        const idsTicket = (0, comanda_lineas_group_1.idsDetalleDeLineasComanda)(comanda.lineas);
+        if (idsTicket.length === 0)
+            return;
+        const okSet = new Set(idsOk);
+        const pendientes = idsTicket.filter((id) => !okSet.has(id));
+        if (pendientes.length === 0)
+            return;
+        const codigo = idsOk.length === 0 ? 'comanda_fallida' : 'comanda_parcial';
+        const mensaje = codigo === 'comanda_fallida'
+            ? (impresion.error ??
+                'No se pudo imprimir la comanda. Vuelve a Pasar a cocina o Reimprimir.')
+            : 'No se imprimió todo. Vuelve a Pasar a cocina o Reimprimir para el resto.';
+        this.gateway.emitImpresoraAlerta({
+            codigo,
+            mensaje,
+            destino: impresion.destino,
+            contexto: 'comanda',
+            pedidoId: idPedido,
+            at: new Date().toISOString(),
+        });
+    }
     encolarImpresion(job, contexto, pedidoId) {
         void job()
             .then((impresion) => {
@@ -383,7 +443,24 @@ let PedidosService = class PedidosService {
         return { impreso: false, en_cola: true };
     }
     encolarImpresionComanda(comanda, idPedido) {
-        return this.encolarImpresion(() => this.comandaPrinter.imprimirComanda(comanda), 'comanda', idPedido);
+        void (async () => {
+            try {
+                const impresion = await this.comandaPrinter.imprimirComanda(comanda);
+                await this.aplicarResultadoImpresionComanda(impresion, comanda, idPedido);
+            }
+            catch (err) {
+                const msg = err instanceof Error ? err.message : String(err);
+                this.logger.error(`Error en cola de impresión (comanda pedido ${idPedido}): ${msg}`);
+                this.gateway.emitImpresoraAlerta({
+                    codigo: 'comanda_fallida',
+                    mensaje: 'No se pudo imprimir la comanda. Vuelve a Pasar a cocina o Reimprimir.',
+                    contexto: 'comanda',
+                    pedidoId: idPedido,
+                    at: new Date().toISOString(),
+                });
+            }
+        })();
+        return { impreso: false, en_cola: true };
     }
     encolarImpresionFactura(ticket, idPedido, conCopia = false, abrirCajon = false) {
         return this.encolarImpresion(() => this.comandaPrinter.imprimirFacturaConCajon(ticket, {
@@ -927,6 +1004,7 @@ let PedidosService = class PedidosService {
             redondeo_umbral: row.redondeoUmbral,
             imprimir_entrada_caja: row.imprimirEntradaCaja,
             imprimir_salida_caja: row.imprimirSalidaCaja,
+            cocina_tamano_texto: row.cocinaTamanoTexto ?? 'normal',
         };
     }
     impresionMovimientoCajaOmitida() {
@@ -1125,6 +1203,9 @@ let PedidosService = class PedidosService {
                 ...(dto.imprimir_salida_caja != null
                     ? { imprimirSalidaCaja: dto.imprimir_salida_caja }
                     : {}),
+                ...(dto.cocina_tamano_texto != null
+                    ? { cocinaTamanoTexto: dto.cocina_tamano_texto }
+                    : {}),
                 ...this.prioridadPatchFromDto(dto),
             },
             update: {
@@ -1179,6 +1260,9 @@ let PedidosService = class PedidosService {
                     : {}),
                 ...(dto.imprimir_salida_caja != null
                     ? { imprimirSalidaCaja: dto.imprimir_salida_caja }
+                    : {}),
+                ...(dto.cocina_tamano_texto != null
+                    ? { cocinaTamanoTexto: dto.cocina_tamano_texto }
                     : {}),
                 ...this.prioridadPatchFromDto(dto),
             },
@@ -2833,7 +2917,9 @@ let PedidosService = class PedidosService {
         const comanda = this.construirTicketComanda(pedido, enviados, {
             esReimpresion: true,
         });
-        return this.comandaPrinter.imprimirComanda(comanda);
+        const impresion = await this.comandaPrinter.imprimirComanda(comanda);
+        await this.aplicarResultadoImpresionComanda(impresion, comanda, idPedido);
+        return impresion;
     }
     async imprimirFacturaPorId(idFactura) {
         const f = await this.prisma.factura.findUnique({
@@ -5702,6 +5788,7 @@ let PedidosService = class PedidosService {
     }
     async pasarCocina(idPedido, actor) {
         await this.exigirPermisoMesero(actor, 'enviar_cocina');
+        await this.asegurarEsquemaImpresoCocina();
         const pedido = await this.prisma.pedido.findUnique({
             where: { idPedido },
             include: {
@@ -5730,11 +5817,16 @@ let PedidosService = class PedidosService {
         if (pedido.detalles.length === 0) {
             throw new common_1.BadRequestException('Agrega ítems al pedido antes de enviar a cocina');
         }
-        const pendientes = pedido.detalles.filter((d) => productoDebePasarCocina(d.producto) && !d.enviadoCocina);
+        const pendientes = pedido.detalles.filter((d) => productoDebePasarCocina(d.producto) &&
+            !d.listoCocina &&
+            (!d.enviadoCocina || !d.impresoCocina));
         if (pendientes.length === 0) {
             throw new common_1.BadRequestException('No hay platos nuevos para cocina (las bebidas solo se cobran al final)');
         }
-        const conSubitemsSinDefinir = pendientes.filter((d) => (0, subitems_pendientes_1.detalleSubitemsPendientes)({
+        const nuevos = pendientes.filter((d) => !d.enviadoCocina);
+        const reintentoImpresion = pendientes.filter((d) => d.enviadoCocina && !d.impresoCocina);
+        const soloReintento = nuevos.length === 0 && reintentoImpresion.length > 0;
+        const conSubitemsSinDefinir = nuevos.filter((d) => (0, subitems_pendientes_1.detalleSubitemsPendientes)({
             usa_subitems_repartibles: d.producto.usaSubitemsRepartibles,
             cantidad: d.cantidad,
             subitems: d.subitems.map((s) => ({ cantidad: s.cantidad })),
@@ -5746,60 +5838,57 @@ let PedidosService = class PedidosService {
                 .join(', ');
             throw new common_1.BadRequestException(`Define el reparto de subítems antes de pasar a cocina (${nombres}${conSubitemsSinDefinir.length > 3 ? '…' : ''}).`);
         }
-        const esAdicional = pedido.detalles.some((d) => productoDebePasarCocina(d.producto) && d.enviadoCocina);
-        const idsPendientes = pendientes.map((d) => d.idDetalle);
+        const esAdicional = pedido.detalles.some((d) => productoDebePasarCocina(d.producto) &&
+            d.enviadoCocina &&
+            d.impresoCocina);
         const emitidaEn = new Date();
         const invCfg = await this.inventarioDeduccion.obtenerConfig(pedido.idRestaurante);
-        await this.prisma.$transaction(async (tx) => {
-            await tx.detallePedido.updateMany({
-                where: { idDetalle: { in: idsPendientes } },
-                data: { enviadoCocina: true, enviadoCocinaEn: emitidaEn },
-            });
-            if (pedido.estado === 'abierto') {
-                await tx.pedido.update({
-                    where: { idPedido },
-                    data: { estado: 'en_cocina' },
+        if (nuevos.length > 0) {
+            const idsNuevos = nuevos.map((d) => d.idDetalle);
+            await this.prisma.$transaction(async (tx) => {
+                await tx.detallePedido.updateMany({
+                    where: { idDetalle: { in: idsNuevos } },
+                    data: { enviadoCocina: true, enviadoCocinaEn: emitidaEn },
                 });
-            }
-            await this.inventarioDeduccion.aplicarEventoLineasEnTx(tx, {
-                tenantId: pedido.idRestaurante,
-                evento: invCfg.evento_deduccion_receta,
-                idPedido,
-                lineas: pendientes.map((d) => ({
-                    id_detalle_pedido: d.idDetalle,
-                    id_producto: d.idProducto,
-                    cantidad: d.cantidad,
-                    nombre_producto: d.producto.nombre,
-                })),
-                idUsuario: actor?.idUsuario,
+                if (pedido.estado === 'abierto') {
+                    await tx.pedido.update({
+                        where: { idPedido },
+                        data: { estado: 'en_cocina' },
+                    });
+                }
+                await this.inventarioDeduccion.aplicarEventoLineasEnTx(tx, {
+                    tenantId: pedido.idRestaurante,
+                    evento: invCfg.evento_deduccion_receta,
+                    idPedido,
+                    lineas: nuevos.map((d) => ({
+                        id_detalle_pedido: d.idDetalle,
+                        id_producto: d.idProducto,
+                        cantidad: d.cantidad,
+                        nombre_producto: d.producto.nombre,
+                    })),
+                    idUsuario: actor?.idUsuario,
+                });
             });
-        });
-        const lineas = pendientes.map((d) => ({
-            id_detalle: d.idDetalle,
-            cantidad: d.cantidad,
-            nombre_producto: d.producto.nombre,
-            nota_cocina: d.notaCocina,
-            personalizaciones: [
-                ...formatSubitemsDetalle(d.subitems),
-                ...d.personalizaciones.map((dp) => dp.opcion.descripcion),
-            ],
-        }));
+        }
         const comanda = this.construirTicketComanda(pedido, pendientes, {
-            esAdicional,
+            esAdicional: esAdicional && !soloReintento,
+            esReimpresion: soloReintento,
             emitidaEn,
         });
-        if (pedido.estado === 'abierto') {
+        if (pedido.estado === 'abierto' && nuevos.length > 0) {
             pedido.estado = 'en_cocina';
         }
-        for (const d of pendientes) {
+        for (const d of nuevos) {
             d.enviadoCocina = true;
+            d.enviadoCocinaEn = emitidaEn;
         }
         const pedidoSerializado = this.serializarPedido(pedido);
         this.emit(idPedido, pedido.idMesa, pedido.idUsuario, pedido.idRestaurante);
         const impresion = this.encolarImpresionComanda(comanda, idPedido);
         return {
             ok: true,
-            es_adicional: esAdicional,
+            es_adicional: esAdicional && !soloReintento,
+            es_reintento_impresion: soloReintento,
             comanda,
             impreso: impresion.impreso,
             impresion_en_cola: impresion.en_cola ?? false,
@@ -5841,7 +5930,7 @@ let PedidosService = class PedidosService {
             esReimpresion: true,
         });
         const impresion = await this.comandaPrinter.imprimirComanda(comanda);
-        this.emitirAlertaImpresora(impresion, 'comanda', idPedido);
+        await this.aplicarResultadoImpresionComanda(impresion, comanda, idPedido);
         return {
             ok: true,
             id_pedido: idPedido,
@@ -8628,6 +8717,7 @@ let PedidosService = class PedidosService {
                 usa_subitems_repartibles: d.producto.usaSubitemsRepartibles,
                 marcar_cocina: d.producto.esCombo ? false : marcar,
                 enviado_cocina: d.enviadoCocina,
+                impreso_cocina: d.impresoCocina,
                 listo_para_recoger: d.listoParaRecoger,
                 listo_cocina: d.listoCocina,
                 cantidad: d.cantidad,

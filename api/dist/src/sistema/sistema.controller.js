@@ -99,8 +99,10 @@ let SistemaController = class SistemaController {
     }
     conexionCelulares() {
         const red = (0, red_local_1.detectarRedLocal)();
+        const redes = (0, red_local_1.listarRedesLocales)();
         const apiPort = Number(process.env.PORT ?? 3000);
-        const webPort = (0, red_local_1.leerPuertoWeb)();
+        const webDetectado = (0, red_local_1.detectarPuertoWeb)();
+        const webPort = webDetectado.puerto;
         const ip = red?.ip ?? null;
         const demoLoginUrl = (0, cors_origins_1.resolveDemoWebLoginUrl)();
         const modoDemoNube = (0, cors_origins_1.isCloudDemoDeployment)() && Boolean(demoLoginUrl);
@@ -109,10 +111,14 @@ let SistemaController = class SistemaController {
                 'Demo en la nube: el QR abre el login de la demo en cualquier celular con internet (no requiere la misma red Wi‑Fi del restaurante).',
             ]
             : [
-                'QR 1 descarga el APK. QR 2 se escanea con DrewRest (Escanear QR). QR 3 abre la página web. Misma Wi-Fi. Para el QR 2 también puedes copiar la IP.',
+                'QR 1 descarga el APK. QR 2 vincula la app nativa (API puerto ' +
+                    apiPort +
+                    '). QR 3 abre la web empaquetada. Misma Wi‑Fi.',
             ];
-        if (!modoDemoNube && webPort !== red_local_1.PUERTO_WEB_POR_DEFECTO) {
-            avisos.unshift(`El puerto ${red_local_1.PUERTO_WEB_POR_DEFECTO} estaba ocupado; la app web usa el puerto ${webPort}.`);
+        if (!modoDemoNube &&
+            webDetectado.origen === 'archivo' &&
+            webPort !== red_local_1.PUERTO_WEB_POR_DEFECTO) {
+            avisos.push(`Web empaquetada (spa-server) en puerto ${webPort} (8080 ocupado al instalar).`);
         }
         const urlWebCelular = modoDemoNube
             ? demoLoginUrl
@@ -138,13 +144,21 @@ let SistemaController = class SistemaController {
                 apiBasePath: '',
             })
             : null;
+        const ipsLan = redes.map((r) => ({
+            ip: r.ip,
+            adaptador: r.adaptador,
+            tipo_red: r.tipo,
+            principal: r.ip === ip,
+        }));
         return {
             ip: modoDemoNube ? null : ip,
             adaptador: modoDemoNube ? null : red?.adaptador ?? null,
             tipo_red: modoDemoNube ? null : red?.tipo ?? null,
+            ips_lan: modoDemoNube ? [] : ipsLan,
             puerto_api: apiPort,
             puerto_web: webPort,
             puerto_web_por_defecto: red_local_1.PUERTO_WEB_POR_DEFECTO,
+            puerto_web_origen: webDetectado.origen,
             url_api: urlApi,
             url_apk_movil: urlApkMovil,
             url_vincular: urlVincular,

@@ -19,6 +19,7 @@ const config_1 = require("@nestjs/config");
 const latency_metrics_1 = require("../common/latency-metrics");
 const impresoras_pos_service_1 = require("../impresoras-pos/impresoras-pos.service");
 const impresion_estacion_reglas_1 = require("./impresion-estacion-reglas");
+const comanda_lineas_group_1 = require("@drewrest/shared-domain/comanda-lineas-group");
 const mesa_label_1 = require("@drewrest/shared-domain/mesa-label");
 const impresora_papel_ancho_1 = require("../impresoras-pos/impresora-papel-ancho");
 const comanda_escpos_builder_1 = require("./comanda-escpos.builder");
@@ -424,7 +425,11 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
         }
         if (plan.todoOmitido) {
             this.logger.log(`Comanda omitida: todas las líneas marcadas «no imprimir» (canal=${canal})`);
-            return { impreso: true, destino: 'omitido' };
+            return {
+                impreso: true,
+                destino: 'omitido',
+                ids_detalle_impresos: (0, comanda_lineas_group_1.idsDetalleDeLineasComanda)(ticket.lineas),
+            };
         }
         if (huerfanasPorCanal.length > 0) {
             const nombres = huerfanasPorCanal
@@ -444,6 +449,7 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
                         ? 'Hay platos de cocina sin estación. Configura cocina maestra o asígnalos en Impresoras POS.'
                         : 'Ninguna estación de cocina coincide con este pedido',
                 codigo_error: 'sin_estacion_para_lineas',
+                ids_detalle_impresos: [],
             };
         }
         const jobs = jobsPlan.map((j) => {
@@ -457,19 +463,34 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
             };
         });
         const resultados = await Promise.all(jobs.map(({ destino, ticket: t }) => this.imprimirComandaEnDestino(t, destino)));
+        const idsImpresos = [];
+        const seenIds = new Set();
+        for (let i = 0; i < resultados.length; i++) {
+            if (!resultados[i]?.impreso)
+                continue;
+            for (const id of (0, comanda_lineas_group_1.idsDetalleDeLineasComanda)(jobs[i].ticket.lineas)) {
+                if (seenIds.has(id))
+                    continue;
+                seenIds.add(id);
+                idsImpresos.push(id);
+            }
+        }
         const ok = resultados.find((r) => r.impreso);
         if (ok) {
             const fallos = resultados.filter((r) => !r.impreso);
             if (fallos.length) {
                 this.logger.warn(`Comanda parcial: ${fallos.map((f) => f.error).join(' | ')}`);
             }
-            return ok;
+            return { ...ok, ids_detalle_impresos: idsImpresos };
         }
-        return (resultados[0] ?? {
-            impreso: false,
-            error: 'No se pudo imprimir la comanda',
-            codigo_error: 'otro',
-        });
+        return {
+            ...(resultados[0] ?? {
+                impreso: false,
+                error: 'No se pudo imprimir la comanda',
+                codigo_error: 'otro',
+            }),
+            ids_detalle_impresos: [],
+        };
     }
     async imprimirComandaEnDestino(ticket, destino) {
         let buffer;

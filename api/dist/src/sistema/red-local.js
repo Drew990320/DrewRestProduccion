@@ -4,8 +4,12 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.PUERTO_WEB_POR_DEFECTO = void 0;
+exports.resolvePreferredLanIp = resolvePreferredLanIp;
+exports.elegirCandidatoRed = elegirCandidatoRed;
 exports.detectarRedLocal = detectarRedLocal;
+exports.listarRedesLocales = listarRedesLocales;
 exports.candidatosArchivoPuertoWeb = candidatosArchivoPuertoWeb;
+exports.detectarPuertoWeb = detectarPuertoWeb;
 exports.leerPuertoWebDesdeArchivo = leerPuertoWebDesdeArchivo;
 exports.leerPuertoWeb = leerPuertoWeb;
 const fs_1 = require("fs");
@@ -23,7 +27,45 @@ function ipv4Valida(ip) {
         return false;
     return true;
 }
+function resolvePreferredLanIp() {
+    const raw = process.env.SERVER_LAN_IP?.trim() ||
+        process.env.LAN_PREFERRED_IP?.trim() ||
+        '';
+    if (!raw || !/^\d{1,3}(\.\d{1,3}){3}$/.test(raw))
+        return null;
+    if (!ipv4Valida(raw))
+        return null;
+    return raw;
+}
+function elegirCandidatoRed(candidatos, preferredIp = resolvePreferredLanIp()) {
+    if (candidatos.length === 0)
+        return null;
+    if (preferredIp) {
+        const match = candidatos.find((c) => c.ip === preferredIp);
+        if (match) {
+            return { ip: match.ip, adaptador: match.adaptador, tipo: match.tipo };
+        }
+    }
+    const ordenados = [...candidatos].sort((a, b) => b.prioridad - a.prioridad);
+    const mejor = ordenados[0];
+    return { ip: mejor.ip, adaptador: mejor.adaptador, tipo: mejor.tipo };
+}
 function detectarRedLocal() {
+    const candidatos = listarCandidatosRedLocal();
+    return elegirCandidatoRed(candidatos);
+}
+function listarRedesLocales() {
+    const candidatos = listarCandidatosRedLocal();
+    if (candidatos.length === 0)
+        return [];
+    const chosen = elegirCandidatoRed(candidatos);
+    const ordenados = [...candidatos].sort((a, b) => b.prioridad - a.prioridad);
+    if (!chosen)
+        return ordenados.map(({ ip, adaptador, tipo }) => ({ ip, adaptador, tipo }));
+    const rest = ordenados.filter((c) => c.ip !== chosen.ip);
+    return [chosen, ...rest].map(({ ip, adaptador, tipo }) => ({ ip, adaptador, tipo }));
+}
+function listarCandidatosRedLocal() {
     const nets = os_1.default.networkInterfaces();
     const candidatos = [];
     for (const [nombre, addrs] of Object.entries(nets)) {
@@ -49,14 +91,19 @@ function detectarRedLocal() {
             prioridad,
         });
     }
-    if (candidatos.length === 0)
-        return null;
-    candidatos.sort((a, b) => b.prioridad - a.prioridad);
-    const mejor = candidatos[0];
-    return { ip: mejor.ip, adaptador: mejor.adaptador, tipo: mejor.tipo };
+    return candidatos;
 }
 exports.PUERTO_WEB_POR_DEFECTO = 8080;
+function esRutaPuertoWebConfiable(filePath) {
+    const norm = filePath.replace(/\\/g, '/').toLowerCase();
+    if (/release-staging|\/backups\/|node_modules|distribucion-setup/.test(norm)) {
+        return false;
+    }
+    return true;
+}
 function leerPuertoDesdeArchivo(filePath) {
+    if (!esRutaPuertoWebConfiable(filePath))
+        return null;
     if (!(0, fs_1.existsSync)(filePath))
         return null;
     try {
@@ -77,9 +124,9 @@ function candidatosArchivoPuertoWeb(cwd = process.cwd()) {
         (0, path_1.join)(cwd, '../../..'),
     ];
     const suffixes = [
+        ['DrewRest', 'web', 'web-port.txt'],
         ['web', 'web-port.txt'],
         ['apps', 'mobile', 'public', 'web-port.txt'],
-        ['DrewRest', 'web', 'web-port.txt'],
     ];
     const out = [];
     for (const anchor of anchors) {
@@ -88,6 +135,18 @@ function candidatosArchivoPuertoWeb(cwd = process.cwd()) {
         }
     }
     return [...new Set(out)];
+}
+function detectarPuertoWeb(cwd = process.cwd()) {
+    const fromEnv = Number(process.env.WEB_PORT);
+    if (Number.isFinite(fromEnv) && fromEnv > 0) {
+        return { puerto: fromEnv, origen: 'env' };
+    }
+    for (const p of candidatosArchivoPuertoWeb(cwd)) {
+        const n = leerPuertoDesdeArchivo(p);
+        if (n != null)
+            return { puerto: n, origen: 'archivo', archivo: p };
+    }
+    return { puerto: exports.PUERTO_WEB_POR_DEFECTO, origen: 'defecto' };
 }
 function leerPuertoWebDesdeArchivo(cwd = process.cwd()) {
     for (const p of candidatosArchivoPuertoWeb(cwd)) {
@@ -98,12 +157,6 @@ function leerPuertoWebDesdeArchivo(cwd = process.cwd()) {
     return null;
 }
 function leerPuertoWeb() {
-    const fromEnv = Number(process.env.WEB_PORT);
-    if (Number.isFinite(fromEnv) && fromEnv > 0)
-        return fromEnv;
-    const fromFile = leerPuertoWebDesdeArchivo();
-    if (fromFile != null)
-        return fromFile;
-    return exports.PUERTO_WEB_POR_DEFECTO;
+    return detectarPuertoWeb().puerto;
 }
 //# sourceMappingURL=red-local.js.map

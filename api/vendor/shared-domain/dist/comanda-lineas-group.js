@@ -3,6 +3,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.notaCocinaComandaEfectiva = notaCocinaComandaEfectiva;
 exports.prepararLineasComandaParaTicket = prepararLineasComandaParaTicket;
 exports.lineasComandaParaTicket = lineasComandaParaTicket;
+exports.idsDetalleDeLineaComanda = idsDetalleDeLineaComanda;
+exports.idsDetalleDeLineasComanda = idsDetalleDeLineasComanda;
 const factura_lineas_group_1 = require("./factura-lineas-group");
 const cocina_producto_1 = require("./cocina-producto");
 function notaCocinaComandaEfectiva(linea, catalogoPorId) {
@@ -92,6 +94,7 @@ function lineasComandaParaTicket(detalles, opts) {
         const row = map.get(key);
         return {
             id_detalle: row.id_detalle,
+            ids_detalle: row._ids,
             cantidad: row.cantidad,
             nombre_producto: row.nombre_producto,
             nota_cocina: row.nota_cocina,
@@ -100,4 +103,24 @@ function lineasComandaParaTicket(detalles, opts) {
             ...(row.id_categoria != null ? { id_categoria: row.id_categoria } : {}),
         };
     });
+}
+/** Ids de detalle cubiertos por una línea de comanda (incluye agrupación). */
+function idsDetalleDeLineaComanda(linea) {
+    if (linea.ids_detalle != null && linea.ids_detalle.length > 0) {
+        return [...linea.ids_detalle];
+    }
+    return [linea.id_detalle];
+}
+function idsDetalleDeLineasComanda(lineas) {
+    const out = [];
+    const seen = new Set();
+    for (const l of lineas) {
+        for (const id of idsDetalleDeLineaComanda(l)) {
+            if (seen.has(id))
+                continue;
+            seen.add(id);
+            out.push(id);
+        }
+    }
+    return out;
 }

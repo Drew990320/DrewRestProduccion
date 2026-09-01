@@ -13,6 +13,7 @@ exports.PatchUsuarioDto = void 0;
 const class_validator_1 = require("class-validator");
 class PatchUsuarioDto {
     activo;
+    elegible_pago_turno;
     password;
 }
 exports.PatchUsuarioDto = PatchUsuarioDto;
@@ -21,6 +22,11 @@ __decorate([
     (0, class_validator_1.IsBoolean)(),
     __metadata("design:type", Boolean)
 ], PatchUsuarioDto.prototype, "activo", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], PatchUsuarioDto.prototype, "elegible_pago_turno", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),

@@ -8,8 +8,8 @@ let cachedPath = null;
 let dirReady = null;
 function logFilePath() {
     const dir = process.env.LOG_DIR?.trim() || 'logs';
-    const enabled = process.env.STRUCTURED_LOGS?.trim();
-    if (enabled === '0' || enabled?.toLowerCase() === 'false')
+    const enabled = process.env.STRUCTURED_LOGS?.trim()?.toLowerCase();
+    if (enabled !== '1' && enabled !== 'true')
         return null;
     const day = new Date().toISOString().slice(0, 10);
     if (cachedDay === day && cachedPath)

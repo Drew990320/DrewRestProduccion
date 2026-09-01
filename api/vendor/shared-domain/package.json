@@ -81,6 +81,10 @@
                                                 "types":  "./dist/server-connection.d.ts",
                                                 "default":  "./dist/server-connection.js"
                                             },
+                    "./lan-discovery":  {
+                                            "types":  "./dist/lan-discovery.d.ts",
+                                            "default":  "./dist/lan-discovery.js"
+                                        },
                     "./mesa-visual":  {
                                           "types":  "./dist/mesa-visual.d.ts",
                                           "default":  "./dist/mesa-visual.js"

@@ -85,6 +85,7 @@ let UsuariosService = class UsuariosService {
                 email: u.email,
                 rol: u.rol.nombre,
                 activo: u.activo,
+                elegible_pago_turno: u.elegiblePagoTurno,
                 creado_en: u.creadoEn,
             };
         });
@@ -108,6 +109,7 @@ let UsuariosService = class UsuariosService {
                 passwordHash,
                 passwordCambiadoEn: new Date(),
                 activo: true,
+                elegiblePagoTurno: true,
             },
             include: { rol: true },
         });
@@ -173,6 +175,12 @@ let UsuariosService = class UsuariosService {
         if (dto.activo !== undefined) {
             data.activo = dto.activo;
         }
+        if (dto.elegible_pago_turno !== undefined) {
+            if (target.rol.nombre === 'admin') {
+                throw new common_1.ForbiddenException('Los administradores no reciben pago de turno');
+            }
+            data.elegiblePagoTurno = dto.elegible_pago_turno;
+        }
         if (dto.password?.trim()) {
             data.passwordHash = await bcrypt.hash(dto.password.trim(), 10);
             data.passwordCambiadoEn = new Date();
@@ -203,6 +211,7 @@ let UsuariosService = class UsuariosService {
             email: u.email,
             rol: u.rol.nombre,
             activo: u.activo,
+            elegible_pago_turno: u.elegiblePagoTurno,
             creado_en: u.creadoEn,
         };
     }

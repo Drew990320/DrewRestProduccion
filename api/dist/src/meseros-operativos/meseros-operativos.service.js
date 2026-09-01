@@ -141,7 +141,7 @@ let MeserosOperativosService = class MeserosOperativosService {
         const beneficios = await this.listBeneficios(tenantId);
         const beneficiosActivos = beneficios.filter((b) => b.activo);
         const meseros = await this.prisma.usuario.findMany({
-            where: { idRestaurante: tenantId, rol: { nombre: 'mesero' }, activo: true },
+            where: this.wherePersonalPagoTurno(tenantId),
             include: { rol: true },
             orderBy: [{ nombre: 'asc' }, { apellido: 'asc' }],
         });
@@ -200,6 +200,7 @@ let MeserosOperativosService = class MeserosOperativosService {
                 id_usuario: m.idUsuario,
                 nombre: pub.nombre,
                 apellido: pub.apellido,
+                rol: m.rol.nombre,
                 descuentos,
                 pago_turno: pago
                     ? {
@@ -238,7 +239,7 @@ let MeserosOperativosService = class MeserosOperativosService {
     }
     async upsertPagoTurno(dto, idAdmin, tenantId) {
         const { date } = this.parseFechaBogota(dto.fecha);
-        await this.ensureMeseroActivo(dto.id_usuario, tenantId);
+        await this.ensurePersonalPagoTurnoActivo(dto.id_usuario, tenantId);
         const monto = Math.round(dto.monto);
         const row = await this.prisma.registroBeneficioMesero.upsert({
             where: {
@@ -277,9 +278,7 @@ let MeserosOperativosService = class MeserosOperativosService {
         }
         let meseros = await this.prisma.usuario.findMany({
             where: {
-                idRestaurante: tenantId,
-                rol: { nombre: 'mesero' },
-                activo: true,
+                ...this.wherePersonalPagoTurno(tenantId),
                 ...(dto.ids_usuarios?.length
                     ? { idUsuario: { in: dto.ids_usuarios } }
                     : {}),
@@ -290,11 +289,11 @@ let MeserosOperativosService = class MeserosOperativosService {
         if (dto.ids_usuarios?.length) {
             const pedidas = new Set(dto.ids_usuarios);
             if (meseros.length !== pedidas.size) {
-                throw new common_1.BadRequestException('Uno o más meseros no están activos o no existen');
+                throw new common_1.BadRequestException('Uno o más empleados no están activos, no reciben pago de turno o no existen');
             }
         }
         if (meseros.length === 0) {
-            throw new common_1.BadRequestException('No hay meseros activos para repartir');
+            throw new common_1.BadRequestException('No hay personal activo con pago de turno para repartir');
         }
         const partes = (0, repartir_monto_cop_1.repartirMontoEnCop)(montoTotal, meseros.length);
         const notas = dto.notas?.trim() || null;
@@ -558,6 +557,13 @@ let MeserosOperativosService = class MeserosOperativosService {
     async miDelegacionHoy(idUsuario, rol) {
         return this.permisos.miDelegacionHoy(idUsuario, rol);
     }
+    wherePersonalPagoTurno(tenantId) {
+        return {
+            idRestaurante: tenantId,
+            activo: true,
+            elegiblePagoTurno: true,
+        };
+    }
     async ensureMeseroActivo(idUsuario, tenantId) {
         const u = await this.prisma.usuario.findFirst({
             where: {
@@ -569,6 +575,18 @@ let MeserosOperativosService = class MeserosOperativosService {
         });
         if (!u) {
             throw new common_1.BadRequestException('Mesero no encontrado o inactivo');
+        }
+    }
+    async ensurePersonalPagoTurnoActivo(idUsuario, tenantId) {
+        const u = await this.prisma.usuario.findFirst({
+            where: {
+                idUsuario,
+                ...this.wherePersonalPagoTurno(tenantId),
+            },
+            include: { rol: true },
+        });
+        if (!u) {
+            throw new common_1.BadRequestException('Empleado no encontrado, inactivo o sin pago de turno habilitado');
         }
     }
 };

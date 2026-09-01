@@ -45,6 +45,7 @@ const mobile_download_controller_1 = require("./sistema/mobile-download.controll
 const rendimiento_controller_1 = require("./sistema/rendimiento.controller");
 const logs_controller_1 = require("./sistema/logs.controller");
 const logs_service_1 = require("./sistema/logs.service");
+const lan_discovery_udp_service_1 = require("./sistema/lan-discovery-udp.service");
 const latency_metrics_interceptor_1 = require("./common/latency-metrics.interceptor");
 const superadmin_module_1 = require("./superadmin/superadmin.module");
 const usuarios_module_1 = require("./usuarios/usuarios.module");
@@ -104,6 +105,7 @@ exports.AppModule = AppModule = __decorate([
         ],
         providers: [
             logs_service_1.LogsService,
+            lan_discovery_udp_service_1.LanDiscoveryUdpService,
             { provide: core_1.APP_GUARD, useClass: throttler_1.ThrottlerGuard },
             { provide: core_1.APP_INTERCEPTOR, useClass: latency_metrics_interceptor_1.LatencyMetricsInterceptor },
         ],
