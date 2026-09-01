@@ -77,10 +77,10 @@ export declare function rangoMesCalendario(fechaYmd: string): {
 } | null;
 export declare function sumarCuotasAplicadas(cuotas: readonly CuotaFondoAplicadaLike[], idGastoFijo: number, fechaDesdeYmd: string, fechaHastaYmd: string): number;
 /**
- * Auto-aplica solo si el fondo está on, modo automático, no hay decisión
- * del día y el acumulado del mes aún no cubre la meta.
+ * Cuota fija ya no se auto-aplica: el operador confirma «Aplicar al día de hoy».
+ * Se conserva la firma para compatibilidad con clientes que aún llamen asegurar-automaticas.
  */
-export declare function debeAutoAplicarCuota(input: {
+export declare function debeAutoAplicarCuota(_input: {
     usa_fondo_diario: boolean;
     activo?: boolean;
     modo_registro_fondo: ModoRegistroFondoGanancia;

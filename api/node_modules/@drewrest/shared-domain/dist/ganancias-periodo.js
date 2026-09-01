@@ -135,26 +135,11 @@ function sumarCuotasAplicadas(cuotas, idGastoFijo, fechaDesdeYmd, fechaHastaYmd)
     return total;
 }
 /**
- * Auto-aplica solo si el fondo está on, modo automático, no hay decisión
- * del día y el acumulado del mes aún no cubre la meta.
+ * Cuota fija ya no se auto-aplica: el operador confirma «Aplicar al día de hoy».
+ * Se conserva la firma para compatibilidad con clientes que aún llamen asegurar-automaticas.
  */
-function debeAutoAplicarCuota(input) {
-    if (!input.usa_fondo_diario)
-        return false;
-    if (input.activo === false)
-        return false;
-    if (input.modo_registro_fondo !== 'automatico')
-        return false;
-    if (input.estado_hoy === 'aplicada' || input.estado_hoy === 'omitida') {
-        return false;
-    }
-    if (Math.round(Number(input.cuota_diaria) || 0) <= 0)
-        return false;
-    if (input.periodicidad !== 'diario' &&
-        topeFondoAlcanzado(input.acumulado_mes, input.monto_mensual)) {
-        return false;
-    }
-    return true;
+function debeAutoAplicarCuota(_input) {
+    return false;
 }
 function parseModoRegistroFondo(raw) {
     return raw === 'confirmar' ? 'confirmar' : 'automatico';
