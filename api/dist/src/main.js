@@ -73,7 +73,14 @@ async function bootstrap() {
     app.enableShutdownHooks();
     const port = process.env.PORT ?? 3000;
     const host = process.env.HOST ?? '0.0.0.0';
-    await app.listen(port, host);
+    console.log(`[bootstrap] Escuchando en http://${host}:${port} …`);
+    try {
+        await app.listen(port, host);
+    }
+    catch (err) {
+        console.error(`[bootstrap] No se pudo abrir el puerto ${port}:`, err);
+        process.exit(1);
+    }
     console.log(`API http://localhost:${port} (LAN: http://<tu-ip>:${port})`);
 }
 bootstrap();

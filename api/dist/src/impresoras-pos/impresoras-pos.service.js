@@ -34,6 +34,11 @@ let ImpresorasPosService = ImpresorasPosService_1 = class ImpresorasPosService {
         this.config = config;
     }
     async onModuleInit() {
+        setImmediate(() => {
+            void this.initImpresorasDeferred();
+        });
+    }
+    async initImpresorasDeferred() {
         try {
             await this.asegurarEsquemaImpresoras();
             await this.asegurarMigracionEnv(tenant_constants_1.DEFAULT_TENANT_ID);

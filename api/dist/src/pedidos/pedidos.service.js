@@ -135,7 +135,9 @@ let PedidosService = class PedidosService {
         this.menuActivo = menuActivo;
     }
     async onModuleInit() {
-        await this.asegurarEsquemaImpresoCocina();
+        setImmediate(() => {
+            void this.asegurarEsquemaImpresoCocina();
+        });
     }
     async asegurarEsquemaImpresoCocina() {
         if (this.esquemaImpresoCocinaOk)

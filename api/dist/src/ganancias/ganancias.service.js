@@ -27,6 +27,11 @@ let GananciasService = GananciasService_1 = class GananciasService {
         this.prisma = prisma;
     }
     async onModuleInit() {
+        setImmediate(() => {
+            void this.initEsquemaGananciasDeferred();
+        });
+    }
+    async initEsquemaGananciasDeferred() {
         try {
             await this.asegurarEsquemaGanancias();
         }
