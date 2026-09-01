@@ -16,6 +16,8 @@ export type DetalleCocinaLike = {
         descripcion: string;
     }[];
     enviado_cocina?: boolean;
+    /** False si la comanda no salió en papel (reintento con Pasar a cocina). */
+    impreso_cocina?: boolean;
     listo_para_recoger?: boolean;
     es_bebida?: boolean;
     es_empacable?: boolean;
@@ -98,6 +100,9 @@ export declare function totalEsperandoRecogidaPorTipo(pedidos: PedidoCocinaLike[
 };
 /** Texto para avisos al mesero (notificación / banner). */
 export declare function mensajeListosParaRecoger(platos: number, entradas: number, sufijo?: string): string;
+/** Plato de cocina aún no enviado o con comanda sin imprimir (reintento). */
+export declare function detallePendientePasarCocina(d: DetalleCocinaLike): boolean;
+export declare function platosPendientesPasarCocina(pedido: PedidoCocinaLike): number;
 export declare function platosSinEnviarCocina(pedido: PedidoCocinaLike): number;
 export declare function totalPlatosSinEnviarCocina(pedidos: PedidoCocinaLike[]): number;
 export declare function etiquetaPlatoPendiente(nombre: string, total: number): string;

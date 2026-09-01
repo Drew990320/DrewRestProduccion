@@ -103,7 +103,7 @@ let PlatformProvisionService = class PlatformProvisionService {
             });
             await tx.configOperativa.create({
                 data: {
-                    idRestaurante: tenantId,
+                    restaurante: { connect: { idRestaurante: tenantId } },
                     mazorcaActiva: false,
                     prioridadCocinaAutomatica: false,
                     prioridadCocinaModo: 'fifo',

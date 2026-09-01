@@ -24,6 +24,8 @@ exports.conteoRecogidaPorTipo = conteoRecogidaPorTipo;
 exports.conteoEsperandoRecogidaPorTipo = conteoEsperandoRecogidaPorTipo;
 exports.totalEsperandoRecogidaPorTipo = totalEsperandoRecogidaPorTipo;
 exports.mensajeListosParaRecoger = mensajeListosParaRecoger;
+exports.detallePendientePasarCocina = detallePendientePasarCocina;
+exports.platosPendientesPasarCocina = platosPendientesPasarCocina;
 exports.platosSinEnviarCocina = platosSinEnviarCocina;
 exports.totalPlatosSinEnviarCocina = totalPlatosSinEnviarCocina;
 exports.etiquetaPlatoPendiente = etiquetaPlatoPendiente;
@@ -118,8 +120,12 @@ function etiquetaEstadoLineaMesero(d) {
             return ' · en la mesa';
         if (d.listo_para_recoger)
             return ' · ¡lista en cocina!';
-        if (d.enviado_cocina ?? false)
+        if (d.enviado_cocina ?? false) {
+            if (d.impreso_cocina === false) {
+                return ' · en cocina · sin imprimir';
+            }
             return ' · en cocina';
+        }
         return ' · pendiente de enviar';
     }
     if (d.es_bebida)
@@ -131,6 +137,9 @@ function etiquetaEstadoLineaMesero(d) {
     if (d.listo_para_recoger)
         return '¡Cocina avisó! Listo para recoger';
     if (d.enviado_cocina ?? false) {
+        if (d.impreso_cocina === false) {
+            return 'En cocina · comanda sin imprimir (vuelve a Pasar a cocina)';
+        }
         return 'En cocina · puedes recoger cuando esté';
     }
     return 'Sin enviar a cocina';
@@ -304,6 +313,19 @@ function mensajeListosParaRecoger(platos, entradas, sufijo = '') {
 }
 function detalleSinEnviarCocina(d) {
     return d.marcar_cocina && !(d.enviado_cocina ?? false);
+}
+/** Plato de cocina aún no enviado o con comanda sin imprimir (reintento). */
+function detallePendientePasarCocina(d) {
+    if (!d.marcar_cocina)
+        return false;
+    if (!(d.enviado_cocina ?? false))
+        return true;
+    return d.impreso_cocina === false;
+}
+function platosPendientesPasarCocina(pedido) {
+    return pedido.detalles
+        .filter(detallePendientePasarCocina)
+        .reduce((acc, d) => acc + d.cantidad, 0);
 }
 function platosSinEnviarCocina(pedido) {
     return pedido.detalles

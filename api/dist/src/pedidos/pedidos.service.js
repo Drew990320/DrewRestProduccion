@@ -1007,7 +1007,14 @@ let PedidosService = class PedidosService {
             imprimir_entrada_caja: row.imprimirEntradaCaja,
             imprimir_salida_caja: row.imprimirSalidaCaja,
             cocina_tamano_texto: row.cocinaTamanoTexto ?? 'normal',
+            mesero_corregir_comanda_en_cocina: row.meseroCorregirComandaEnCocina,
         };
+    }
+    async actorPuedeCorregirLineaEnCocina(tenantId, esAdminActor) {
+        if (esAdminActor)
+            return true;
+        const row = await this.obtenerConfigOperativaRow(tenantId);
+        return row.meseroCorregirComandaEnCocina;
     }
     impresionMovimientoCajaOmitida() {
         return {
@@ -1037,7 +1044,9 @@ let PedidosService = class PedidosService {
         });
         if (!row) {
             row = await this.prisma.configOperativa.create({
-                data: { idRestaurante: tenantId },
+                data: {
+                    restaurante: { connect: { idRestaurante: tenantId } },
+                },
                 include,
             });
         }
@@ -1149,10 +1158,9 @@ let PedidosService = class PedidosService {
             dto.numero_mesa_mostrador !== actual.numeroMesaMostrador) {
             await this.sincronizarNumeroMesaVirtual(actual.numeroMesaMostrador, dto.numero_mesa_mostrador);
         }
-        const row = await this.prisma.configOperativa.upsert({
+        const row = await this.prisma.configOperativa.update({
             where: { idRestaurante: tenantId },
-            create: {
-                idRestaurante: tenantId,
+            data: {
                 ...(dto.precio_empaque_para_llevar != null
                     ? {
                         precioEmpaqueParaLlevar: Math.round(dto.precio_empaque_para_llevar),
@@ -1208,63 +1216,10 @@ let PedidosService = class PedidosService {
                 ...(dto.cocina_tamano_texto != null
                     ? { cocinaTamanoTexto: dto.cocina_tamano_texto }
                     : {}),
-                ...this.prioridadPatchFromDto(dto),
-            },
-            update: {
-                ...(dto.precio_empaque_para_llevar != null
+                ...(dto.mesero_corregir_comanda_en_cocina != null
                     ? {
-                        precioEmpaqueParaLlevar: Math.round(dto.precio_empaque_para_llevar),
+                        meseroCorregirComandaEnCocina: dto.mesero_corregir_comanda_en_cocina,
                     }
-                    : {}),
-                ...(dto.mazorca_activa != null
-                    ? { mazorcaActiva: dto.mazorca_activa }
-                    : {}),
-                ...(dto.id_producto_mazorca !== undefined
-                    ? { idProductoMazorca: dto.id_producto_mazorca }
-                    : {}),
-                ...(dto.numero_mesa_para_llevar != null
-                    ? { numeroMesaParaLlevar: dto.numero_mesa_para_llevar }
-                    : {}),
-                ...(dto.numero_mesa_mostrador != null
-                    ? { numeroMesaMostrador: dto.numero_mesa_mostrador }
-                    : {}),
-                ...(dto.etiqueta_para_llevar != null
-                    ? { etiquetaParaLlevar: dto.etiqueta_para_llevar.trim() }
-                    : {}),
-                ...(dto.etiqueta_mostrador != null
-                    ? { etiquetaMostrador: dto.etiqueta_mostrador.trim() }
-                    : {}),
-                ...(dto.mostrador_activo != null
-                    ? { mostradorActivo: dto.mostrador_activo }
-                    : {}),
-                ...(dto.para_llevar_activo != null
-                    ? { paraLlevarActivo: dto.para_llevar_activo }
-                    : {}),
-                ...(dto.beneficio_soda_almuerzo_activo != null
-                    ? { beneficioSodaAlmuerzoActivo: dto.beneficio_soda_almuerzo_activo }
-                    : {}),
-                ...(dto.id_producto_soda_almuerzo !== undefined
-                    ? { idProductoSodaAlmuerzo: dto.id_producto_soda_almuerzo }
-                    : {}),
-                ...(dto.soda_almuerzo_descontar_stock != null
-                    ? {
-                        sodaAlmuerzoDescontarStock: dto.soda_almuerzo_descontar_stock,
-                    }
-                    : {}),
-                ...(dto.redondeo_paso != null
-                    ? { redondeoPaso: dto.redondeo_paso }
-                    : {}),
-                ...(dto.redondeo_umbral != null
-                    ? { redondeoUmbral: dto.redondeo_umbral }
-                    : {}),
-                ...(dto.imprimir_entrada_caja != null
-                    ? { imprimirEntradaCaja: dto.imprimir_entrada_caja }
-                    : {}),
-                ...(dto.imprimir_salida_caja != null
-                    ? { imprimirSalidaCaja: dto.imprimir_salida_caja }
-                    : {}),
-                ...(dto.cocina_tamano_texto != null
-                    ? { cocinaTamanoTexto: dto.cocina_tamano_texto }
                     : {}),
                 ...this.prioridadPatchFromDto(dto),
             },
@@ -5096,7 +5051,8 @@ let PedidosService = class PedidosService {
         }
         const rolActor = actor.rol.nombre;
         const esAdminActor = rolActor === 'admin' || rolActor === 'superadmin';
-        if (det.enviadoCocina && !esAdminActor) {
+        if (det.enviadoCocina &&
+            !(await this.actorPuedeCorregirLineaEnCocina(det.pedido.idRestaurante, esAdminActor))) {
             throw new common_1.ConflictException('Ese ítem ya fue enviado a cocina. Quita solo lo pendiente, o cancela el pedido completo si tienes permiso de cancelar.');
         }
         if ((0, mazorca_linea_pedido_1.esDetalleMazorcaAcompanamiento)(det.producto)) {
@@ -5206,7 +5162,10 @@ let PedidosService = class PedidosService {
         if (!ABIERTOS.includes(det.pedido.estado)) {
             throw new common_1.ConflictException('El pedido no admite cambios en las líneas');
         }
-        if (det.enviadoCocina) {
+        const rolActor = actor.rol.nombre;
+        const esAdminActor = rolActor === 'admin' || rolActor === 'superadmin';
+        if (det.enviadoCocina &&
+            !(await this.actorPuedeCorregirLineaEnCocina(det.pedido.idRestaurante, esAdminActor))) {
             throw new common_1.ConflictException('No se puede cambiar el reparto de una línea ya enviada a cocina');
         }
         if (!det.producto.usaSubitemsRepartibles) {
@@ -5346,7 +5305,7 @@ let PedidosService = class PedidosService {
         const esAdminActor = rolActor === 'admin' || rolActor === 'superadmin';
         if (cantidad < det.cantidad &&
             det.enviadoCocina &&
-            !esAdminActor) {
+            !(await this.actorPuedeCorregirLineaEnCocina(det.pedido.idRestaurante, esAdminActor))) {
             throw new common_1.ConflictException('No se puede reducir un ítem ya enviado a cocina. Quita o reduce solo lo pendiente, o cancela el pedido si tienes permiso.');
         }
         if (det.producto.esEmpacable && det.idDetallePadre != null) {
@@ -5883,6 +5842,14 @@ let PedidosService = class PedidosService {
         for (const d of nuevos) {
             d.enviadoCocina = true;
             d.enviadoCocinaEn = emitidaEn;
+        }
+        if (pedido.estado === 'abierto' &&
+            pedido.detalles.some((d) => productoDebePasarCocina(d.producto) && d.enviadoCocina)) {
+            await this.prisma.pedido.update({
+                where: { idPedido },
+                data: { estado: 'en_cocina' },
+            });
+            pedido.estado = 'en_cocina';
         }
         const pedidoSerializado = this.serializarPedido(pedido);
         this.emit(idPedido, pedido.idMesa, pedido.idUsuario, pedido.idRestaurante);

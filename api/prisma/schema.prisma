@@ -938,6 +938,8 @@ model ConfigOperativa {
   imprimirEntradaCaja     Boolean   @default(true) @map("imprimir_entrada_caja")
   /// Imprimir comprobante al registrar salida manual de caja.
   imprimirSalidaCaja      Boolean   @default(true) @map("imprimir_salida_caja")
+  /// Si true, meseros con permiso quitar/reducir pueden corregir líneas ya enviadas a cocina.
+  meseroCorregirComandaEnCocina Boolean @default(false) @map("mesero_corregir_comanda_en_cocina")
   actualizadoEn           DateTime @updatedAt @map("actualizado_en")
   productoMazorca         Producto? @relation("ProductoMazorcaConfig", fields: [idProductoMazorca], references: [idProducto], onDelete: SetNull)
   productoSodaAlmuerzo    Producto? @relation("ProductoSodaAlmuerzoConfig", fields: [idProductoSodaAlmuerzo], references: [idProducto], onDelete: SetNull)

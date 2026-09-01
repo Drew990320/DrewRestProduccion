@@ -131,7 +131,10 @@ let ProductosService = class ProductosService {
         });
         await this.prisma.configOperativa.upsert({
             where: { idRestaurante: tenantId },
-            create: { idRestaurante: tenantId, idProductoMazorca: idProducto },
+            create: {
+                idRestaurante: tenantId,
+                idProductoMazorca: idProducto,
+            },
             update: { idProductoMazorca: idProducto },
         });
         (0, mazorca_linea_pedido_1.invalidateMazorcaProductIdCache)(tenantId);

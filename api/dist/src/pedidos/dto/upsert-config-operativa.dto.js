@@ -32,6 +32,7 @@ class UpsertConfigOperativaDto {
     imprimir_entrada_caja;
     imprimir_salida_caja;
     cocina_tamano_texto;
+    mesero_corregir_comanda_en_cocina;
 }
 exports.UpsertConfigOperativaDto = UpsertConfigOperativaDto;
 __decorate([
@@ -153,4 +154,9 @@ __decorate([
     (0, class_validator_1.IsIn)(['compacto', 'normal', 'grande', 'extra']),
     __metadata("design:type", String)
 ], UpsertConfigOperativaDto.prototype, "cocina_tamano_texto", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], UpsertConfigOperativaDto.prototype, "mesero_corregir_comanda_en_cocina", void 0);
 //# sourceMappingURL=upsert-config-operativa.dto.js.map
