@@ -34,6 +34,15 @@ class UpsertConfigRestauranteDto {
     factura_mostrar_vuelto;
     factura_mostrar_propina;
     factura_mostrar_gracias;
+    precuenta_mostrar_logo;
+    precuenta_mostrar_mesero;
+    precuenta_mostrar_comensales;
+    precuenta_mostrar_detalle_items;
+    precuenta_mostrar_descuentos;
+    precuenta_mostrar_metodo_pago;
+    precuenta_mostrar_vuelto;
+    precuenta_mostrar_propina;
+    precuenta_mostrar_gracias;
     etiqueta_descuento_sopas;
     etiqueta_descuento_muleros;
     modulo_inventario_activo;
@@ -169,6 +178,51 @@ __decorate([
     (0, class_validator_1.IsBoolean)(),
     __metadata("design:type", Boolean)
 ], UpsertConfigRestauranteDto.prototype, "factura_mostrar_gracias", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], UpsertConfigRestauranteDto.prototype, "precuenta_mostrar_logo", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], UpsertConfigRestauranteDto.prototype, "precuenta_mostrar_mesero", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], UpsertConfigRestauranteDto.prototype, "precuenta_mostrar_comensales", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], UpsertConfigRestauranteDto.prototype, "precuenta_mostrar_detalle_items", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], UpsertConfigRestauranteDto.prototype, "precuenta_mostrar_descuentos", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], UpsertConfigRestauranteDto.prototype, "precuenta_mostrar_metodo_pago", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], UpsertConfigRestauranteDto.prototype, "precuenta_mostrar_vuelto", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], UpsertConfigRestauranteDto.prototype, "precuenta_mostrar_propina", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], UpsertConfigRestauranteDto.prototype, "precuenta_mostrar_gracias", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),

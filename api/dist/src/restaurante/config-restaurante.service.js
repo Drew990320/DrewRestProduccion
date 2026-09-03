@@ -97,6 +97,15 @@ let ConfigRestauranteService = class ConfigRestauranteService {
             factura_mostrar_vuelto: row.facturaMostrarVuelto,
             factura_mostrar_propina: row.facturaMostrarPropina,
             factura_mostrar_gracias: row.facturaMostrarGracias,
+            precuenta_mostrar_logo: row.precuentaMostrarLogo,
+            precuenta_mostrar_mesero: row.precuentaMostrarMesero,
+            precuenta_mostrar_comensales: row.precuentaMostrarComensales,
+            precuenta_mostrar_detalle_items: row.precuentaMostrarDetalleItems,
+            precuenta_mostrar_descuentos: row.precuentaMostrarDescuentos,
+            precuenta_mostrar_metodo_pago: row.precuentaMostrarMetodoPago,
+            precuenta_mostrar_vuelto: row.precuentaMostrarVuelto,
+            precuenta_mostrar_propina: row.precuentaMostrarPropina,
+            precuenta_mostrar_gracias: row.precuentaMostrarGracias,
             etiqueta_descuento_sopas: row.etiquetaDescuentoSopas,
             etiqueta_descuento_muleros: row.etiquetaDescuentoMuleros,
             modulo_inventario_activo: row.moduloInventarioActivo,
@@ -221,6 +230,15 @@ let ConfigRestauranteService = class ConfigRestauranteService {
                 facturaMostrarVuelto: dto.factura_mostrar_vuelto ?? true,
                 facturaMostrarPropina: dto.factura_mostrar_propina ?? true,
                 facturaMostrarGracias: dto.factura_mostrar_gracias ?? true,
+                precuentaMostrarLogo: dto.precuenta_mostrar_logo ?? true,
+                precuentaMostrarMesero: dto.precuenta_mostrar_mesero ?? true,
+                precuentaMostrarComensales: dto.precuenta_mostrar_comensales ?? true,
+                precuentaMostrarDetalleItems: dto.precuenta_mostrar_detalle_items ?? true,
+                precuentaMostrarDescuentos: dto.precuenta_mostrar_descuentos ?? true,
+                precuentaMostrarMetodoPago: dto.precuenta_mostrar_metodo_pago ?? true,
+                precuentaMostrarVuelto: dto.precuenta_mostrar_vuelto ?? true,
+                precuentaMostrarPropina: dto.precuenta_mostrar_propina ?? true,
+                precuentaMostrarGracias: dto.precuenta_mostrar_gracias ?? true,
                 etiquetaDescuentoSopas: dto.etiqueta_descuento_sopas?.trim() || 'Descuento sopas',
                 etiquetaDescuentoMuleros: dto.etiqueta_descuento_muleros?.trim() ||
                     'Descuento clientes especiales',
@@ -306,6 +324,35 @@ let ConfigRestauranteService = class ConfigRestauranteService {
                     : {}),
                 ...(dto.factura_mostrar_gracias !== undefined
                     ? { facturaMostrarGracias: dto.factura_mostrar_gracias }
+                    : {}),
+                ...(dto.precuenta_mostrar_logo !== undefined
+                    ? { precuentaMostrarLogo: dto.precuenta_mostrar_logo }
+                    : {}),
+                ...(dto.precuenta_mostrar_mesero !== undefined
+                    ? { precuentaMostrarMesero: dto.precuenta_mostrar_mesero }
+                    : {}),
+                ...(dto.precuenta_mostrar_comensales !== undefined
+                    ? { precuentaMostrarComensales: dto.precuenta_mostrar_comensales }
+                    : {}),
+                ...(dto.precuenta_mostrar_detalle_items !== undefined
+                    ? {
+                        precuentaMostrarDetalleItems: dto.precuenta_mostrar_detalle_items,
+                    }
+                    : {}),
+                ...(dto.precuenta_mostrar_descuentos !== undefined
+                    ? { precuentaMostrarDescuentos: dto.precuenta_mostrar_descuentos }
+                    : {}),
+                ...(dto.precuenta_mostrar_metodo_pago !== undefined
+                    ? { precuentaMostrarMetodoPago: dto.precuenta_mostrar_metodo_pago }
+                    : {}),
+                ...(dto.precuenta_mostrar_vuelto !== undefined
+                    ? { precuentaMostrarVuelto: dto.precuenta_mostrar_vuelto }
+                    : {}),
+                ...(dto.precuenta_mostrar_propina !== undefined
+                    ? { precuentaMostrarPropina: dto.precuenta_mostrar_propina }
+                    : {}),
+                ...(dto.precuenta_mostrar_gracias !== undefined
+                    ? { precuentaMostrarGracias: dto.precuenta_mostrar_gracias }
                     : {}),
                 ...(dto.etiqueta_descuento_sopas !== undefined
                     ? { etiquetaDescuentoSopas: dto.etiqueta_descuento_sopas.trim() }

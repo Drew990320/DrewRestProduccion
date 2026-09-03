@@ -22,6 +22,8 @@ function flagsParaTicket(ticket) {
     };
     if (ticket.copia_destinatario === 'negocio')
         return allOn;
+    if (ticket.es_precuenta)
+        return (0, restaurant_branding_1.restaurantPrecuentaMostrarFlags)();
     return (0, restaurant_branding_1.restaurantFacturaMostrarFlags)();
 }
 function lineasMensajePropina(charWidth) {
