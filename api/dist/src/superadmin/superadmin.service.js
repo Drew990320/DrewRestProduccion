@@ -62,6 +62,22 @@ const instalacion_on_prem_1 = require("../sistema/instalacion-on-prem");
 const config_restaurante_cache_1 = require("../restaurante/config-restaurante-cache");
 const menu_hoy_cache_1 = require("../common/menu-hoy-cache");
 const PEDIDOS_ABIERTOS = ['abierto', 'en_cocina'];
+const SECUENCIAS_TRAS_PURGAR_PEDIDOS = [
+    ['pedido', 'id_pedido'],
+    ['factura', 'id_factura'],
+    ['detalle_pedido', 'id_detalle'],
+    ['pedido_historial', 'id_historial'],
+    ['cuenta_credito', 'id_credito'],
+    ['movimiento_caja', 'id_movimiento_caja'],
+    ['pedido_mesa_anexa', 'id_pedido_mesa_anexa'],
+];
+async function alinearSecuenciaAutoincrement(tx, table, column) {
+    await tx.$executeRawUnsafe(`SELECT setval(
+      pg_get_serial_sequence('${table}', '${column}'),
+      COALESCE((SELECT MAX("${column}") FROM "${table}"), 1),
+      (SELECT MAX("${column}") FROM "${table}") IS NOT NULL
+    )`);
+}
 function assertHttpUrlOrEmpty(label, raw) {
     if (raw == null)
         return;
@@ -87,7 +103,7 @@ let SuperadminService = class SuperadminService {
         if (!restaurante) {
             throw new common_1.NotFoundException('Restaurante no encontrado');
         }
-        const [adminCount, chefCount, meseroCount, productos, categorias, mesas, lugares, inventario, recursos, recetas, movimientosRecurso, hornadas, cfg,] = await Promise.all([
+        const [adminCount, chefCount, meseroCount, productos, categorias, mesas, lugares, inventario, recursos, recetas, movimientosRecurso, hornadas, pedidos, cfg,] = await Promise.all([
             this.prisma.usuario.count({
                 where: {
                     idRestaurante: tenantId,
@@ -136,6 +152,9 @@ let SuperadminService = class SuperadminService {
             this.prisma.produccionPorcion.count({
                 where: { idRestaurante: tenantId },
             }),
+            this.prisma.pedido.count({
+                where: { idRestaurante: tenantId },
+            }),
             this.prisma.configRestaurante.findUnique({
                 where: { idRestaurante: tenantId },
                 select: {
@@ -180,6 +199,7 @@ let SuperadminService = class SuperadminService {
                 recetas,
                 movimientos_recurso: movimientosRecurso,
                 hornadas,
+                pedidos,
                 admins: adminCount,
                 chefs: chefCount,
                 meseros: meseroCount,
@@ -599,8 +619,20 @@ let SuperadminService = class SuperadminService {
             where: { idRestaurante: tenantId },
             select: { idPedido: true },
         });
-        if (pedidos.length === 0)
-            return 0;
+        if (pedidos.length === 0) {
+            await this.prisma.$transaction(async (tx) => {
+                for (const [table, column] of SECUENCIAS_TRAS_PURGAR_PEDIDOS) {
+                    await alinearSecuenciaAutoincrement(tx, table, column);
+                }
+            });
+            const maxPedido = await this.prisma.pedido.aggregate({
+                _max: { idPedido: true },
+            });
+            return {
+                pedidosEliminados: 0,
+                siguientePedido: (maxPedido._max.idPedido ?? 0) + 1,
+            };
+        }
         const ids = pedidos.map((p) => p.idPedido);
         const facturas = await this.prisma.factura.findMany({
             where: { idPedido: { in: ids } },
@@ -643,8 +675,29 @@ let SuperadminService = class SuperadminService {
                 where: { idRestaurante: tenantId },
                 data: { estado: 'libre' },
             });
+            for (const [table, column] of SECUENCIAS_TRAS_PURGAR_PEDIDOS) {
+                await alinearSecuenciaAutoincrement(tx, table, column);
+            }
         });
-        return ids.length;
+        const maxPedido = await this.prisma.pedido.aggregate({
+            _max: { idPedido: true },
+        });
+        return {
+            pedidosEliminados: ids.length,
+            siguientePedido: (maxPedido._max.idPedido ?? 0) + 1,
+        };
+    }
+    async purgarHistorial(tenantId, confirmar) {
+        if (confirmar.trim().toUpperCase() !== 'PURGAR_HISTORIAL') {
+            throw new common_1.BadRequestException('Escribe confirmar: "PURGAR_HISTORIAL"');
+        }
+        const { pedidosEliminados, siguientePedido } = await this.purgarHistorialPedidosTenant(tenantId);
+        this.gateway.emitConfigActualizada('mesas', tenantId);
+        return {
+            ok: true,
+            pedidos_eliminados: pedidosEliminados,
+            siguiente_pedido: siguientePedido,
+        };
     }
     async purgarMenu(tenantId, confirmar) {
         const token = confirmar.trim().toUpperCase();
@@ -653,8 +706,11 @@ let SuperadminService = class SuperadminService {
             throw new common_1.BadRequestException('Escribe confirmar: "PURGAR_MENU" o "PURGAR_MENU_FORZAR" (este último también borra pedidos/facturas)');
         }
         let pedidosEliminados = 0;
+        let siguientePedido;
         if (forzar) {
-            pedidosEliminados = await this.purgarHistorialPedidosTenant(tenantId);
+            const r = await this.purgarHistorialPedidosTenant(tenantId);
+            pedidosEliminados = r.pedidosEliminados;
+            siguientePedido = r.siguientePedido;
         }
         const productos = await this.prisma.producto.findMany({
             where: { categoria: { idRestaurante: tenantId } },
@@ -729,6 +785,7 @@ let SuperadminService = class SuperadminService {
             ok: true,
             forzar,
             pedidos_eliminados: pedidosEliminados,
+            ...(siguientePedido != null ? { siguiente_pedido: siguientePedido } : {}),
             productos_eliminados: productosEliminados,
             productos_ocultos: productosOcultos,
             categorias_eliminadas: categoriasEliminadas,

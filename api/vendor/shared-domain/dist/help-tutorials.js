@@ -226,7 +226,7 @@ exports.HELP_TUTORIAL_MODULES = [
             },
             {
                 title: 'Purgar datos',
-                body: 'Menú, inventario (ítems, recursos y recetas), mesas y lugares: úsalos para dejar el producto limpio antes de entregar al admin. Siempre confirma.',
+                body: 'Puedes borrar solo el historial de pedidos (ventas y facturas) sin tocar el menú. En un local de pruebas, el próximo pedido vuelve a ser #1. También hay purgas de menú, inventario, mesas y lugares. Siempre confirma.',
             },
             {
                 title: 'Crear equipo',

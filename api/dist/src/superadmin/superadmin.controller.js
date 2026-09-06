@@ -56,6 +56,9 @@ let SuperadminController = class SuperadminController {
     eliminarUsuario(id, tenantId) {
         return this.superadmin.eliminarUsuario(tenantId ?? 1, id);
     }
+    purgarHistorial(dto, tenantId) {
+        return this.superadmin.purgarHistorial(tenantId ?? 1, dto.confirmar);
+    }
     purgarMenu(dto, tenantId) {
         return this.superadmin.purgarMenu(tenantId ?? 1, dto.confirmar);
     }
@@ -136,6 +139,14 @@ __decorate([
     __metadata("design:paramtypes", [Number, Object]),
     __metadata("design:returntype", void 0)
 ], SuperadminController.prototype, "eliminarUsuario", null);
+__decorate([
+    (0, common_1.Post)('purgar/historial'),
+    __param(0, (0, common_1.Body)()),
+    __param(1, (0, current_tenant_decorator_1.CurrentTenantId)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [purgar_dto_1.PurgarSuperadminDto, Object]),
+    __metadata("design:returntype", void 0)
+], SuperadminController.prototype, "purgarHistorial", null);
 __decorate([
     (0, common_1.Post)('purgar/menu'),
     __param(0, (0, common_1.Body)()),
