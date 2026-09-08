@@ -15,6 +15,18 @@ const LINE_HEIGHT = BASE_FONT_SIZE * 1.28;
 function pickFont(bold) {
     return bold ? 'Courier-Bold' : 'Courier';
 }
+function pngSizeFromBuffer(buf) {
+    if (buf.length < 24)
+        return null;
+    if (buf[0] !== 0x89 || buf[1] !== 0x50 || buf[2] !== 0x4e || buf[3] !== 0x47) {
+        return null;
+    }
+    const width = buf.readUInt32BE(16);
+    const height = buf.readUInt32BE(20);
+    if (width < 1 || height < 1 || width > 10000 || height > 10000)
+        return null;
+    return { width, height };
+}
 function pageMetrics(anchoMm) {
     const pageWidthPt = anchoMm * MM_TO_PT;
     return {
@@ -46,10 +58,15 @@ function renderSegments(doc, segments, metrics, logoPng, subtitle) {
     for (const seg of segments) {
         if (seg.kind === 'logo') {
             if (logoPng) {
-                ensureSpace(56);
                 try {
-                    doc.image(logoPng, PAD_PT, y, { width: contentWPt });
-                    y += 52;
+                    const size = pngSizeFromBuffer(logoPng);
+                    const w = contentWPt;
+                    const h = size
+                        ? Math.max(12, (size.height / Math.max(1, size.width)) * w)
+                        : 52;
+                    ensureSpace(h + 4);
+                    doc.image(logoPng, PAD_PT, y, { width: w });
+                    y += h + 4;
                 }
                 catch {
                 }

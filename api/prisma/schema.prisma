@@ -513,6 +513,8 @@ model Categoria {
   iconoMenu                String?              @map("icono_menu") @db.VarChar(80)
   /// Color del icono de categoría (#RRGGBB). null = color del tema.
   colorIcono               String?              @map("color_icono") @db.VarChar(7)
+  /// Código corto de menú (01–99). Prefijo de los códigos de plato (011, 012…).
+  codigoMenu               String?              @map("codigo_menu") @db.VarChar(2)
   /// Oculta toda la categoría del menú (reversible); los días definen visibilidad cuando está activa.
   activo                   Boolean              @default(true)
   /// restaurante = menú/cocina; retail = tienda (ropa, accesorios, etc.).
@@ -522,6 +524,7 @@ model Categoria {
   reglasImpresionCocina    ReglaImpresionCocina[]
 
   @@unique([idRestaurante, canal, nombre])
+  @@unique([idRestaurante, canal, codigoMenu])
   @@index([idRestaurante])
   @@index([idRestaurante, canal])
   @@map("categoria")
@@ -531,6 +534,8 @@ model Producto {
   idProducto         Int                     @id @default(autoincrement()) @map("id_producto")
   idCategoria        Int                     @map("id_categoria")
   nombre             String                  @db.VarChar(150)
+  /// Código de menú: prefijo de categoría (2 dígitos) + consecutivo (ej. 011, 012).
+  codigoMenu         String?                 @map("codigo_menu") @db.VarChar(12)
   descripcion        String?                 @db.Text
   precio             Decimal                 @db.Decimal(10, 2)
   /// Costo unitario registrado por admin (módulo Ganancias). Si null, se usa costo de receta.
@@ -583,6 +588,8 @@ model Producto {
   variantes          ProductoVariante[]
   produccionesPorcion ProduccionPorcion[]
 
+  @@index([codigoMenu])
+  @@index([idCategoria, codigoMenu])
   @@map("producto")
 }
 
@@ -1102,6 +1109,12 @@ model ConfigVisual {
   mesaVista          String?  @map("mesa_vista") @db.VarChar(20)
   /// iconos | texto | ambos — barra de categorías del menú
   menuCategoriaVista String?  @map("menu_categoria_vista") @db.VarChar(20)
+  /// chico | medio | grande — alto máximo del logo en factura/ticket
+  logoTicketTamano   String?  @map("logo_ticket_tamano") @db.VarChar(20)
+  /// compacta | normal | grande — alto del marco de foto en menú
+  menuImagenAltura   String?  @map("menu_imagen_altura") @db.VarChar(20)
+  /// contain | cover — ajuste de foto en menú
+  menuImagenAjuste   String?  @map("menu_imagen_ajuste") @db.VarChar(20)
   actualizadoEn      DateTime    @updatedAt @map("actualizado_en")
   restaurante        Restaurante @relation(fields: [idRestaurante], references: [idRestaurante])
 

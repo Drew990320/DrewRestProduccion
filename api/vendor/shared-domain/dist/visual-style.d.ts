@@ -1,5 +1,6 @@
 import type { VisualColorKey } from './nav-app-icon';
 import type { MesaFormaId, MesaVistaId } from './mesa-visual';
+import type { LogoTicketTamanoId, MenuImagenAjusteId, MenuImagenAlturaId } from './imagen-visual';
 export declare const VISUAL_STYLE_IDS: readonly ["minimalista", "profesional", "calido", "expresivo"];
 export type VisualStyleId = (typeof VISUAL_STYLE_IDS)[number];
 export declare const MENU_CATEGORIA_VISTA_IDS: readonly ["iconos", "texto", "ambos"];
@@ -32,6 +33,9 @@ export type VisualChromeTokens = {
     mesaForma: MesaFormaId;
     mesaVista: MesaVistaId;
     menuCategoriaVista: MenuCategoriaVistaId;
+    logoTicketTamano: LogoTicketTamanoId;
+    menuImagenAltura: MenuImagenAlturaId;
+    menuImagenAjuste: MenuImagenAjusteId;
 };
 export type VisualStylePreset = {
     id: VisualStyleId;

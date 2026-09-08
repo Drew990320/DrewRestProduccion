@@ -49,6 +49,9 @@ exports.VISUAL_CHROME_DEFAULTS = {
     mesaForma: 'rectangular',
     mesaVista: 'cuadricula',
     menuCategoriaVista: 'iconos',
+    logoTicketTamano: 'medio',
+    menuImagenAltura: 'normal',
+    menuImagenAjuste: 'contain',
 };
 /** Paleta terracota DrewRest (referencia estilo cálido). */
 const PALETA_CALIDA = {
@@ -102,6 +105,7 @@ exports.VISUAL_STYLE_PRESETS = {
             chromeElevation: 'soft',
         },
         chrome: {
+            ...exports.VISUAL_CHROME_DEFAULTS,
             navItem: 'underline',
             navBar: 'bordered',
             iconButton: 'outline',
@@ -127,6 +131,7 @@ exports.VISUAL_STYLE_PRESETS = {
             chromeElevation: 'soft',
         },
         chrome: {
+            ...exports.VISUAL_CHROME_DEFAULTS,
             navItem: 'pill',
             navBar: 'elevated',
             iconButton: 'soft',
@@ -162,6 +167,7 @@ exports.VISUAL_STYLE_PRESETS = {
             chromeElevation: 'raised',
         },
         chrome: {
+            ...exports.VISUAL_CHROME_DEFAULTS,
             navItem: 'solid',
             navBar: 'floating',
             iconButton: 'bold',

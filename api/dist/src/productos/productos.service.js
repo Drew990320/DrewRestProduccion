@@ -28,6 +28,7 @@ const producto_imagen_upload_util_1 = require("../menu/producto-imagen-upload.ut
 const limpiar_reglas_impresion_cocina_1 = require("../impresoras-pos/limpiar-reglas-impresion-cocina");
 const destinos_impresora_cache_1 = require("../impresoras-pos/destinos-impresora-cache");
 const recursos_service_1 = require("../recursos/recursos.service");
+const menu_codigo_1 = require("../menu/menu-codigo");
 function resolverFlagsProducto(cat, explicit, existing) {
     const auto = (0, empaque_para_llevar_1.flagsProductoMenuPorCategoria)(cat);
     let esEmpacable;
@@ -71,6 +72,8 @@ function mapProducto(p) {
         id_producto: p.idProducto,
         id_categoria: p.idCategoria,
         categoria_nombre: p.categoria.nombre,
+        categoria_codigo_menu: p.categoria.codigoMenu ?? null,
+        codigo_menu: p.codigoMenu ?? null,
         nombre: p.nombre,
         descripcion: p.descripcion,
         precio: Number(p.precio),
@@ -157,7 +160,7 @@ let ProductosService = class ProductosService {
                 ...(incluirInactivos ? {} : { activo: true }),
             },
             include: {
-                categoria: { select: { nombre: true, esBebida: true } },
+                categoria: { select: { nombre: true, esBebida: true, codigoMenu: true } },
                 ...(incluirInactivos
                     ? { _count: { select: { detalles: true } } }
                     : {}),
@@ -202,9 +205,33 @@ let ProductosService = class ProductosService {
                 esEmpacable: flags.esEmpacable,
                 esAcompanamientoMazorca: esMazorca,
             });
+        const codigoCategoria = cat.codigoMenu;
+        if (!codigoCategoria || !/^\d{2}$/.test(codigoCategoria)) {
+            throw new common_1.BadRequestException('La categoría no tiene código de menú válido; edítala en Categorías');
+        }
+        const ocupados = await this.prisma.producto.findMany({
+            where: { idCategoria: dto.id_categoria },
+            select: { codigoMenu: true },
+        });
+        const codigoMenu = dto.codigo_menu != null && String(dto.codigo_menu).trim() !== ''
+            ? (0, menu_codigo_1.normalizarCodigoProductoMenu)(dto.codigo_menu, codigoCategoria)
+            : (0, menu_codigo_1.siguienteCodigoProducto)(codigoCategoria, ocupados.map((p) => p.codigoMenu).filter((c) => !!c));
+        if (!codigoMenu) {
+            throw new common_1.BadRequestException('Código de producto inválido');
+        }
+        const dupCode = await this.prisma.producto.findFirst({
+            where: {
+                idCategoria: dto.id_categoria,
+                codigoMenu,
+            },
+        });
+        if (dupCode) {
+            throw new common_1.ConflictException(`Ya existe un producto con código ${codigoMenu} en esta categoría`);
+        }
         const created = await this.prisma.producto.create({
             data: {
                 idCategoria: dto.id_categoria,
+                codigoMenu,
                 nombre: dto.nombre.trim(),
                 descripcion: dto.descripcion?.trim() || null,
                 precio: dto.precio,
@@ -250,7 +277,7 @@ let ProductosService = class ProductosService {
                     ? { ocultarSinStock: dto.ocultar_sin_stock }
                     : {}),
             },
-            include: { categoria: { select: { nombre: true, esBebida: true } } },
+            include: { categoria: { select: { nombre: true, esBebida: true, codigoMenu: true } } },
         });
         if (esMazorca) {
             await this.asegurarUnicoMazorca(created.idProducto, true, tenantId);
@@ -306,10 +333,51 @@ let ProductosService = class ProductosService {
                 esEmpacable: flags.esEmpacable,
                 esAcompanamientoMazorca: esMazorca,
             });
+        const codigoCategoria = cat.codigoMenu;
+        if (!codigoCategoria || !/^\d{2}$/.test(codigoCategoria)) {
+            throw new common_1.BadRequestException('La categoría no tiene código de menú válido; edítala en Categorías');
+        }
+        const categoriaCambio = dto.id_categoria != null && dto.id_categoria !== existing.idCategoria;
+        let codigoMenuUpdate;
+        if (dto.codigo_menu !== undefined || categoriaCambio || !existing.codigoMenu) {
+            const ocupados = await this.prisma.producto.findMany({
+                where: {
+                    idCategoria: cat.idCategoria,
+                    idProducto: { not: idProducto },
+                },
+                select: { codigoMenu: true },
+            });
+            const ocupadosStr = ocupados
+                .map((p) => p.codigoMenu)
+                .filter((c) => !!c);
+            if (dto.codigo_menu != null && String(dto.codigo_menu).trim() !== '') {
+                const norm = (0, menu_codigo_1.normalizarCodigoProductoMenu)(dto.codigo_menu, codigoCategoria);
+                if (!norm) {
+                    throw new common_1.BadRequestException('Código de producto inválido');
+                }
+                codigoMenuUpdate = norm;
+            }
+            else if (categoriaCambio || !existing.codigoMenu) {
+                codigoMenuUpdate = (0, menu_codigo_1.siguienteCodigoProducto)(codigoCategoria, ocupadosStr);
+            }
+            if (codigoMenuUpdate) {
+                const dupCode = await this.prisma.producto.findFirst({
+                    where: {
+                        idCategoria: cat.idCategoria,
+                        codigoMenu: codigoMenuUpdate,
+                        idProducto: { not: idProducto },
+                    },
+                });
+                if (dupCode) {
+                    throw new common_1.ConflictException(`Ya existe un producto con código ${codigoMenuUpdate} en esta categoría`);
+                }
+            }
+        }
         const updated = await this.prisma.producto.update({
             where: { idProducto },
             data: {
                 ...(dto.id_categoria != null ? { idCategoria: dto.id_categoria } : {}),
+                ...(codigoMenuUpdate != null ? { codigoMenu: codigoMenuUpdate } : {}),
                 ...(dto.nombre != null ? { nombre: dto.nombre.trim() } : {}),
                 ...(dto.descripcion !== undefined
                     ? { descripcion: dto.descripcion?.trim() || null }
@@ -364,7 +432,7 @@ let ProductosService = class ProductosService {
                     ? { ocultarSinStock: dto.ocultar_sin_stock }
                     : {}),
             },
-            include: { categoria: { select: { nombre: true, esBebida: true } } },
+            include: { categoria: { select: { nombre: true, esBebida: true, codigoMenu: true } } },
         });
         if (!esCombo && existing.esCombo) {
             await this.prisma.productoComboElegible.deleteMany({
@@ -402,7 +470,7 @@ let ProductosService = class ProductosService {
         }
         const existing = await this.prisma.producto.findFirst({
             where: { idProducto, categoria: { idRestaurante: tenantId } },
-            include: { categoria: { select: { nombre: true, esBebida: true } } },
+            include: { categoria: { select: { nombre: true, esBebida: true, codigoMenu: true } } },
         });
         if (!existing) {
             throw new common_1.NotFoundException('Producto no encontrado');
@@ -424,12 +492,12 @@ let ProductosService = class ProductosService {
         const updated = vinculado
             ? await this.prisma.producto.findFirstOrThrow({
                 where: { idProducto },
-                include: { categoria: { select: { nombre: true, esBebida: true } } },
+                include: { categoria: { select: { nombre: true, esBebida: true, codigoMenu: true } } },
             })
             : await this.prisma.producto.update({
                 where: { idProducto },
                 data: { stockDisponible: { increment: cantidad } },
-                include: { categoria: { select: { nombre: true, esBebida: true } } },
+                include: { categoria: { select: { nombre: true, esBebida: true, codigoMenu: true } } },
             });
         if (costoTotal > 0 && idUsuario) {
             try {

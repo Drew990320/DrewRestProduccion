@@ -264,8 +264,8 @@ function redimensionarPngBuffer(pngBuffer, maxWidthPx, maxHeightPx) {
         return null;
     }
 }
-async function cargarLogoTicketRedimensionado(sourcePath, maxWidthPx = TICKET_LOGO_ANCHO_PX) {
-    const cacheKey = `${sourcePath}|${maxWidthPx}`;
+async function cargarLogoTicketRedimensionado(sourcePath, maxWidthPx = TICKET_LOGO_ANCHO_PX, maxHeightPx = TICKET_LOGO_MAX_ALTO_PX) {
+    const cacheKey = `${sourcePath}|${maxWidthPx}|${maxHeightPx}`;
     const hit = logoTicketCache.get(cacheKey);
     if (hit && Date.now() - hit.at < LOGO_TICKET_CACHE_TTL_MS) {
         return hit.buf;
@@ -273,7 +273,7 @@ async function cargarLogoTicketRedimensionado(sourcePath, maxWidthPx = TICKET_LO
     try {
         const { leerImagenComoPngBuffer } = await Promise.resolve().then(() => __importStar(require('../visual/image-png.util')));
         const pngBuf = await leerImagenComoPngBuffer(sourcePath);
-        const buf = redimensionarPngBuffer(pngBuf, maxWidthPx, TICKET_LOGO_MAX_ALTO_PX);
+        const buf = redimensionarPngBuffer(pngBuf, maxWidthPx, maxHeightPx);
         logoTicketCache.set(cacheKey, { buf, at: Date.now() });
         return buf;
     }
@@ -285,12 +285,22 @@ function resolveTicketLogoPath() {
     return ((0, visual_assets_util_1.resolverAssetVisualPath)('ticket', null) ??
         (0, visual_assets_util_1.resolverAssetVisualPath)('factura', null));
 }
+async function maxAltoLogoTicketPx() {
+    try {
+        const { logoTicketMaxAltoPxCached } = await Promise.resolve().then(() => __importStar(require('../visual/config-visual.service')));
+        return logoTicketMaxAltoPxCached();
+    }
+    catch {
+        return TICKET_LOGO_MAX_ALTO_PX;
+    }
+}
 async function ticketLogoPngBufferForPreview(charWidth = exports.DEFAULT_ESC_POS_WIDTH) {
     const logoPath = resolveTicketLogoPath();
     if (!logoPath)
         return null;
     const maxW = (0, impresora_papel_ancho_1.logoAnchoPxParaPapelMm)((0, impresora_papel_ancho_1.papelMmDesdeChars)(charWidth));
-    return cargarLogoTicketRedimensionado(logoPath, maxW);
+    const maxH = await maxAltoLogoTicketPx();
+    return cargarLogoTicketRedimensionado(logoPath, maxW, maxH);
 }
 async function printPieDrewTechFactura(printer, charWidth = exports.DEFAULT_ESC_POS_WIDTH) {
     if (!(0, restaurant_branding_1.restaurantMostrarCreditoDrewTech)())
@@ -362,7 +372,8 @@ async function printEncabezadoRestaurante(printer, charWidth = exports.DEFAULT_E
     let logoOk = false;
     if (logoPath) {
         try {
-            const logoBuf = await cargarLogoTicketRedimensionado(logoPath, logoMaxW);
+            const maxH = await maxAltoLogoTicketPx();
+            const logoBuf = await cargarLogoTicketRedimensionado(logoPath, logoMaxW, maxH);
             if (logoBuf) {
                 await printer.printImageBuffer(logoBuf);
             }

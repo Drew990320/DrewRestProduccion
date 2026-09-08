@@ -16,6 +16,7 @@ const class_validator_1 = require("class-validator");
 class CreateProductoDto {
     id_categoria;
     nombre;
+    codigo_menu;
     descripcion;
     precio;
     es_plato_principal;
@@ -47,6 +48,12 @@ __decorate([
     (0, class_validator_1.MaxLength)(150),
     __metadata("design:type", String)
 ], CreateProductoDto.prototype, "nombre", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(12),
+    __metadata("design:type", String)
+], CreateProductoDto.prototype, "codigo_menu", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),

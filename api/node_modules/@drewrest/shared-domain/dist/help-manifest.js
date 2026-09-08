@@ -39,7 +39,7 @@ exports.HELP_MANIFEST_SCREENS = [
     { id: 'proveedores', moduleId: 'admin_operacion', title: 'Proveedores', prioridad: 45, patron: '/proveedores(?:/|$)', roles: ['admin'], signalOnEnter: 'proveedores.en_pantalla', route: '/(app)/proveedores' },
     { id: 'cuentas_por_pagar', moduleId: 'admin_operacion', title: 'Cuentas por pagar', prioridad: 45, patron: '/cuentas-por-pagar(?:/|$)', roles: ['admin'], signalOnEnter: 'cuentas_por_pagar.en_pantalla', route: '/(app)/cuentas-por-pagar' },
     { id: 'creditos', moduleId: 'cobro', title: 'Créditos / fiados', prioridad: 40, patron: '/creditos(?:/|$)', roles: ['admin'], signalOnEnter: 'creditos.en_pantalla', route: '/(app)/creditos', viaMoreMenu: true, moreNavTarget: 'more.creditos' },
-    { id: 'meseros_operativos', moduleId: 'admin_operacion', title: 'Meseros en turno', prioridad: 40, patron: '/meseros-operativos(?:/|$)', roles: ['admin'], signalOnEnter: 'meseros_operativos.en_pantalla', route: '/(app)/meseros-operativos', viaMoreMenu: true, moreNavTarget: 'more.meseros_operativos' },
+    { id: 'meseros_operativos', moduleId: 'admin_operacion', title: 'Beneficios del personal', prioridad: 40, patron: '/meseros-operativos(?:/|$)', roles: ['admin'], signalOnEnter: 'meseros_operativos.en_pantalla', route: '/(app)/meseros-operativos', viaMoreMenu: true, moreNavTarget: 'more.meseros_operativos' },
     { id: 'integracion_odoo', moduleId: 'admin_operacion', title: 'Integración Odoo', prioridad: 40, patron: '/integracion-odoo(?:/|$)', roles: ['admin'], signalOnEnter: 'integracion_odoo.en_pantalla', route: '/(app)/integracion-odoo' },
 ];
 exports.HELP_MANIFEST_TARGETS = [
@@ -73,7 +73,7 @@ exports.HELP_MANIFEST_TARGETS = [
     { id: 'more.vista_previa', label: 'Vista previa tickets POS', kind: 'more', activateOnPress: true },
     { id: 'more.conexion', label: 'Conexión móvil', kind: 'more', activateOnPress: true, relatedSignals: ['conexion.en_pantalla'] },
     { id: 'more.permisos', label: 'Permisos', kind: 'more', activateOnPress: true },
-    { id: 'more.meseros_operativos', label: 'Turno y beneficios', kind: 'more', activateOnPress: true },
+    { id: 'more.meseros_operativos', label: 'Beneficios del personal', kind: 'more', activateOnPress: true },
     { id: 'mesas.tarjeta_mesa', label: 'Tarjeta de mesa', kind: 'action', screenIds: ['mesas_lista'], activateOnPress: true, relatedSignals: ['mesa.en_detalle'] },
     { id: 'mesa.abrir_pedido', label: 'Abrir mesa', kind: 'action', screenIds: ['mesa_detalle'], activateOnPress: true, relatedSignals: ['mesa.tiene_pedido'] },
     { id: 'mesa.accion_menu', label: 'Agregar del menú', kind: 'action', screenIds: ['mesa_detalle'], activateOnPress: true, permisoMesero: 'agregar_items', relatedSignals: ['pedido.en_menu'] },

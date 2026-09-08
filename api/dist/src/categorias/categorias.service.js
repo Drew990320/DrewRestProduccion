@@ -21,6 +21,7 @@ const menu_activo_service_1 = require("../menu/menu-activo.service");
 const pedidos_gateway_1 = require("../pedidos/pedidos.gateway");
 const limpiar_reglas_impresion_cocina_1 = require("../impresoras-pos/limpiar-reglas-impresion-cocina");
 const destinos_impresora_cache_1 = require("../impresoras-pos/destinos-impresora-cache");
+const menu_codigo_1 = require("../menu/menu-codigo");
 let CategoriasService = class CategoriasService {
     prisma;
     gateway;
@@ -45,6 +46,7 @@ let CategoriasService = class CategoriasService {
         return {
             id_categoria: c.idCategoria,
             nombre: c.nombre,
+            codigo_menu: c.codigoMenu ?? null,
             icono_menu: this.normalizeIconoMenu(c.iconoMenu, c.nombre),
             color_icono: this.normalizeColorIcono(c.colorIcono),
             activo: c.activo,
@@ -109,11 +111,32 @@ let CategoriasService = class CategoriasService {
         if (dup) {
             throw new common_1.ConflictException('Ya existe una categoría con ese nombre');
         }
+        const existentes = await this.prisma.categoria.findMany({
+            where: { idRestaurante: tenantId, canal: 'restaurante' },
+            select: { codigoMenu: true },
+        });
+        const codigoMenu = dto.codigo_menu != null && String(dto.codigo_menu).trim() !== ''
+            ? (0, menu_codigo_1.normalizarCodigoCategoriaMenu)(dto.codigo_menu)
+            : (0, menu_codigo_1.siguienteCodigoCategoria)(existentes.map((c) => c.codigoMenu).filter((c) => !!c));
+        if (!codigoMenu) {
+            throw new common_1.BadRequestException('Código de categoría inválido');
+        }
+        const dupCode = await this.prisma.categoria.findFirst({
+            where: {
+                idRestaurante: tenantId,
+                canal: 'restaurante',
+                codigoMenu,
+            },
+        });
+        if (dupCode) {
+            throw new common_1.ConflictException(`Ya existe una categoría con código ${codigoMenu}`);
+        }
         const defaults = (0, categoria_reglas_1.reglasCategoriaPorDefecto)(nombre);
         const created = await this.prisma.categoria.create({
             data: {
                 idRestaurante: tenantId,
                 nombre,
+                codigoMenu,
                 disponibleLunes: dto.disponible_lunes ?? true,
                 disponibleMartes: dto.disponible_martes ?? true,
                 disponibleMiercoles: dto.disponible_miercoles ?? true,
@@ -158,68 +181,112 @@ let CategoriasService = class CategoriasService {
                 throw new common_1.ConflictException('Ya existe una categoría con ese nombre');
             }
         }
-        const updated = await this.prisma.categoria.update({
-            where: { idCategoria },
-            data: {
-                ...(dto.nombre != null ? { nombre: dto.nombre.trim() } : {}),
-                ...(dto.activo != null ? { activo: dto.activo } : {}),
-                ...(dto.disponible_lunes != null
-                    ? { disponibleLunes: dto.disponible_lunes }
-                    : {}),
-                ...(dto.disponible_martes != null
-                    ? { disponibleMartes: dto.disponible_martes }
-                    : {}),
-                ...(dto.disponible_miercoles != null
-                    ? { disponibleMiercoles: dto.disponible_miercoles }
-                    : {}),
-                ...(dto.disponible_jueves != null
-                    ? { disponibleJueves: dto.disponible_jueves }
-                    : {}),
-                ...(dto.disponible_viernes != null
-                    ? { disponibleViernes: dto.disponible_viernes }
-                    : {}),
-                ...(dto.disponible_sabado != null
-                    ? { disponibleSabado: dto.disponible_sabado }
-                    : {}),
-                ...(dto.disponible_domingo != null
-                    ? { disponibleDomingo: dto.disponible_domingo }
-                    : {}),
-                ...(dto.es_bebida != null ? { esBebida: dto.es_bebida } : {}),
-                ...(dto.cobra_empaque_para_llevar != null
-                    ? { cobraEmpaqueParaLlevar: dto.cobra_empaque_para_llevar }
-                    : {}),
-                ...(dto.participa_descuento_sopas != null
-                    ? { participaDescuentoSopas: dto.participa_descuento_sopas }
-                    : {}),
-                ...(dto.es_linea_empaque != null
-                    ? { esLineaEmpaque: dto.es_linea_empaque }
-                    : {}),
-                ...(dto.visible_en_mostrador != null
-                    ? { visibleEnMostrador: dto.visible_en_mostrador }
-                    : {}),
-                ...(dto.es_plato_principal_default != null
-                    ? { esPlatoPrincipalDefault: dto.es_plato_principal_default }
-                    : {}),
-                ...(dto.prioridad_cocina_baja != null
-                    ? { prioridadCocinaBaja: dto.prioridad_cocina_baja }
-                    : {}),
-                ...(dto.tipo_linea_cocina_default != null
-                    ? { tipoLineaCocinaDefault: dto.tipo_linea_cocina_default }
-                    : {}),
-                ...(dto.icono_menu !== undefined
-                    ? {
-                        iconoMenu: this.normalizeIconoMenu(dto.icono_menu, existing.nombre),
-                    }
-                    : {}),
-                ...(dto.color_icono !== undefined
-                    ? { colorIcono: this.normalizeColorIcono(dto.color_icono) }
-                    : {}),
-            },
+        let nuevoCodigo;
+        if (dto.codigo_menu !== undefined) {
+            const norm = (0, menu_codigo_1.normalizarCodigoCategoriaMenu)(dto.codigo_menu);
+            if (!norm) {
+                throw new common_1.BadRequestException('Código de categoría inválido');
+            }
+            if (norm !== existing.codigoMenu) {
+                const dupCode = await this.prisma.categoria.findFirst({
+                    where: {
+                        idRestaurante: tenantId,
+                        canal: 'restaurante',
+                        codigoMenu: norm,
+                        idCategoria: { not: idCategoria },
+                    },
+                });
+                if (dupCode) {
+                    throw new common_1.ConflictException(`Ya existe una categoría con código ${norm}`);
+                }
+                nuevoCodigo = norm;
+            }
+        }
+        const updated = await this.prisma.$transaction(async (tx) => {
+            const row = await tx.categoria.update({
+                where: { idCategoria },
+                data: {
+                    ...(dto.nombre != null ? { nombre: dto.nombre.trim() } : {}),
+                    ...(nuevoCodigo != null ? { codigoMenu: nuevoCodigo } : {}),
+                    ...(dto.activo != null ? { activo: dto.activo } : {}),
+                    ...(dto.disponible_lunes != null
+                        ? { disponibleLunes: dto.disponible_lunes }
+                        : {}),
+                    ...(dto.disponible_martes != null
+                        ? { disponibleMartes: dto.disponible_martes }
+                        : {}),
+                    ...(dto.disponible_miercoles != null
+                        ? { disponibleMiercoles: dto.disponible_miercoles }
+                        : {}),
+                    ...(dto.disponible_jueves != null
+                        ? { disponibleJueves: dto.disponible_jueves }
+                        : {}),
+                    ...(dto.disponible_viernes != null
+                        ? { disponibleViernes: dto.disponible_viernes }
+                        : {}),
+                    ...(dto.disponible_sabado != null
+                        ? { disponibleSabado: dto.disponible_sabado }
+                        : {}),
+                    ...(dto.disponible_domingo != null
+                        ? { disponibleDomingo: dto.disponible_domingo }
+                        : {}),
+                    ...(dto.es_bebida != null ? { esBebida: dto.es_bebida } : {}),
+                    ...(dto.cobra_empaque_para_llevar != null
+                        ? { cobraEmpaqueParaLlevar: dto.cobra_empaque_para_llevar }
+                        : {}),
+                    ...(dto.participa_descuento_sopas != null
+                        ? { participaDescuentoSopas: dto.participa_descuento_sopas }
+                        : {}),
+                    ...(dto.es_linea_empaque != null
+                        ? { esLineaEmpaque: dto.es_linea_empaque }
+                        : {}),
+                    ...(dto.visible_en_mostrador != null
+                        ? { visibleEnMostrador: dto.visible_en_mostrador }
+                        : {}),
+                    ...(dto.es_plato_principal_default != null
+                        ? { esPlatoPrincipalDefault: dto.es_plato_principal_default }
+                        : {}),
+                    ...(dto.prioridad_cocina_baja != null
+                        ? { prioridadCocinaBaja: dto.prioridad_cocina_baja }
+                        : {}),
+                    ...(dto.tipo_linea_cocina_default != null
+                        ? { tipoLineaCocinaDefault: dto.tipo_linea_cocina_default }
+                        : {}),
+                    ...(dto.icono_menu !== undefined
+                        ? {
+                            iconoMenu: this.normalizeIconoMenu(dto.icono_menu, existing.nombre),
+                        }
+                        : {}),
+                    ...(dto.color_icono !== undefined
+                        ? { colorIcono: this.normalizeColorIcono(dto.color_icono) }
+                        : {}),
+                },
+            });
+            if (nuevoCodigo != null &&
+                existing.codigoMenu &&
+                nuevoCodigo !== existing.codigoMenu) {
+                const prods = await tx.producto.findMany({
+                    where: { idCategoria },
+                    select: { idProducto: true, codigoMenu: true },
+                });
+                for (const p of prods) {
+                    const seq = p.codigoMenu != null
+                        ? (0, menu_codigo_1.secuenciaDesdeCodigoProducto)(p.codigoMenu, existing.codigoMenu)
+                        : null;
+                    const nextCode = seq != null ? `${nuevoCodigo}${seq}` : `${nuevoCodigo}${p.idProducto}`;
+                    await tx.producto.update({
+                        where: { idProducto: p.idProducto },
+                        data: { codigoMenu: nextCode },
+                    });
+                }
+            }
+            return row;
         });
         if (dto.activo === false) {
             await (0, limpiar_reglas_impresion_cocina_1.limpiarReglasImpresionPorCategoria)(this.prisma, idCategoria, tenantId);
         }
         this.gateway.emitConfigActualizada('categorias', tenantId);
+        this.gateway.emitConfigActualizada('menu', tenantId);
         const stats = await this.contadoresPorCategoria(tenantId);
         return this.mapCategoriaAdmin(updated, stats.get(idCategoria));
     }

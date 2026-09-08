@@ -89,6 +89,10 @@
                                           "types":  "./dist/mesa-visual.d.ts",
                                           "default":  "./dist/mesa-visual.js"
                                       },
+                    "./imagen-visual":  {
+                                            "types":  "./dist/imagen-visual.d.ts",
+                                            "default":  "./dist/imagen-visual.js"
+                                        },
                     "./visual-palette":  {
                                              "types":  "./dist/visual-palette.d.ts",
                                              "default":  "./dist/visual-palette.js"

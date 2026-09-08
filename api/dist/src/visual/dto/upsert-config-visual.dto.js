@@ -28,6 +28,9 @@ class UpsertConfigVisualDto {
     mesa_forma;
     mesa_vista;
     menu_categoria_vista;
+    logo_ticket_tamano;
+    menu_imagen_altura;
+    menu_imagen_ajuste;
 }
 exports.UpsertConfigVisualDto = UpsertConfigVisualDto;
 __decorate([
@@ -127,4 +130,22 @@ __decorate([
     (0, class_validator_1.IsString)(),
     __metadata("design:type", Object)
 ], UpsertConfigVisualDto.prototype, "menu_categoria_vista", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.ValidateIf)((_, v) => v != null && v !== ''),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", Object)
+], UpsertConfigVisualDto.prototype, "logo_ticket_tamano", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.ValidateIf)((_, v) => v != null && v !== ''),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", Object)
+], UpsertConfigVisualDto.prototype, "menu_imagen_altura", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.ValidateIf)((_, v) => v != null && v !== ''),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", Object)
+], UpsertConfigVisualDto.prototype, "menu_imagen_ajuste", void 0);
 //# sourceMappingURL=upsert-config-visual.dto.js.map

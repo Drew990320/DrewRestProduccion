@@ -43,12 +43,14 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ConfigVisualService = void 0;
+exports.logoTicketMaxAltoPxCached = logoTicketMaxAltoPxCached;
 const common_1 = require("@nestjs/common");
 const path = __importStar(require("path"));
 const client_1 = require("@prisma/client");
 const nav_app_icon_1 = require("@drewrest/shared-domain/nav-app-icon");
 const action_app_icon_1 = require("@drewrest/shared-domain/action-app-icon");
 const visual_style_1 = require("@drewrest/shared-domain/visual-style");
+const imagen_visual_1 = require("@drewrest/shared-domain/imagen-visual");
 const mesa_visual_1 = require("@drewrest/shared-domain/mesa-visual");
 const tenant_constants_1 = require("../tenant/tenant.constants");
 const prisma_service_1 = require("../prisma/prisma.service");
@@ -59,6 +61,10 @@ const visual_assets_util_1 = require("./visual-assets.util");
 const asset_file_cache_1 = require("./asset-file-cache");
 const image_png_util_1 = require("./image-png.util");
 let cachedRowByTenant = new Map();
+function logoTicketMaxAltoPxCached(tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
+    const row = cachedRowByTenant.get(tenantId);
+    return (0, imagen_visual_1.logoTicketMaxAltoPx)(row?.logoTicketTamano ?? null);
+}
 let ConfigVisualService = class ConfigVisualService {
     prisma;
     constructor(prisma) {
@@ -222,6 +228,15 @@ let ConfigVisualService = class ConfigVisualService {
             menu_categoria_vista: (0, visual_style_1.esMenuCategoriaVistaValida)(row.menuCategoriaVista)
                 ? row.menuCategoriaVista
                 : null,
+            logo_ticket_tamano: (0, imagen_visual_1.esLogoTicketTamanoValido)(row.logoTicketTamano)
+                ? row.logoTicketTamano
+                : null,
+            menu_imagen_altura: (0, imagen_visual_1.esMenuImagenAlturaValida)(row.menuImagenAltura)
+                ? row.menuImagenAltura
+                : null,
+            menu_imagen_ajuste: (0, imagen_visual_1.esMenuImagenAjusteValido)(row.menuImagenAjuste)
+                ? row.menuImagenAjuste
+                : null,
             logo_login_archivo: row.logoLoginArchivo,
             logo_factura_archivo: row.logoFacturaArchivo,
             logo_ticket_archivo: row.logoTicketArchivo,
@@ -282,6 +297,9 @@ let ConfigVisualService = class ConfigVisualService {
                 mesaForma: null,
                 mesaVista: null,
                 menuCategoriaVista: null,
+                logoTicketTamano: null,
+                menuImagenAltura: null,
+                menuImagenAjuste: null,
                 actualizadoEn: new Date(),
             },
         });
@@ -370,6 +388,30 @@ let ConfigVisualService = class ConfigVisualService {
                     : (0, visual_style_1.esMenuCategoriaVistaValida)(dto.menu_categoria_vista)
                         ? dto.menu_categoria_vista
                         : (0, visual_style_1.resolverMenuCategoriaVista)(null);
+        }
+        if (dto.logo_ticket_tamano !== undefined) {
+            data.logoTicketTamano =
+                dto.logo_ticket_tamano == null || dto.logo_ticket_tamano === ''
+                    ? null
+                    : (0, imagen_visual_1.esLogoTicketTamanoValido)(dto.logo_ticket_tamano)
+                        ? dto.logo_ticket_tamano
+                        : null;
+        }
+        if (dto.menu_imagen_altura !== undefined) {
+            data.menuImagenAltura =
+                dto.menu_imagen_altura == null || dto.menu_imagen_altura === ''
+                    ? null
+                    : (0, imagen_visual_1.esMenuImagenAlturaValida)(dto.menu_imagen_altura)
+                        ? dto.menu_imagen_altura
+                        : null;
+        }
+        if (dto.menu_imagen_ajuste !== undefined) {
+            data.menuImagenAjuste =
+                dto.menu_imagen_ajuste == null || dto.menu_imagen_ajuste === ''
+                    ? null
+                    : (0, imagen_visual_1.esMenuImagenAjusteValido)(dto.menu_imagen_ajuste)
+                        ? dto.menu_imagen_ajuste
+                        : null;
         }
         await this.obtenerRow(tenantId);
         const row = await this.prisma.configVisual.update({

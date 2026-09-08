@@ -10,6 +10,7 @@ function escapeHtml(text) {
 }
 function segmentsToTicketPreviewHtml(segments, opts) {
     const anchoMm = opts?.anchoMm === 80 ? 80 : 58;
+    const logoMaxH = Math.max(40, Math.min(800, Math.round(opts?.logoMaxHeightPx ?? 220)));
     const lines = [];
     if (opts?.subtitle?.trim()) {
         lines.push(`<div class="subtitle">${escapeHtml(opts.subtitle.trim())}</div>`);
@@ -74,8 +75,11 @@ function segmentsToTicketPreviewHtml(segments, opts) {
     }
     .logo {
       display: block;
-      width: 100%;
+      width: auto;
+      max-width: 100%;
       height: auto;
+      max-height: ${logoMaxH}px;
+      object-fit: contain;
       margin: 0 auto 8px;
     }
     .line { white-space: pre-wrap; }

@@ -239,7 +239,7 @@ const SCREEN_DESTINATIONS = {
     meseros_operativos: {
         screenId: 'meseros_operativos',
         route: '/(app)/meseros-operativos',
-        title: 'Meseros en turno',
+        title: 'Beneficios del personal',
         viaMoreMenu: true,
         moreNavTarget: 'more.meseros_operativos',
     },

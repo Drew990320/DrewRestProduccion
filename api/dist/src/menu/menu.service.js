@@ -120,6 +120,7 @@ let MenuService = class MenuService {
             .map((c) => ({
             id_categoria: c.idCategoria,
             nombre: c.nombre,
+            codigo_menu: c.codigoMenu ?? null,
             icono_menu: (0, categoria_menu_icon_1.normalizarIconoMenuGuardado)(c.iconoMenu, c.nombre),
             color_icono: c.colorIcono?.trim() || null,
             es_bebida: c.esBebida,
@@ -135,6 +136,7 @@ let MenuService = class MenuService {
             }))
                 .map((p) => ({
                 id_producto: p.idProducto,
+                codigo_menu: p.codigoMenu ?? null,
                 nombre: p.nombre,
                 descripcion: p.descripcion,
                 precio: precioPorProducto.get(p.idProducto) ?? Number(p.precio),

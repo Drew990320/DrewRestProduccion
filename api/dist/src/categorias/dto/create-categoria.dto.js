@@ -31,6 +31,7 @@ class CreateCategoriaDto {
     tipo_linea_cocina_default;
     icono_menu;
     color_icono;
+    codigo_menu;
 }
 exports.CreateCategoriaDto = CreateCategoriaDto;
 __decorate([
@@ -127,4 +128,10 @@ __decorate([
     (0, class_validator_1.Matches)(/^#[0-9A-Fa-f]{6}$/),
     __metadata("design:type", Object)
 ], CreateCategoriaDto.prototype, "color_icono", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(2),
+    __metadata("design:type", String)
+], CreateCategoriaDto.prototype, "codigo_menu", void 0);
 //# sourceMappingURL=create-categoria.dto.js.map

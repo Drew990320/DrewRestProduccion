@@ -442,7 +442,7 @@ exports.NAV_ICON_LABELS = {
     configuracion: 'Configuración',
     conexion: 'Conexión móvil',
     permisos: 'Permisos',
-    turno: 'Turno y beneficios',
+    turno: 'Beneficios del personal',
     personalizacion: 'Personalización visual',
     impresoras_pos: 'Impresoras POS',
     vista_previa_tickets: 'Vista previa tickets',
