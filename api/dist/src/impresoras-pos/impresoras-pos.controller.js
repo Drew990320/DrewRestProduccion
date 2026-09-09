@@ -36,6 +36,14 @@ let ImpresorasPosController = class ImpresorasPosController {
     detectar() {
         return this.impresoras.detectar();
     }
+    codigosMenu(req) {
+        return this.impresoras.listarCodigosMenu(req.user.idRestaurante);
+    }
+    async codigosMenuHoja(req, res) {
+        const html = await this.impresoras.hojaCodigosMenuHtml(req.user.idRestaurante);
+        res.setHeader('Cache-Control', 'private, max-age=60');
+        res.send(html);
+    }
     detectarLocal() {
         return this.impresoras.detectar();
     }
@@ -89,6 +97,26 @@ let ImpresorasPosController = class ImpresorasPosController {
             margen_fin_lineas: row.margen_fin_lineas,
         });
     }
+    async imprimirCodigosMenu(id, req) {
+        const row = await this.impresoras.obtener(id, req.user.idRestaurante);
+        const listado = await this.impresoras.listarCodigosMenu(req.user.idRestaurante);
+        if (listado.total_productos === 0) {
+            return {
+                impreso: false,
+                error: 'No hay productos activos con código de menú.',
+                codigo_error: 'sin_codigos',
+            };
+        }
+        return this.printer.imprimirCodigosMenuADestino({
+            restaurante: listado.restaurante,
+            emitida_en: listado.emitida_en,
+            categorias: listado.categorias,
+        }, row.destino, row.baud_rate, row.ancho_papel_mm, {
+            tamano_fuente: row.tamano_fuente,
+            margen_inicio_lineas: row.margen_inicio_lineas,
+            margen_fin_lineas: row.margen_fin_lineas,
+        });
+    }
     async estado(id, req) {
         const row = await this.impresoras.obtener(id, req.user.idRestaurante);
         return this.printer.consultarEstadoPapelDestino(row.destino, row.baud_rate);
@@ -112,6 +140,26 @@ __decorate([
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", void 0)
 ], ImpresorasPosController.prototype, "detectar", null);
+__decorate([
+    (0, common_1.Get)('codigos-menu'),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)('admin'),
+    __param(0, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], ImpresorasPosController.prototype, "codigosMenu", null);
+__decorate([
+    (0, common_1.Get)('codigos-menu/hoja'),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)('admin'),
+    (0, common_1.Header)('Content-Type', 'text/html; charset=utf-8'),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Res)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:returntype", Promise)
+], ImpresorasPosController.prototype, "codigosMenuHoja", null);
 __decorate([
     (0, throttler_1.SkipThrottle)(),
     (0, common_1.Get)('local/detectar'),
@@ -221,6 +269,16 @@ __decorate([
     __metadata("design:paramtypes", [Number, Object]),
     __metadata("design:returntype", Promise)
 ], ImpresorasPosController.prototype, "prueba", null);
+__decorate([
+    (0, common_1.Post)(':id/imprimir-codigos-menu'),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)('admin'),
+    __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
+    __param(1, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number, Object]),
+    __metadata("design:returntype", Promise)
+], ImpresorasPosController.prototype, "imprimirCodigosMenu", null);
 __decorate([
     (0, common_1.Get)(':id/estado'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),

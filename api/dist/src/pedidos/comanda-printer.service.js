@@ -26,6 +26,7 @@ const comanda_escpos_builder_1 = require("./comanda-escpos.builder");
 const factura_escpos_builder_1 = require("./factura-escpos.builder");
 const domicilio_escpos_builder_1 = require("./domicilio-escpos.builder");
 const prueba_impresora_escpos_builder_1 = require("./prueba-impresora-escpos.builder");
+const codigos_menu_escpos_builder_1 = require("./codigos-menu-escpos.builder");
 const cierre_caja_escpos_builder_1 = require("./cierre-caja-escpos.builder");
 const cuentas_divididas_escpos_builder_1 = require("./cuentas-divididas-escpos.builder");
 const escpos_paper_status_1 = require("./escpos-paper-status");
@@ -920,6 +921,26 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
                 margenInicioLineas: layout?.margen_inicio_lineas ?? 0,
                 margenFinLineas: layout?.margen_fin_lineas ?? 2,
             }, mm);
+        }
+        catch (e) {
+            const msg = e instanceof Error ? e.message : String(e);
+            return { impreso: false, error: `Error generando ticket: ${msg}` };
+        }
+        return this.encolarEnDestino(destino, () => this.enviarBufferATargets(buffer, 'comanda', [destino], baudRate, {
+            ignorarSensorPapel: true,
+        }), { tipo: 'comanda' });
+    }
+    async imprimirCodigosMenuADestino(ticket, destino, baudRate = null, anchoPapelMm = null, layout) {
+        const mm = (0, impresora_papel_ancho_1.normalizarAnchoPapelMm)(anchoPapelMm ?? (0, impresora_papel_ancho_1.papelMmDesdeChars)(this.charWidthLegacy()));
+        const charWidth = (0, impresora_papel_ancho_1.charsPorLineaParaPapelMm)(mm);
+        let buffer;
+        try {
+            buffer = await (0, codigos_menu_escpos_builder_1.buildCodigosMenuEscPos)(ticket, {
+                charWidth,
+                tamanoFuente: layout?.tamano_fuente ?? 1,
+                margenInicioLineas: layout?.margen_inicio_lineas ?? 0,
+                margenFinLineas: layout?.margen_fin_lineas ?? 2,
+            });
         }
         catch (e) {
             const msg = e instanceof Error ? e.message : String(e);

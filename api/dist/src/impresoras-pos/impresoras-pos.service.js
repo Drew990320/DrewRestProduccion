@@ -680,6 +680,367 @@ let ImpresorasPosService = ImpresorasPosService_1 = class ImpresorasPosService {
             return;
         throw new common_1.BadRequestException('Destino inválido. Use printer:Nombre, COM3 o tcp:192.168.1.50 (red/UTP, puerto 9100)');
     }
+    async listarCodigosMenu(idRestaurante) {
+        const [cfg, cats] = await Promise.all([
+            this.prisma.configRestaurante.findUnique({
+                where: { idRestaurante },
+                select: { nombreComercial: true },
+            }),
+            this.prisma.categoria.findMany({
+                where: {
+                    idRestaurante,
+                    canal: 'restaurante',
+                    activo: true,
+                },
+                select: {
+                    nombre: true,
+                    codigoMenu: true,
+                    productos: {
+                        where: {
+                            activo: true,
+                            codigoMenu: { not: null },
+                        },
+                        select: { nombre: true, codigoMenu: true },
+                        orderBy: { codigoMenu: 'asc' },
+                    },
+                },
+                orderBy: [{ codigoMenu: 'asc' }, { nombre: 'asc' }],
+            }),
+        ]);
+        const categorias = cats
+            .map((c) => ({
+            codigo: c.codigoMenu?.trim() || null,
+            nombre: c.nombre,
+            productos: c.productos
+                .map((p) => ({
+                codigo: (p.codigoMenu ?? '').trim(),
+                nombre: p.nombre,
+            }))
+                .filter((p) => p.codigo.length > 0),
+        }))
+            .filter((c) => c.productos.length > 0);
+        const total_productos = categorias.reduce((n, c) => n + c.productos.length, 0);
+        return {
+            restaurante: cfg?.nombreComercial?.trim() || 'Restaurante',
+            emitida_en: new Date().toISOString(),
+            categorias,
+            total_productos,
+        };
+    }
+    async hojaCodigosMenuHtml(idRestaurante) {
+        const data = await this.listarCodigosMenu(idRestaurante);
+        const esc = (s) => s
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+        const fecha = new Date(data.emitida_en).toLocaleString('es-CO', {
+            timeZone: 'America/Bogota',
+            dateStyle: 'long',
+            timeStyle: 'short',
+        });
+        const bloques = data.categorias.length === 0
+            ? '<p class="empty">No hay productos activos con código de menú.</p>'
+            : data.categorias
+                .map((cat) => {
+                const codeBadge = cat.codigo
+                    ? `<span class="cat-code">${esc(cat.codigo)}</span>`
+                    : '';
+                const rows = cat.productos
+                    .map((p) => `<li><span class="code">${esc(p.codigo)}</span><span class="name">${esc(p.nombre)}</span></li>`)
+                    .join('');
+                return `<section class="cat">
+  <h2>${codeBadge}<span class="cat-name">${esc(cat.nombre)}</span><span class="cat-count">${cat.productos.length}</span></h2>
+  <ul class="items">${rows}</ul>
+</section>`;
+            })
+                .join('\n');
+        return `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Códigos menú — ${esc(data.restaurante)}</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #3d4f63;
+      --muted: #6b7d91;
+      --line: #cdd9e8;
+      --soft: #edf3fa;
+      --soft2: #e4ecf5;
+      --primary: #5e96b8;
+      --primary-soft: #82b5d6;
+      --surface: #ffffff;
+      --code-bg: #dceaf4;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(1200px 500px at 10% -10%, #d7e8f4 0%, transparent 55%),
+        linear-gradient(180deg, #f4f8fc 0%, #eef3f8 100%);
+      padding: 28px 20px 40px;
+    }
+    .sheet {
+      max-width: 900px;
+      margin: 0 auto;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      box-shadow: 0 10px 28px rgba(61, 79, 99, 0.08);
+      overflow: hidden;
+    }
+    .banner {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 22px 28px 18px;
+      background: linear-gradient(135deg, #edf3fa 0%, #e2eef7 55%, #d5e7f3 100%);
+      border-bottom: 1px solid var(--line);
+    }
+    .eyebrow {
+      margin: 0 0 6px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--primary);
+    }
+    h1 {
+      margin: 0;
+      font-size: 26px;
+      font-weight: 750;
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+      color: var(--ink);
+    }
+    .brand {
+      text-align: right;
+      min-width: 0;
+    }
+    .brand-name {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--ink);
+    }
+    .meta {
+      margin: 4px 0 0;
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+    .stats {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 14px 28px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--line);
+    }
+    .stat {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: var(--soft);
+      border: 1px solid var(--line);
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .stat strong {
+      color: var(--ink);
+      font-weight: 700;
+    }
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      padding: 14px 28px;
+      background: #fafcfe;
+      border-bottom: 1px solid var(--line);
+    }
+    .toolbar button {
+      appearance: none;
+      border: none;
+      border-radius: 10px;
+      padding: 10px 16px;
+      font: inherit;
+      font-size: 13px;
+      font-weight: 650;
+      cursor: pointer;
+      background: var(--primary);
+      color: #fff;
+    }
+    .toolbar button:hover { background: #4f87a8; }
+    .toolbar .hint {
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .content {
+      padding: 22px 28px 28px;
+      column-count: 2;
+      column-gap: 28px;
+    }
+    .cat {
+      break-inside: avoid;
+      margin: 0 0 18px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      overflow: hidden;
+      background: var(--surface);
+    }
+    .cat h2 {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 0;
+      padding: 10px 12px;
+      font-size: 13px;
+      font-weight: 700;
+      background: var(--soft2);
+      border-bottom: 1px solid var(--line);
+    }
+    .cat-code {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 2.2em;
+      padding: 2px 7px;
+      border-radius: 6px;
+      background: var(--primary);
+      color: #fff;
+      font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+    .cat-name { flex: 1; min-width: 0; }
+    .cat-count {
+      font-size: 11px;
+      font-weight: 650;
+      color: var(--muted);
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 1px 7px;
+    }
+    .items {
+      list-style: none;
+      margin: 0;
+      padding: 4px 0;
+    }
+    .items li {
+      display: grid;
+      grid-template-columns: 3.6em 1fr;
+      gap: 10px;
+      align-items: baseline;
+      padding: 7px 12px;
+      border-top: 1px solid transparent;
+    }
+    .items li:nth-child(odd) { background: #f7fafc; }
+    .items li + li { border-top-color: #eef2f6; }
+    .code {
+      font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+      font-size: 13px;
+      font-weight: 750;
+      color: var(--primary);
+      letter-spacing: 0.02em;
+    }
+    .name {
+      font-size: 13px;
+      line-height: 1.3;
+      color: var(--ink);
+    }
+    .empty {
+      margin: 0;
+      padding: 28px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 14px;
+    }
+    .footer {
+      padding: 12px 28px 18px;
+      border-top: 1px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+    @media (max-width: 720px) {
+      .content { column-count: 1; }
+      .banner { flex-direction: column; align-items: flex-start; }
+      .brand { text-align: left; }
+    }
+    @media print {
+      body {
+        background: #fff !important;
+        padding: 0 !important;
+      }
+      .sheet {
+        max-width: none;
+        border: none;
+        border-radius: 0;
+        box-shadow: none;
+      }
+      .toolbar { display: none !important; }
+      .banner {
+        background: #edf3fa !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      .cat-code, .items li:nth-child(odd), .cat h2, .stat {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      .content {
+        column-count: 2;
+        padding: 14px 16px 16px;
+      }
+      .cat { break-inside: avoid-page; }
+      @page { size: A4; margin: 10mm; }
+    }
+  </style>
+</head>
+<body>
+  <div class="sheet">
+    <header class="banner">
+      <div>
+        <p class="eyebrow">DrewRest · referencia operativa</p>
+        <h1>Códigos de menú</h1>
+      </div>
+      <div class="brand">
+        <p class="brand-name">${esc(data.restaurante)}</p>
+        <p class="meta">${esc(fecha)}</p>
+      </div>
+    </header>
+    <div class="stats">
+      <span class="stat"><strong>${data.categorias.length}</strong> categorías</span>
+      <span class="stat"><strong>${data.total_productos}</strong> productos con código</span>
+    </div>
+    <div class="toolbar">
+      <button type="button" onclick="window.print()">Imprimir / Guardar PDF</button>
+      <span class="hint">Usa «Guardar como PDF» en el diálogo de impresión del navegador.</span>
+    </div>
+    <div class="content">
+      ${bloques}
+    </div>
+    <footer class="footer">
+      <span>Solo productos activos con código</span>
+      <span>DrewRest by DrewTech</span>
+    </footer>
+  </div>
+</body>
+</html>`;
+    }
 };
 exports.ImpresorasPosService = ImpresorasPosService;
 exports.ImpresorasPosService = ImpresorasPosService = ImpresorasPosService_1 = __decorate([

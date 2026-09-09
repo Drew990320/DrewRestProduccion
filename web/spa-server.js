@@ -57,7 +57,7 @@ function safePath(urlPath) {
   return file;
 }
 
-/** Inyectado en index.html: bloquea Inspeccionar hasta que React autorice (superadmin). */
+/** Inyectado en index.html: bloquea Inspeccionar hasta que React autorice (admin/superadmin). */
 const OPERATOR_GUARD_SNIPPET = `
 <script>
 (function(){
