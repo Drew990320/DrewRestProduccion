@@ -747,15 +747,36 @@ function Invoke-DrewRestUpdateFromFolder {
       if (Test-Path $nodeModules) {
         Write-Host "Limpiando api\\node_modules (paquete slim)..." -ForegroundColor DarkGray
         Remove-Item -LiteralPath $nodeModules -Recurse -Force -ErrorAction SilentlyContinue
+        if (Test-Path $nodeModules) {
+          $trash = "$nodeModules.old-$(Get-Date -Format 'yyyyMMddHHmmss')"
+          try {
+            Move-Item -LiteralPath $nodeModules -Destination $trash -Force
+            Start-Job -ScriptBlock { param($p) Remove-Item -LiteralPath $p -Recurse -Force -ErrorAction SilentlyContinue } -ArgumentList $trash | Out-Null
+          } catch {
+            Write-Host "No se pudo liberar node_modules: $($_.Exception.Message)" -ForegroundColor Yellow
+          }
+        }
       }
       Write-Host "Instalando dependencias del API (npm install --omit=dev)..." -ForegroundColor Cyan
+      $env:NPM_CONFIG_FETCH_RETRIES = "5"
+      $env:NPM_CONFIG_FETCH_RETRY_MINTIMEOUT = "20000"
+      $env:NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT = "120000"
+      $env:NPM_CONFIG_NETWORK_TIMEOUT = "300000"
       $prev = $ErrorActionPreference
       $ErrorActionPreference = "Continue"
       Push-Location $apiDir
       try {
-        & $npmCmd install --omit=dev 2>&1 | ForEach-Object { Write-Host "  $_" -ForegroundColor DarkGray }
-        if ($LASTEXITCODE -ne 0) {
-          throw "npm install fallo (codigo $LASTEXITCODE)"
+        $ok = $false
+        for ($attempt = 1; $attempt -le 3; $attempt++) {
+          if ($attempt -gt 1) {
+            Write-Host "Reintento npm install ($attempt/3)..." -ForegroundColor Yellow
+            Start-Sleep -Seconds (3 * $attempt)
+          }
+          & $npmCmd install --omit=dev 2>&1 | ForEach-Object { Write-Host "  $_" -ForegroundColor DarkGray }
+          if ($LASTEXITCODE -eq 0) { $ok = $true; break }
+        }
+        if (-not $ok) {
+          throw "npm install fallo tras reintentos. Suele ser Internet inestable (ECONNRESET) o archivos bloqueados (EBUSY). Deten DrewRest, usa cable si puedes, y vuelve a Actualizar/Reparar."
         }
       } finally {
         Pop-Location
