@@ -25,6 +25,7 @@ Object.defineProperty(exports, "MESA_MOSTRADOR_NUMERO", { enumerable: true, get:
 Object.defineProperty(exports, "MESA_PARA_LLEVAR_NUMERO", { enumerable: true, get: function () { return mesa_label_2.MESA_PARA_LLEVAR_NUMERO; } });
 const PEDIDOS_ABIERTOS = ['abierto', 'en_cocina'];
 const CAPACIDAD_MESA_DEFAULT = 4;
+const MAX_MESAS_POR_LOTE = 50;
 let MesasService = class MesasService {
     prisma;
     gateway;
@@ -241,6 +242,75 @@ let MesasService = class MesasService {
         });
         this.gateway.emitConfigActualizada('mesas', tenantId);
         return this.mapMesaAdmin(creada, 0, 0);
+    }
+    async crearMesasLote(dto, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
+        const desde = dto.numero_desde;
+        const hasta = dto.numero_hasta;
+        if (desde > hasta) {
+            throw new common_1.BadRequestException('El número inicial no puede ser mayor que el final.');
+        }
+        const cantidad = hasta - desde + 1;
+        if (cantidad > MAX_MESAS_POR_LOTE) {
+            throw new common_1.BadRequestException(`Puedes crear máximo ${MAX_MESAS_POR_LOTE} mesas por vez (pediste ${cantidad}).`);
+        }
+        const mv = await this.configMesasVirtuales(tenantId);
+        const reservados = [];
+        for (let n = desde; n <= hasta; n++) {
+            const reservado = (0, mesa_admin_validacion_1.validarNumeroMesaReservado)(n, mv);
+            if (!reservado.ok) {
+                reservados.push(n);
+            }
+        }
+        if (reservados.length > 0) {
+            throw new common_1.BadRequestException(`Estos números están reservados por el sistema: ${reservados.join(', ')}.`);
+        }
+        const lugar = await this.ensureLugarMesaActiva(dto.id_lugar, tenantId);
+        const existentes = await this.prisma.mesa.findMany({
+            where: {
+                idRestaurante: tenantId,
+                numero: { gte: desde, lte: hasta },
+            },
+            select: { numero: true },
+            orderBy: { numero: 'asc' },
+        });
+        if (existentes.length > 0) {
+            throw new common_1.BadRequestException(`Ya existen mesas con estos números: ${existentes
+                .map((m) => m.numero)
+                .join(', ')}.`);
+        }
+        const capacidad = dto.capacidad ?? CAPACIDAD_MESA_DEFAULT;
+        const numeros = Array.from({ length: cantidad }, (_, i) => desde + i);
+        const creadas = await this.prisma.$transaction(async (tx) => {
+            const rows = [];
+            for (const numero of numeros) {
+                const creada = await tx.mesa.create({
+                    data: {
+                        idRestaurante: tenantId,
+                        idLugar: lugar.idLugar,
+                        numero,
+                        capacidad,
+                        disponibleLunes: true,
+                        disponibleMartes: true,
+                        disponibleMiercoles: true,
+                        disponibleJueves: true,
+                        disponibleViernes: true,
+                        disponibleSabado: true,
+                        disponibleDomingo: true,
+                    },
+                    include: { lugar: true },
+                });
+                rows.push(creada);
+            }
+            return rows;
+        });
+        this.gateway.emitConfigActualizada('mesas', tenantId);
+        return {
+            ok: true,
+            creadas: creadas.length,
+            numero_desde: desde,
+            numero_hasta: hasta,
+            mesas: creadas.map((m) => this.mapMesaAdmin(m, 0, 0)),
+        };
     }
     flagsSnakeMesa(m) {
         return {
