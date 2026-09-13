@@ -101,7 +101,7 @@ let ImpresorasPosService = ImpresorasPosService_1 = class ImpresorasPosService {
             if (!(0, fs_1.existsSync)(path))
                 continue;
             try {
-                const raw = (0, fs_1.readFileSync)(path, 'utf8');
+                const raw = (0, fs_1.readFileSync)(path, 'utf8').replace(/^\uFEFF/, '');
                 const data = JSON.parse(raw);
                 const list = Array.isArray(data?.impresoras) ? data.impresoras : [];
                 for (const item of list) {
