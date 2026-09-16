@@ -529,15 +529,73 @@ let SuperadminService = class SuperadminService {
         });
         const numero = op?.numeroMesaBoutique ??
             (0, mesa_label_1.resolverMesasVirtuales)(op).numero_mesa_boutique;
-        const existing = await this.prisma.mesa.findFirst({
-            where: { idRestaurante: tenantId, numero },
+        const etiqueta = op?.etiquetaBoutique?.trim() ||
+            (0, mesa_label_1.resolverMesasVirtuales)(op).etiqueta_boutique ||
+            'Tienda';
+        let tienda = await this.prisma.tienda.findFirst({
+            where: { idRestaurante: tenantId },
+            orderBy: [{ orden: 'asc' }, { idTienda: 'asc' }],
         });
-        if (existing)
-            return;
+        if (!tienda) {
+            tienda = await this.prisma.tienda.create({
+                data: {
+                    idRestaurante: tenantId,
+                    nombre: etiqueta,
+                    etiqueta,
+                    activo: true,
+                    numeroMesaBoutique: numero,
+                    orden: 0,
+                },
+            });
+        }
+        const existing = await this.prisma.mesa.findFirst({
+            where: { idRestaurante: tenantId, numero: tienda.numeroMesaBoutique },
+        });
+        if (existing) {
+            const puedeReclamar = existing.idLugar == null &&
+                (existing.idTienda == null || existing.idTienda === tienda.idTienda);
+            if (puedeReclamar) {
+                if (existing.idTienda !== tienda.idTienda) {
+                    await this.prisma.mesa.update({
+                        where: { idMesa: existing.idMesa },
+                        data: { idTienda: tienda.idTienda },
+                    });
+                }
+                return;
+            }
+            const usados = new Set([
+                existing.numero,
+                ...(await this.prisma.mesa.findMany({
+                    where: { idRestaurante: tenantId },
+                    select: { numero: true },
+                })).map((m) => m.numero),
+                ...(await this.prisma.tienda.findMany({
+                    where: { idRestaurante: tenantId },
+                    select: { numeroMesaBoutique: true },
+                })).map((t) => t.numeroMesaBoutique),
+            ]);
+            let nuevo = null;
+            for (let n = 97; n >= 50; n--) {
+                if (n === 98 || n === 99)
+                    continue;
+                if (!usados.has(n)) {
+                    nuevo = n;
+                    break;
+                }
+            }
+            if (nuevo == null) {
+                throw new common_1.ConflictException('No hay número de mesa boutique libre al activar retail');
+            }
+            tienda = await this.prisma.tienda.update({
+                where: { idTienda: tienda.idTienda },
+                data: { numeroMesaBoutique: nuevo },
+            });
+        }
         await this.prisma.mesa.create({
             data: {
                 idRestaurante: tenantId,
-                numero,
+                idTienda: tienda.idTienda,
+                numero: tienda.numeroMesaBoutique,
                 capacidad: 1,
                 estado: 'libre',
                 disponibleLunes: true,

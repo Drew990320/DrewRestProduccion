@@ -39,18 +39,18 @@ const NOTA_EMPAQUE = ' El empaque para llevar se queda en la cuenta; el administ
  * - Ocupada: segunda cuenta, sin agrupar mesas.
  */
 function validarTransferenciaPedido(input) {
-    const { origen_mesa_numero: origen, destino_mesa_numero: destino, destino_libre: libre, destino_es_anexa: esAnexa = false, mesas_virtuales: mesasVirtuales, origen_autoservicio: origenAutoservicio = false, } = input;
-    if ((0, mesa_label_1.esMesaBoutiqueNumero)(origen, mesasVirtuales)) {
+    const { origen_mesa_numero: origen, destino_mesa_numero: destino, destino_libre: libre, destino_es_anexa: esAnexa = false, mesas_virtuales: mesasVirtuales, numeros_boutique_extra: boutiqueExtras = null, origen_autoservicio: origenAutoservicio = false, } = input;
+    if ((0, mesa_label_1.esMesaBoutiqueNumero)(origen, mesasVirtuales, boutiqueExtras)) {
         return { accion: 'rechazar', mensaje: MSG_ORIGEN_TIENDA };
     }
-    if ((0, mesa_label_1.esMesaVirtualNumero)(destino, mesasVirtuales)) {
+    if ((0, mesa_label_1.esMesaVirtualNumero)(destino, mesasVirtuales, boutiqueExtras)) {
         return { accion: 'rechazar', mensaje: MSG_DESTINO_VIRTUAL };
     }
     if (esAnexa) {
         return { accion: 'rechazar', mensaje: MSG_DESTINO_ANEXA };
     }
     const lugar = (0, mesa_label_1.tituloLugarMesa)(destino, mesasVirtuales);
-    const origenVirtual = (0, mesa_label_1.esMesaVirtualNumero)(origen, mesasVirtuales);
+    const origenVirtual = (0, mesa_label_1.esMesaVirtualNumero)(origen, mesasVirtuales, boutiqueExtras);
     if (origenVirtual && origenAutoservicio) {
         if (libre) {
             return {

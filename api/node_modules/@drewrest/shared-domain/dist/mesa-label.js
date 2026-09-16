@@ -8,11 +8,11 @@ exports.esMesaParaLlevarNumero = esMesaParaLlevarNumero;
 exports.esMesaBoutiqueNumero = esMesaBoutiqueNumero;
 exports.resolverCanalComanda = resolverCanalComanda;
 exports.destinoRecibeCanalComanda = destinoRecibeCanalComanda;
+exports.numerosMesasVirtuales = numerosMesasVirtuales;
 exports.tituloLugarMesa = tituloLugarMesa;
 exports.etiquetaMesaNumero = etiquetaMesaNumero;
 exports.etiquetaMesaComanda = etiquetaMesaComanda;
 exports.tituloMesaAdmin = tituloMesaAdmin;
-exports.numerosMesasVirtuales = numerosMesasVirtuales;
 /** Mesa virtual para pedidos para llevar (no mesas 1–15). */
 exports.MESA_PARA_LLEVAR_NUMERO = 98;
 /** Mesa virtual para ventas en mostrador. */
@@ -36,11 +36,14 @@ function resolverMesasVirtuales(cfg) {
         etiqueta_boutique: pickStr(cfg?.etiqueta_boutique, cfg?.etiquetaBoutique, 'Tienda'),
     };
 }
-function esMesaVirtualNumero(numero, cfg) {
+function esMesaVirtualNumero(numero, cfg, numerosBoutiqueExtra) {
     const r = resolverMesasVirtuales(cfg);
-    return (numero === r.numero_mesa_para_llevar ||
+    if (numero === r.numero_mesa_para_llevar ||
         numero === r.numero_mesa_mostrador ||
-        numero === r.numero_mesa_boutique);
+        numero === r.numero_mesa_boutique) {
+        return true;
+    }
+    return Boolean(numerosBoutiqueExtra?.includes(numero));
 }
 function esMesaMostradorNumero(numero, cfg) {
     return numero === resolverMesasVirtuales(cfg).numero_mesa_mostrador;
@@ -48,7 +51,9 @@ function esMesaMostradorNumero(numero, cfg) {
 function esMesaParaLlevarNumero(numero, cfg) {
     return numero === resolverMesasVirtuales(cfg).numero_mesa_para_llevar;
 }
-function esMesaBoutiqueNumero(numero, cfg) {
+function esMesaBoutiqueNumero(numero, cfg, numerosBoutiqueExtra) {
+    if (numerosBoutiqueExtra?.includes(numero))
+        return true;
     return numero === resolverMesasVirtuales(cfg).numero_mesa_boutique;
 }
 /**
@@ -75,8 +80,25 @@ function destinoRecibeCanalComanda(canal, flags) {
         return mostrador;
     return paraLlevar;
 }
+function numerosMesasVirtuales(cfg, numerosBoutiqueExtra) {
+    const r = resolverMesasVirtuales(cfg);
+    const base = [
+        r.numero_mesa_para_llevar,
+        r.numero_mesa_mostrador,
+        r.numero_mesa_boutique,
+    ];
+    const extras = (numerosBoutiqueExtra ?? []).filter((n) => Number.isFinite(n) && n > 0);
+    return [...new Set([...base, ...extras])];
+}
+function etiquetaDeBoutiqueExtra(numero, extras) {
+    const hit = extras?.find((e) => e.numero === numero);
+    if (!hit)
+        return null;
+    const t = hit.etiqueta?.trim();
+    return t || 'Tienda';
+}
 /** Texto para UI (pantallas de mesero/cocina). */
-function tituloLugarMesa(numero, cfg) {
+function tituloLugarMesa(numero, cfg, boutiqueExtras) {
     const r = resolverMesasVirtuales(cfg);
     if (numero === r.numero_mesa_para_llevar)
         return r.etiqueta_para_llevar;
@@ -84,10 +106,13 @@ function tituloLugarMesa(numero, cfg) {
         return r.etiqueta_mostrador;
     if (numero === r.numero_mesa_boutique)
         return r.etiqueta_boutique;
+    const extra = etiquetaDeBoutiqueExtra(numero, boutiqueExtras);
+    if (extra)
+        return extra;
     return `Mesa ${numero}`;
 }
 /** Etiqueta corta para la grilla de mesas. */
-function etiquetaMesaNumero(numero, cfg) {
+function etiquetaMesaNumero(numero, cfg, boutiqueExtras) {
     const r = resolverMesasVirtuales(cfg);
     if (numero === r.numero_mesa_para_llevar)
         return r.etiqueta_para_llevar;
@@ -95,10 +120,13 @@ function etiquetaMesaNumero(numero, cfg) {
         return r.etiqueta_mostrador;
     if (numero === r.numero_mesa_boutique)
         return r.etiqueta_boutique;
+    const extra = etiquetaDeBoutiqueExtra(numero, boutiqueExtras);
+    if (extra)
+        return extra;
     return String(numero);
 }
 /** Etiqueta en ticket de comanda impreso (más breve). */
-function etiquetaMesaComanda(numero, cfg) {
+function etiquetaMesaComanda(numero, cfg, boutiqueExtras) {
     const r = resolverMesasVirtuales(cfg);
     if (numero === r.numero_mesa_para_llevar) {
         return r.etiqueta_para_llevar.length > 14
@@ -109,10 +137,13 @@ function etiquetaMesaComanda(numero, cfg) {
         return r.etiqueta_mostrador;
     if (numero === r.numero_mesa_boutique)
         return r.etiqueta_boutique;
+    const extra = etiquetaDeBoutiqueExtra(numero, boutiqueExtras);
+    if (extra)
+        return extra;
     return `Mesa ${numero}`;
 }
 /** Título en admin de mesas (mesas virtuales con descripción entre paréntesis). */
-function tituloMesaAdmin(numero, cfg) {
+function tituloMesaAdmin(numero, cfg, boutiqueExtras) {
     const r = resolverMesasVirtuales(cfg);
     if (numero === r.numero_mesa_para_llevar) {
         return `Mesa ${r.numero_mesa_para_llevar} (${r.etiqueta_para_llevar})`;
@@ -123,13 +154,8 @@ function tituloMesaAdmin(numero, cfg) {
     if (numero === r.numero_mesa_boutique) {
         return `Mesa ${r.numero_mesa_boutique} (${r.etiqueta_boutique})`;
     }
+    const extra = etiquetaDeBoutiqueExtra(numero, boutiqueExtras);
+    if (extra)
+        return `Mesa ${numero} (${extra})`;
     return `Mesa ${numero}`;
-}
-function numerosMesasVirtuales(cfg) {
-    const r = resolverMesasVirtuales(cfg);
-    return [
-        r.numero_mesa_para_llevar,
-        r.numero_mesa_mostrador,
-        r.numero_mesa_boutique,
-    ];
 }

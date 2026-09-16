@@ -30,6 +30,8 @@ export declare function validarTransferenciaPedido(input: {
     destino_libre: boolean;
     destino_es_anexa?: boolean;
     mesas_virtuales?: MesasVirtualesConfig | null;
+    /** Números boutique de tiendas adicionales (96, 95…). */
+    numeros_boutique_extra?: number[] | null;
     /** Autoservicio en mostrador/para llevar: permite asignar a mesa física. */
     origen_autoservicio?: boolean;
 }): ResultadoValidacionTransferencia;

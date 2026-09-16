@@ -43,8 +43,17 @@ let MesasService = class MesasService {
         });
         return (0, mesa_label_1.resolverMesasVirtuales)(row ?? undefined);
     }
+    async numerosBoutiqueTenant(tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
+        const rows = await this.prisma.tienda.findMany({
+            where: { idRestaurante: tenantId },
+            select: { numeroMesaBoutique: true },
+        });
+        return rows.map((r) => r.numeroMesaBoutique);
+    }
     async numerosOcultosGrilla(tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
-        return (0, mesa_label_1.numerosMesasVirtuales)(await this.configMesasVirtuales(tenantId));
+        const cfg = await this.configMesasVirtuales(tenantId);
+        const extras = await this.numerosBoutiqueTenant(tenantId);
+        return (0, mesa_label_1.numerosMesasVirtuales)(cfg, extras);
     }
     mapLugar(lugar) {
         return {
@@ -92,9 +101,14 @@ let MesasService = class MesasService {
     }
     async ensureLugarParaMesaNormal(numeroMesa, tenantId, idLugar) {
         const mv = await this.configMesasVirtuales(tenantId);
+        const boutiqueExtras = (await this.prisma.tienda.findMany({
+            where: { idRestaurante: tenantId, activo: true },
+            select: { numeroMesaBoutique: true },
+        })).map((t) => t.numeroMesaBoutique);
         const esVirtual = numeroMesa === mv.numero_mesa_mostrador ||
             numeroMesa === mv.numero_mesa_para_llevar ||
-            numeroMesa === mv.numero_mesa_boutique;
+            numeroMesa === mv.numero_mesa_boutique ||
+            boutiqueExtras.includes(numeroMesa);
         if (esVirtual) {
             return null;
         }
@@ -211,7 +225,8 @@ let MesasService = class MesasService {
     }
     async crearMesa(dto, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
         const mv = await this.configMesasVirtuales(tenantId);
-        const reservado = (0, mesa_admin_validacion_1.validarNumeroMesaReservado)(dto.numero, mv);
+        const extras = await this.numerosBoutiqueTenant(tenantId);
+        const reservado = (0, mesa_admin_validacion_1.validarNumeroMesaReservado)(dto.numero, mv, extras);
         if (!reservado.ok) {
             throw new common_1.BadRequestException(reservado.mensaje);
         }
@@ -254,9 +269,10 @@ let MesasService = class MesasService {
             throw new common_1.BadRequestException(`Puedes crear máximo ${MAX_MESAS_POR_LOTE} mesas por vez (pediste ${cantidad}).`);
         }
         const mv = await this.configMesasVirtuales(tenantId);
+        const extras = await this.numerosBoutiqueTenant(tenantId);
         const reservados = [];
         for (let n = desde; n <= hasta; n++) {
-            const reservado = (0, mesa_admin_validacion_1.validarNumeroMesaReservado)(n, mv);
+            const reservado = (0, mesa_admin_validacion_1.validarNumeroMesaReservado)(n, mv, extras);
             if (!reservado.ok) {
                 reservados.push(n);
             }
@@ -375,6 +391,7 @@ let MesasService = class MesasService {
             throw new common_1.NotFoundException('Mesa no encontrada');
         }
         const mv = await this.configMesasVirtuales(tenantId);
+        const extras = await this.numerosBoutiqueTenant(tenantId);
         if (dto.numero != null && dto.numero !== m.numero) {
             const { activos: pedidosActivos } = await this.contadoresPedidosMesa(idMesa);
             const validacionNumero = (0, mesa_admin_validacion_1.validarCambioNumeroMesaAdmin)({
@@ -382,6 +399,7 @@ let MesasService = class MesasService {
                 numeroNuevo: dto.numero,
                 pedidosActivos,
                 mesasVirtuales: mv,
+                numerosBoutiqueExtra: extras,
             });
             if (!validacionNumero.ok) {
                 throw new common_1.ConflictException(validacionNumero.mensaje);
@@ -408,6 +426,7 @@ let MesasService = class MesasService {
                 pedidosActivos,
                 weekdayHoy: (0, timezone_1.weekdayBogota)(),
                 mesasVirtuales: mv,
+                numerosBoutiqueExtra: extras,
             });
             if (!validacion.ok) {
                 throw new common_1.ConflictException(validacion.mensaje);
@@ -465,11 +484,13 @@ let MesasService = class MesasService {
         }
         const { activos, total } = await this.contadoresPedidosMesa(idMesa);
         const mv = await this.configMesasVirtuales(tenantId);
+        const extras = await this.numerosBoutiqueTenant(tenantId);
         const validacion = (0, mesa_admin_validacion_1.validarEliminarMesaAdmin)({
             numeroMesa: m.numero,
             pedidosActivos: activos,
             totalPedidos: total,
             mesasVirtuales: mv,
+            numerosBoutiqueExtra: extras,
         });
         if (!validacion.ok) {
             throw new common_1.ConflictException(validacion.mensaje);

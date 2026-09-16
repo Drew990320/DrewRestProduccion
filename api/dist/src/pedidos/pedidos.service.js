@@ -496,7 +496,11 @@ let PedidosService = class PedidosService {
     }
     async esMesaVirtualNumero(numero, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
         const row = await this.obtenerConfigOperativaRow(tenantId);
-        return (0, mesa_label_1.esMesaVirtualNumero)(numero, row);
+        const extras = (await this.prisma.tienda.findMany({
+            where: { idRestaurante: tenantId },
+            select: { numeroMesaBoutique: true },
+        })).map((t) => t.numeroMesaBoutique);
+        return (0, mesa_label_1.esMesaVirtualNumero)(numero, row, extras);
     }
     async sincronizarNumeroMesaVirtual(numeroAnterior, numeroNuevo) {
         if (numeroAnterior === numeroNuevo)
@@ -1092,6 +1096,15 @@ let PedidosService = class PedidosService {
     async getConfigOperativa(tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
         const row = await this.obtenerConfigOperativaRow(tenantId);
         const mapped = this.mapConfigOperativa(row);
+        const tiendasBoutique = await this.prisma.tienda.findMany({
+            where: { idRestaurante: tenantId, activo: true },
+            select: {
+                numeroMesaBoutique: true,
+                etiqueta: true,
+                nombre: true,
+            },
+            orderBy: [{ orden: 'asc' }, { idTienda: 'asc' }],
+        });
         let moduloRedondeo = false;
         let moduloEnvioCorreo = false;
         const cachedRest = (0, config_restaurante_cache_1.getCachedConfigRestaurante)(tenantId);
@@ -1112,6 +1125,11 @@ let PedidosService = class PedidosService {
         }
         return {
             ...mapped,
+            numeros_mesa_boutique_extra: tiendasBoutique.map((t) => t.numeroMesaBoutique),
+            mesas_boutique: tiendasBoutique.map((t) => ({
+                numero: t.numeroMesaBoutique,
+                etiqueta: t.etiqueta?.trim() || t.nombre,
+            })),
             modulo_redondeo_cobro_activo: moduloRedondeo,
             modulo_envio_correo_activo: moduloEnvioCorreo,
         };
@@ -2973,6 +2991,7 @@ let PedidosService = class PedidosService {
                     idRestaurante: tenantId,
                     idMesa: dto.id_mesa,
                     idUsuario,
+                    idTienda: mesa.idTienda ?? null,
                     numComensales: dto.num_comensales,
                     estado: 'abierto',
                     modoServicio,
@@ -4421,8 +4440,25 @@ let PedidosService = class PedidosService {
                 where: { idMesa: pedido.idMesa },
             });
             const opRow = await this.obtenerConfigOperativaRow(pedido.idRestaurante);
-            if (!mesa || !(0, mesa_label_1.esMesaBoutiqueNumero)(mesa.numero, opRow)) {
+            const boutiqueNums = await this.prisma.tienda.findMany({
+                where: { idRestaurante: pedido.idRestaurante },
+                select: { numeroMesaBoutique: true },
+            });
+            const extras = boutiqueNums.map((t) => t.numeroMesaBoutique);
+            const esBoutique = mesa?.idTienda != null ||
+                pedido.idTienda != null ||
+                (mesa != null && (0, mesa_label_1.esMesaBoutiqueNumero)(mesa.numero, opRow, extras));
+            if (!mesa || !esBoutique) {
                 throw new common_1.BadRequestException('Los productos de tienda solo se venden en la mesa Boutique');
+            }
+            const idTiendaPedido = pedido.idTienda ?? mesa.idTienda ?? null;
+            if (producto.categoria.idTienda != null) {
+                if (idTiendaPedido == null) {
+                    throw new common_1.BadRequestException('Este ticket no está vinculado a una tienda. Abre la venta desde Ventas tienda.');
+                }
+                if (producto.categoria.idTienda !== idTiendaPedido) {
+                    throw new common_1.BadRequestException('Este producto pertenece a otra tienda');
+                }
             }
             const activas = producto.variantes;
             if (activas.length > 0) {
@@ -4568,16 +4604,30 @@ let PedidosService = class PedidosService {
             });
             if (esRetail) {
                 if (idProductoVariante != null) {
-                    await tx.productoVariante.update({
-                        where: { idVariante: idProductoVariante },
-                        data: { stockDisponible: { decrement: dto.cantidad } },
-                    });
+                    if (producto.controlStock) {
+                        const dec = await tx.productoVariante.updateMany({
+                            where: {
+                                idVariante: idProductoVariante,
+                                stockDisponible: { gte: dto.cantidad },
+                            },
+                            data: { stockDisponible: { decrement: dto.cantidad } },
+                        });
+                        if (dec.count === 0) {
+                            throw new common_1.BadRequestException('Stock insuficiente de la variante');
+                        }
+                    }
                 }
                 else if (producto.controlStock) {
-                    await tx.producto.update({
-                        where: { idProducto: producto.idProducto },
+                    const dec = await tx.producto.updateMany({
+                        where: {
+                            idProducto: producto.idProducto,
+                            stockDisponible: { gte: dto.cantidad },
+                        },
                         data: { stockDisponible: { decrement: dto.cantidad } },
                     });
+                    if (dec.count === 0) {
+                        throw new common_1.BadRequestException('Stock insuficiente');
+                    }
                 }
             }
             if (opcionIds.length) {
@@ -8449,12 +8499,17 @@ let PedidosService = class PedidosService {
         });
         const destinoLibrePreliminar = mesaNueva.estado === 'libre' && pedidoEnDestino == null;
         const opRow = await this.obtenerConfigOperativaRow(pedido.idRestaurante);
+        const boutiqueExtras = (await this.prisma.tienda.findMany({
+            where: { idRestaurante: pedido.idRestaurante },
+            select: { numeroMesaBoutique: true },
+        })).map((t) => t.numeroMesaBoutique);
         const validacionPreliminar = (0, transferencia_pedido_1.validarTransferenciaPedido)({
             origen_mesa_numero: pedido.mesa.numero,
             destino_mesa_numero: mesaNueva.numero,
             destino_libre: destinoLibrePreliminar,
             destino_es_anexa: destinoEsAnexa != null,
             mesas_virtuales: opRow,
+            numeros_boutique_extra: boutiqueExtras,
             origen_autoservicio: Boolean(pedido.origenAutoservicio),
         });
         if (validacionPreliminar.accion === 'rechazar') {
@@ -8499,6 +8554,7 @@ let PedidosService = class PedidosService {
                 destino_libre: destinoLibre,
                 destino_es_anexa: anexaDestino != null,
                 mesas_virtuales: opRow,
+                numeros_boutique_extra: boutiqueExtras,
                 origen_autoservicio: Boolean(pedido.origenAutoservicio),
             });
             if (validacion.accion === 'rechazar') {
@@ -8740,6 +8796,7 @@ let PedidosService = class PedidosService {
         return {
             id_pedido: p.idPedido,
             id_mesa: p.idMesa,
+            id_tienda: p.idTienda ?? null,
             mesa_numero: p.mesa.numero,
             estado: p.estado,
             modo_servicio: p.modoServicio,

@@ -230,8 +230,32 @@ model Restaurante {
   pagosFondoGastoFijo PagoFondoGastoFijo[]
   beneficiosTurnoProducto BeneficioTurnoProducto[]
   produccionesPorcion ProduccionPorcion[]
+  tiendas             Tienda[]
 
   @@map("restaurante")
+}
+
+/// Punto de venta retail independiente (catálogo + stock + mesa boutique propios).
+model Tienda {
+  idTienda            Int      @id @default(autoincrement()) @map("id_tienda")
+  idRestaurante       Int      @map("id_restaurante")
+  nombre              String   @db.VarChar(120)
+  etiqueta            String?  @db.VarChar(80)
+  activo              Boolean  @default(true)
+  /// Número de mesa virtual usada como POS de esta tienda.
+  numeroMesaBoutique  Int      @map("numero_mesa_boutique")
+  orden               Int      @default(0)
+  creadoEn            DateTime @default(now()) @map("creado_en")
+  actualizadoEn       DateTime @updatedAt @map("actualizado_en")
+  restaurante         Restaurante @relation(fields: [idRestaurante], references: [idRestaurante], onDelete: Cascade)
+  categorias          Categoria[]
+  mesas               Mesa[]
+  pedidos             Pedido[]
+
+  @@unique([idRestaurante, nombre])
+  @@unique([idRestaurante, numeroMesaBoutique])
+  @@index([idRestaurante, activo, orden])
+  @@map("tienda")
 }
 
 /// Gasto recurrente mensual (arriendo, servicios, nómina fija, etc.) para el módulo Ganancias.
@@ -453,6 +477,8 @@ model Mesa {
   idMesa              Int        @id @default(autoincrement()) @map("id_mesa")
   idRestaurante       Int        @default(1) @map("id_restaurante")
   idLugar             Int?       @map("id_lugar")
+  /// Si está definido, esta mesa es el POS virtual de esa tienda retail.
+  idTienda            Int?       @map("id_tienda")
   numero              Int
   capacidad           Int
   estado              EstadoMesa @default(libre)
@@ -465,12 +491,14 @@ model Mesa {
   disponibleDomingo   Boolean    @default(true) @map("disponible_domingo")
   restaurante         Restaurante @relation(fields: [idRestaurante], references: [idRestaurante])
   lugar               LugarMesa? @relation(fields: [idLugar], references: [idLugar], onDelete: SetNull)
+  tienda              Tienda?    @relation(fields: [idTienda], references: [idTienda], onDelete: SetNull)
   pedidos             Pedido[]
   pedidosAnexos       PedidoMesaAnexa[]
 
   @@unique([idRestaurante, numero])
   @@index([idRestaurante])
   @@index([idLugar, numero])
+  @@index([idTienda])
   @@map("mesa")
 }
 
@@ -519,14 +547,17 @@ model Categoria {
   activo                   Boolean              @default(true)
   /// restaurante = menú/cocina; retail = tienda (ropa, accesorios, etc.).
   canal                    CanalCatalogo        @default(restaurante)
+  /// Obligatorio para canal retail: categoría pertenece a una tienda.
+  idTienda                 Int?                 @map("id_tienda")
   restaurante              Restaurante          @relation(fields: [idRestaurante], references: [idRestaurante])
+  tienda                   Tienda?              @relation(fields: [idTienda], references: [idTienda], onDelete: Cascade)
   productos                Producto[]
   reglasImpresionCocina    ReglaImpresionCocina[]
 
-  @@unique([idRestaurante, canal, nombre])
-  @@unique([idRestaurante, canal, codigoMenu])
+  /// Uniques parciales en migración SQL (restaurante vs retail/tienda).
   @@index([idRestaurante])
   @@index([idRestaurante, canal])
+  @@index([idTienda])
   @@map("categoria")
 }
 
@@ -701,6 +732,8 @@ model Pedido {
   idRestaurante              Int               @default(1) @map("id_restaurante")
   idMesa                     Int               @map("id_mesa")
   idUsuario                  Int               @map("id_usuario")
+  /// Denormalizado: venta de tienda retail (null = restaurante / otras mesas).
+  idTienda                   Int?              @map("id_tienda")
   estado                     EstadoPedido      @default(abierto)
   modoServicio               ModoServicio      @default(en_mesa) @map("modo_servicio")
   numComensales              Int               @map("num_comensales")
@@ -722,6 +755,7 @@ model Pedido {
   mesa                       Mesa              @relation(fields: [idMesa], references: [idMesa])
   usuario                    Usuario           @relation(fields: [idUsuario], references: [idUsuario])
   restaurante                Restaurante       @relation(fields: [idRestaurante], references: [idRestaurante])
+  tienda                     Tienda?           @relation(fields: [idTienda], references: [idTienda], onDelete: SetNull)
   detalles                   DetallePedido[]
   facturas                   Factura[]
   movimientosCaja            MovimientoCaja[]
@@ -735,6 +769,7 @@ model Pedido {
   @@index([idMesa, estado])
   @@index([estado, creadoEn])
   @@index([idUsuario, estado])
+  @@index([idTienda, estado])
   @@map("pedido")
 }
 

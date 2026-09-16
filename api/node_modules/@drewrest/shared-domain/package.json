@@ -173,6 +173,10 @@
                                          "types":  "./dist/mesa-label.d.ts",
                                          "default":  "./dist/mesa-label.js"
                                      },
+                    "./tienda":  {
+                                     "types":  "./dist/tienda.d.ts",
+                                     "default":  "./dist/tienda.js"
+                                 },
                     "./movimiento-caja":  {
                                               "types":  "./dist/movimiento-caja.d.ts",
                                               "default":  "./dist/movimiento-caja.js"

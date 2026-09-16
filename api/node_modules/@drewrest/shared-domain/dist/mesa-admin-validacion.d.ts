@@ -19,20 +19,23 @@ export declare function validarPatchMesaAdmin(opts: {
     pedidosActivos: number;
     weekdayHoy: number;
     mesasVirtuales?: MesasVirtualesConfig;
+    numerosBoutiqueExtra?: number[] | null;
 }): ValidacionAdminResult;
 export declare function validarDesactivarUsuario(opts: {
     pedidosActivos: number;
 }): ValidacionAdminResult;
-export declare function validarNumeroMesaReservado(numero: number, mesasVirtuales?: MesasVirtualesConfig): ValidacionAdminResult;
+export declare function validarNumeroMesaReservado(numero: number, mesasVirtuales?: MesasVirtualesConfig, numerosBoutiqueExtra?: number[] | null): ValidacionAdminResult;
 export declare function validarCambioNumeroMesaAdmin(opts: {
     numeroActual: number;
     numeroNuevo: number;
     pedidosActivos: number;
     mesasVirtuales?: MesasVirtualesConfig;
+    numerosBoutiqueExtra?: number[] | null;
 }): ValidacionAdminResult;
 export declare function validarEliminarMesaAdmin(opts: {
     numeroMesa: number;
     pedidosActivos: number;
     totalPedidos: number;
     mesasVirtuales?: MesasVirtualesConfig;
+    numerosBoutiqueExtra?: number[] | null;
 }): ValidacionAdminResult;

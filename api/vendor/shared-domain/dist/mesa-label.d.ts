@@ -28,10 +28,10 @@ export type MesasVirtualesResueltas = {
 };
 /** Resuelve números y etiquetas con defaults 97/98/99. */
 export declare function resolverMesasVirtuales(cfg?: MesasVirtualesConfig | null): MesasVirtualesResueltas;
-export declare function esMesaVirtualNumero(numero: number, cfg?: MesasVirtualesConfig | null): boolean;
+export declare function esMesaVirtualNumero(numero: number, cfg?: MesasVirtualesConfig | null, numerosBoutiqueExtra?: number[] | null): boolean;
 export declare function esMesaMostradorNumero(numero: number, cfg?: MesasVirtualesConfig | null): boolean;
 export declare function esMesaParaLlevarNumero(numero: number, cfg?: MesasVirtualesConfig | null): boolean;
-export declare function esMesaBoutiqueNumero(numero: number, cfg?: MesasVirtualesConfig | null): boolean;
+export declare function esMesaBoutiqueNumero(numero: number, cfg?: MesasVirtualesConfig | null, numerosBoutiqueExtra?: number[] | null): boolean;
 /** Canal de comanda para enrutar a impresoras de cocina. */
 export type CanalComanda = 'mesa' | 'mostrador' | 'para_llevar';
 /**
@@ -49,12 +49,17 @@ export type FlagsCanalComanda = {
     comanda_para_llevar?: boolean;
 };
 export declare function destinoRecibeCanalComanda(canal: CanalComanda, flags?: FlagsCanalComanda | null): boolean;
+export declare function numerosMesasVirtuales(cfg?: MesasVirtualesConfig | null, numerosBoutiqueExtra?: number[] | null): number[];
+/** Etiqueta de una mesa boutique adicional (2.ª tienda, etc.). */
+export type BoutiqueMesaExtra = {
+    numero: number;
+    etiqueta?: string | null;
+};
 /** Texto para UI (pantallas de mesero/cocina). */
-export declare function tituloLugarMesa(numero: number, cfg?: MesasVirtualesConfig | null): string;
+export declare function tituloLugarMesa(numero: number, cfg?: MesasVirtualesConfig | null, boutiqueExtras?: BoutiqueMesaExtra[] | null): string;
 /** Etiqueta corta para la grilla de mesas. */
-export declare function etiquetaMesaNumero(numero: number, cfg?: MesasVirtualesConfig | null): string;
+export declare function etiquetaMesaNumero(numero: number, cfg?: MesasVirtualesConfig | null, boutiqueExtras?: BoutiqueMesaExtra[] | null): string;
 /** Etiqueta en ticket de comanda impreso (más breve). */
-export declare function etiquetaMesaComanda(numero: number, cfg?: MesasVirtualesConfig | null): string;
+export declare function etiquetaMesaComanda(numero: number, cfg?: MesasVirtualesConfig | null, boutiqueExtras?: BoutiqueMesaExtra[] | null): string;
 /** Título en admin de mesas (mesas virtuales con descripción entre paréntesis). */
-export declare function tituloMesaAdmin(numero: number, cfg?: MesasVirtualesConfig | null): string;
-export declare function numerosMesasVirtuales(cfg?: MesasVirtualesConfig | null): number[];
+export declare function tituloMesaAdmin(numero: number, cfg?: MesasVirtualesConfig | null, boutiqueExtras?: BoutiqueMesaExtra[] | null): string;

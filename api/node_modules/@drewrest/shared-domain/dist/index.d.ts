@@ -60,6 +60,7 @@ export * from './contabilidad-reglas';
 export * from './contabilidad-reportes';
 export * from './transferencia-pedido';
 export * from './mesa-label';
+export * from './tienda';
 export * from './permisos-chef';
 export * from './usuario-display';
 export * from './drewtech-soporte';

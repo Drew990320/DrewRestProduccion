@@ -39,10 +39,10 @@ function msgMesasSistema(mesasVirtuales) {
     return `Las mesas ${r.numero_mesa_boutique} (tienda), ${r.numero_mesa_para_llevar} (para llevar) y ${r.numero_mesa_mostrador} (mostrador) son del sistema y no se pueden modificar.`;
 }
 function validarPatchMesaAdmin(opts) {
-    const { numeroMesa, flagsActuales, patch, pedidosActivos, weekdayHoy, mesasVirtuales, } = opts;
+    const { numeroMesa, flagsActuales, patch, pedidosActivos, weekdayHoy, mesasVirtuales, numerosBoutiqueExtra, } = opts;
     const algunaDesactivacion = exports.CAMPOS_DISPONIBILIDAD_MESA.some((k) => patch[k] === false);
     if (algunaDesactivacion &&
-        (0, mesa_label_1.esMesaVirtualNumero)(numeroMesa, mesasVirtuales)) {
+        (0, mesa_label_1.esMesaVirtualNumero)(numeroMesa, mesasVirtuales, numerosBoutiqueExtra)) {
         return { ok: false, mensaje: msgMesasSistema(mesasVirtuales) };
     }
     if (pedidosActivos <= 0) {
@@ -78,21 +78,21 @@ function validarDesactivarUsuario(opts) {
             : `El usuario tiene ${n} pedidos activos. Ciérralos antes de desactivar la cuenta.`,
     };
 }
-function validarNumeroMesaReservado(numero, mesasVirtuales) {
-    if ((0, mesa_label_1.esMesaVirtualNumero)(numero, mesasVirtuales)) {
+function validarNumeroMesaReservado(numero, mesasVirtuales, numerosBoutiqueExtra) {
+    if ((0, mesa_label_1.esMesaVirtualNumero)(numero, mesasVirtuales, numerosBoutiqueExtra)) {
         return { ok: false, mensaje: msgNumerosReservados(mesasVirtuales) };
     }
     return { ok: true };
 }
 function validarCambioNumeroMesaAdmin(opts) {
-    const { numeroActual, numeroNuevo, pedidosActivos, mesasVirtuales } = opts;
+    const { numeroActual, numeroNuevo, pedidosActivos, mesasVirtuales, numerosBoutiqueExtra, } = opts;
     if (numeroNuevo === numeroActual) {
         return { ok: true };
     }
-    if ((0, mesa_label_1.esMesaVirtualNumero)(numeroActual, mesasVirtuales)) {
+    if ((0, mesa_label_1.esMesaVirtualNumero)(numeroActual, mesasVirtuales, numerosBoutiqueExtra)) {
         return { ok: false, mensaje: msgMesasSistema(mesasVirtuales) };
     }
-    const reservado = validarNumeroMesaReservado(numeroNuevo, mesasVirtuales);
+    const reservado = validarNumeroMesaReservado(numeroNuevo, mesasVirtuales, numerosBoutiqueExtra);
     if (!reservado.ok) {
         return reservado;
     }
@@ -107,8 +107,8 @@ function validarCambioNumeroMesaAdmin(opts) {
     return { ok: true };
 }
 function validarEliminarMesaAdmin(opts) {
-    const { numeroMesa, pedidosActivos, totalPedidos, mesasVirtuales } = opts;
-    if ((0, mesa_label_1.esMesaVirtualNumero)(numeroMesa, mesasVirtuales)) {
+    const { numeroMesa, pedidosActivos, totalPedidos, mesasVirtuales, numerosBoutiqueExtra, } = opts;
+    if ((0, mesa_label_1.esMesaVirtualNumero)(numeroMesa, mesasVirtuales, numerosBoutiqueExtra)) {
         return { ok: false, mensaje: msgMesasSistema(mesasVirtuales) };
     }
     if (pedidosActivos > 0) {

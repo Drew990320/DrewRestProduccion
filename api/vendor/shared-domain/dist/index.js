@@ -76,6 +76,7 @@ __exportStar(require("./contabilidad-reglas"), exports);
 __exportStar(require("./contabilidad-reportes"), exports);
 __exportStar(require("./transferencia-pedido"), exports);
 __exportStar(require("./mesa-label"), exports);
+__exportStar(require("./tienda"), exports);
 __exportStar(require("./permisos-chef"), exports);
 __exportStar(require("./usuario-display"), exports);
 __exportStar(require("./drewtech-soporte"), exports);
