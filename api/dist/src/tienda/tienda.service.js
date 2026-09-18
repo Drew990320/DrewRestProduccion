@@ -16,7 +16,9 @@ const prisma_service_1 = require("../prisma/prisma.service");
 const tenant_constants_1 = require("../tenant/tenant.constants");
 const mesa_label_1 = require("@drewrest/shared-domain/mesa-label");
 const tienda_1 = require("@drewrest/shared-domain/tienda");
+const categoria_menu_icon_1 = require("@drewrest/shared-domain/categoria-menu-icon");
 const pedidos_service_1 = require("../pedidos/pedidos.service");
+const tienda_logo_upload_util_1 = require("./tienda-logo-upload.util");
 function mapTienda(t) {
     return {
         id_tienda: t.idTienda,
@@ -25,6 +27,8 @@ function mapTienda(t) {
         activo: t.activo,
         numero_mesa_boutique: t.numeroMesaBoutique,
         orden: t.orden,
+        logo_archivo: t.logoArchivo ?? null,
+        logo_url: (0, tienda_logo_upload_util_1.tiendaLogoPublicUrl)(t.idTienda, t.logoArchivo),
     };
 }
 function mapCategoria(c) {
@@ -34,6 +38,8 @@ function mapCategoria(c) {
         nombre: c.nombre,
         activo: c.activo,
         canal: c.canal,
+        icono_menu: (0, categoria_menu_icon_1.normalizarIconoMenuGuardado)(c.iconoMenu ?? null, c.nombre),
+        color_icono: c.colorIcono?.trim() || null,
         total_productos: c._count?.productos,
     };
 }
@@ -143,13 +149,25 @@ let TiendaService = class TiendaService {
         if (!existing)
             throw new common_1.NotFoundException('Tienda no encontrada');
         try {
+            let nombre;
+            if (dto.nombre != null) {
+                const checked = (0, tienda_1.validarNombreTienda)(dto.nombre);
+                if (!checked.ok)
+                    throw new common_1.BadRequestException(checked.mensaje);
+                nombre = checked.nombre;
+            }
+            const etiqueta = dto.etiqueta !== undefined
+                ? dto.etiqueta?.trim() || null
+                : nombre != null &&
+                    (!existing.etiqueta ||
+                        existing.etiqueta.trim() === existing.nombre.trim())
+                    ? nombre
+                    : undefined;
             const updated = await this.prisma.tienda.update({
                 where: { idTienda: id },
                 data: {
-                    ...(dto.nombre != null ? { nombre: dto.nombre.trim() } : {}),
-                    ...(dto.etiqueta !== undefined
-                        ? { etiqueta: dto.etiqueta?.trim() || null }
-                        : {}),
+                    ...(nombre != null ? { nombre } : {}),
+                    ...(etiqueta !== undefined ? { etiqueta } : {}),
                     ...(dto.activo != null ? { activo: dto.activo } : {}),
                 },
             });
@@ -243,7 +261,7 @@ let TiendaService = class TiendaService {
         });
         return rows.map(mapCategoria);
     }
-    async crearCategoria(nombre, tenantId = tenant_constants_1.DEFAULT_TENANT_ID, idTienda) {
+    async crearCategoria(nombre, tenantId = tenant_constants_1.DEFAULT_TENANT_ID, idTienda, opts) {
         const tid = await this.resolveTiendaId(tenantId, idTienda);
         const n = nombre.trim();
         if (!n)
@@ -258,6 +276,8 @@ let TiendaService = class TiendaService {
                     activo: true,
                     esBebida: false,
                     visibleEnMostrador: false,
+                    iconoMenu: (0, categoria_menu_icon_1.normalizarIconoMenuGuardado)(opts?.icono_menu ?? null, n),
+                    colorIcono: opts?.color_icono?.trim() || null,
                 },
                 include: { _count: { select: { productos: true } } },
             });
@@ -283,12 +303,21 @@ let TiendaService = class TiendaService {
         });
         if (!existing)
             throw new common_1.NotFoundException('Categoría no encontrada');
+        const nombreFinal = dto.nombre?.trim() || existing.nombre;
         try {
             const updated = await this.prisma.categoria.update({
                 where: { idCategoria: id },
                 data: {
                     ...(dto.nombre != null ? { nombre: dto.nombre.trim() } : {}),
                     ...(dto.activo != null ? { activo: dto.activo } : {}),
+                    ...(dto.icono_menu !== undefined
+                        ? {
+                            iconoMenu: (0, categoria_menu_icon_1.normalizarIconoMenuGuardado)(dto.icono_menu, nombreFinal),
+                        }
+                        : {}),
+                    ...(dto.color_icono !== undefined
+                        ? { colorIcono: dto.color_icono?.trim() || null }
+                        : {}),
                 },
                 include: { _count: { select: { productos: true } } },
             });
@@ -493,6 +522,8 @@ let TiendaService = class TiendaService {
                 .map((c) => ({
                 id_categoria: c.idCategoria,
                 nombre: c.nombre,
+                icono_menu: (0, categoria_menu_icon_1.normalizarIconoMenuGuardado)(c.iconoMenu ?? null, c.nombre),
+                color_icono: c.colorIcono?.trim() || null,
                 productos: c.productos
                     .filter((p) => {
                     if (p.variantes.length > 0) {
@@ -584,6 +615,35 @@ let TiendaService = class TiendaService {
             throw new common_1.BadRequestException('Mesa boutique mal configurada');
         }
         return mesa;
+    }
+    async subirLogo(idTienda, file, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
+        const tienda = await this.prisma.tienda.findFirst({
+            where: { idTienda, idRestaurante: tenantId },
+        });
+        if (!tienda)
+            throw new common_1.NotFoundException('Tienda no encontrada');
+        if (tienda.logoArchivo) {
+            (0, tienda_logo_upload_util_1.eliminarArchivoLogoTienda)(tienda.logoArchivo);
+        }
+        const { archivo } = (0, tienda_logo_upload_util_1.guardarArchivoLogoTienda)(idTienda, file.buffer, file.mimetype, file.originalname);
+        const updated = await this.prisma.tienda.update({
+            where: { idTienda },
+            data: { logoArchivo: archivo },
+        });
+        return mapTienda(updated);
+    }
+    async quitarLogo(idTienda, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
+        const tienda = await this.prisma.tienda.findFirst({
+            where: { idTienda, idRestaurante: tenantId },
+        });
+        if (!tienda)
+            throw new common_1.NotFoundException('Tienda no encontrada');
+        (0, tienda_logo_upload_util_1.eliminarArchivoLogoTienda)(tienda.logoArchivo);
+        const updated = await this.prisma.tienda.update({
+            where: { idTienda },
+            data: { logoArchivo: null },
+        });
+        return mapTienda(updated);
     }
     async listarVentasAbiertas(tenantId = tenant_constants_1.DEFAULT_TENANT_ID, idTienda) {
         const tid = await this.resolveTiendaId(tenantId, idTienda);

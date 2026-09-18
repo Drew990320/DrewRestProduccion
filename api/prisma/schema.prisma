@@ -242,6 +242,8 @@ model Tienda {
   nombre              String   @db.VarChar(120)
   etiqueta            String?  @db.VarChar(80)
   activo              Boolean  @default(true)
+  /// Archivo en carpeta images/ (ej. tienda-3.png).
+  logoArchivo         String?  @map("logo_archivo") @db.VarChar(120)
   /// Número de mesa virtual usada como POS de esta tienda.
   numeroMesaBoutique  Int      @map("numero_mesa_boutique")
   orden               Int      @default(0)

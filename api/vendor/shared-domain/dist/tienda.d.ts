@@ -6,6 +6,9 @@ export type TiendaResumen = {
     activo: boolean;
     numero_mesa_boutique: number;
     orden: number;
+    logo_archivo?: string | null;
+    /** Ruta relativa pública, ej. `/tienda/tiendas/3/logo?v=…`. */
+    logo_url?: string | null;
 };
 /** Valida nombre de tienda para crear/editar. */
 export declare function validarNombreTienda(nombre: string | null | undefined): {

@@ -14,6 +14,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.TiendaController = void 0;
 const common_1 = require("@nestjs/common");
+const platform_express_1 = require("@nestjs/platform-express");
 const jwt_auth_guard_1 = require("../auth/jwt-auth.guard");
 const roles_decorator_1 = require("../auth/roles.decorator");
 const roles_guard_1 = require("../auth/roles.guard");
@@ -23,6 +24,7 @@ const current_tenant_decorator_1 = require("../tenant/current-tenant.decorator")
 const tienda_service_1 = require("./tienda.service");
 const class_validator_1 = require("class-validator");
 const class_transformer_1 = require("class-transformer");
+const multer_1 = require("multer");
 class CrearTiendaDto {
     nombre;
     etiqueta;
@@ -63,6 +65,8 @@ __decorate([
 class CrearCategoriaTiendaDto {
     nombre;
     id_tienda;
+    icono_menu;
+    color_icono;
 }
 __decorate([
     (0, class_validator_1.IsString)(),
@@ -76,10 +80,24 @@ __decorate([
     (0, class_validator_1.Min)(1),
     __metadata("design:type", Number)
 ], CrearCategoriaTiendaDto.prototype, "id_tienda", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(80),
+    __metadata("design:type", Object)
+], CrearCategoriaTiendaDto.prototype, "icono_menu", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(7),
+    __metadata("design:type", Object)
+], CrearCategoriaTiendaDto.prototype, "color_icono", void 0);
 class PatchCategoriaTiendaDto {
     nombre;
     activo;
     id_tienda;
+    icono_menu;
+    color_icono;
 }
 __decorate([
     (0, class_validator_1.IsOptional)(),
@@ -99,6 +117,18 @@ __decorate([
     (0, class_validator_1.Min)(1),
     __metadata("design:type", Number)
 ], PatchCategoriaTiendaDto.prototype, "id_tienda", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(80),
+    __metadata("design:type", Object)
+], PatchCategoriaTiendaDto.prototype, "icono_menu", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(7),
+    __metadata("design:type", Object)
+], PatchCategoriaTiendaDto.prototype, "color_icono", void 0);
 class CrearProductoTiendaDto {
     id_categoria;
     nombre;
@@ -297,11 +327,23 @@ let TiendaController = class TiendaController {
     actualizarTienda(id, dto, tenantId) {
         return this.tienda.actualizarTienda(id, dto, tenantId);
     }
+    subirLogo(id, file, tenantId) {
+        if (!file?.buffer?.length) {
+            throw new common_1.BadRequestException('Adjunta una imagen (campo logo)');
+        }
+        return this.tienda.subirLogo(id, file, tenantId);
+    }
+    quitarLogo(id, tenantId) {
+        return this.tienda.quitarLogo(id, tenantId);
+    }
     listarCategorias(tenantId, idTienda) {
         return this.tienda.listarCategorias(tenantId, parseIdTiendaQuery(idTienda));
     }
     crearCategoria(dto, tenantId) {
-        return this.tienda.crearCategoria(dto.nombre, tenantId, dto.id_tienda);
+        return this.tienda.crearCategoria(dto.nombre, tenantId, dto.id_tienda, {
+            icono_menu: dto.icono_menu,
+            color_icono: dto.color_icono,
+        });
     }
     actualizarCategoria(id, dto, tenantId) {
         return this.tienda.actualizarCategoria(id, dto, tenantId, dto.id_tienda);
@@ -356,6 +398,27 @@ __decorate([
     __metadata("design:paramtypes", [Number, PatchTiendaDto, Number]),
     __metadata("design:returntype", void 0)
 ], TiendaController.prototype, "actualizarTienda", null);
+__decorate([
+    (0, common_1.Post)('tiendas/:id/logo'),
+    (0, common_1.UseInterceptors)((0, platform_express_1.FileInterceptor)('logo', {
+        storage: (0, multer_1.memoryStorage)(),
+        limits: { fileSize: 5 * 1024 * 1024 },
+    })),
+    __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
+    __param(1, (0, common_1.UploadedFile)()),
+    __param(2, (0, current_tenant_decorator_1.CurrentTenantId)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number, Object, Number]),
+    __metadata("design:returntype", void 0)
+], TiendaController.prototype, "subirLogo", null);
+__decorate([
+    (0, common_1.Delete)('tiendas/:id/logo'),
+    __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
+    __param(1, (0, current_tenant_decorator_1.CurrentTenantId)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number, Number]),
+    __metadata("design:returntype", void 0)
+], TiendaController.prototype, "quitarLogo", null);
 __decorate([
     (0, common_1.Get)('categorias'),
     __param(0, (0, current_tenant_decorator_1.CurrentTenantId)()),

@@ -278,7 +278,7 @@ let ConfigVisualService = class ConfigVisualService {
         });
         (0, config_restaurante_cache_1.invalidateConfigRestauranteCache)(tenantId);
         await this.prisma.categoria.updateMany({
-            where: { idRestaurante: tenantId },
+            where: { idRestaurante: tenantId, canal: 'restaurante' },
             data: { iconoMenu: null, colorIcono: null },
         });
         this.invalidateCache(tenantId);

@@ -12,6 +12,7 @@ const pedidos_module_1 = require("../pedidos/pedidos.module");
 const restaurante_module_1 = require("../restaurante/restaurante.module");
 const tenant_module_1 = require("../tenant/tenant.module");
 const tienda_controller_1 = require("./tienda.controller");
+const tienda_logo_public_controller_1 = require("./tienda-logo-public.controller");
 const tienda_service_1 = require("./tienda.service");
 let TiendaModule = class TiendaModule {
 };
@@ -23,7 +24,7 @@ exports.TiendaModule = TiendaModule = __decorate([
             restaurante_module_1.RestauranteModule,
             tenant_module_1.TenantModule,
         ],
-        controllers: [tienda_controller_1.TiendaController],
+        controllers: [tienda_controller_1.TiendaController, tienda_logo_public_controller_1.TiendaLogoPublicController],
         providers: [tienda_service_1.TiendaService],
         exports: [tienda_service_1.TiendaService],
     })
