@@ -113,7 +113,7 @@ __decorate([
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsIn)(['plato', 'entrada', 'adicional']),
-    __metadata("design:type", String)
+    __metadata("design:type", Object)
 ], CreateCategoriaDto.prototype, "tipo_linea_cocina_default", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
