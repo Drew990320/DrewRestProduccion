@@ -449,7 +449,8 @@ const preset = (id, nombre, descripcion, muestra) => {
 };
 /** Galería de temas listos para aplicar en personalización visual. */
 exports.PALETAS_PREDISENADAS = [
-    preset('drewrest', 'DrewRest', 'Azul claro de fábrica', '#82B5D6'),
+    preset('tabler', 'Tabler', 'Azul corporativo de fábrica', '#206BC4'),
+    preset('drewrest', 'DrewRest pastel', 'Azul claro suave', '#82B5D6'),
     preset('terracota', 'Terracota', 'Cálido y acogedor', '#C47A72'),
     preset('profesional', 'Corporativo', 'Azul sobrio para operación', '#4A6FA5'),
     preset('bosque', 'Bosque', 'Verde natural y fresco', '#3D7A5F'),

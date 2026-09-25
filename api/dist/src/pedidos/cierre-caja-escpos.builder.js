@@ -123,12 +123,6 @@ async function buildBaseCajaCierreEscPos(ticket, charWidth = escpos_utils_1.DEFA
     await printer.bold(true);
     await printer.println((0, escpos_utils_1.lineaConPrecio)('Base de cierre', (0, escpos_utils_1.formatCopEscPos)(ticket.monto_base_cierre_efectivo), w));
     await printer.bold(false);
-    const esperado = ticket.efectivo_esperado_en_caja;
-    if (esperado != null && Number.isFinite(esperado)) {
-        await printer.println((0, escpos_utils_1.lineaConPrecio)('Efectivo esperado', (0, escpos_utils_1.formatCopEscPos)(esperado), w));
-        const diff = ticket.monto_base_cierre_efectivo - esperado;
-        await printer.println((0, escpos_utils_1.lineaConPrecio)('Diferencia', (0, escpos_utils_1.formatCopEscPos)(diff), w));
-    }
     await printer.println(sep);
     await printer.alignCenter();
     await printer.println('Listo');

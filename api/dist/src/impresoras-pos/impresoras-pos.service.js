@@ -764,15 +764,15 @@ let ImpresorasPosService = ImpresorasPosService_1 = class ImpresorasPosService {
   <style>
     :root {
       color-scheme: light;
-      --ink: #3d4f63;
-      --muted: #6b7d91;
-      --line: #cdd9e8;
-      --soft: #edf3fa;
-      --soft2: #e4ecf5;
-      --primary: #5e96b8;
-      --primary-soft: #82b5d6;
+      --ink: #1d273b;
+      --muted: #667382;
+      --line: #dce1e7;
+      --soft: #f6f8fb;
+      --soft2: #edf1f7;
+      --primary: #206bc4;
+      --primary-soft: #4299e1;
       --surface: #ffffff;
-      --code-bg: #dceaf4;
+      --code-bg: #e4edf8;
     }
     * { box-sizing: border-box; }
     body {
@@ -781,8 +781,8 @@ let ImpresorasPosService = ImpresorasPosService_1 = class ImpresorasPosService {
       font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
       color: var(--ink);
       background:
-        radial-gradient(1200px 500px at 10% -10%, #d7e8f4 0%, transparent 55%),
-        linear-gradient(180deg, #f4f8fc 0%, #eef3f8 100%);
+        radial-gradient(1200px 500px at 10% -10%, #e4edf8 0%, transparent 55%),
+        linear-gradient(180deg, #f6f8fb 0%, #f6f8fb 100%);
       padding: 28px 20px 40px;
     }
     .sheet {
@@ -790,8 +790,8 @@ let ImpresorasPosService = ImpresorasPosService_1 = class ImpresorasPosService {
       margin: 0 auto;
       background: var(--surface);
       border: 1px solid var(--line);
-      border-radius: 16px;
-      box-shadow: 0 10px 28px rgba(61, 79, 99, 0.08);
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(29, 39, 59, 0.04);
       overflow: hidden;
     }
     .banner {
@@ -800,7 +800,7 @@ let ImpresorasPosService = ImpresorasPosService_1 = class ImpresorasPosService {
       justify-content: space-between;
       gap: 16px;
       padding: 22px 28px 18px;
-      background: linear-gradient(135deg, #edf3fa 0%, #e2eef7 55%, #d5e7f3 100%);
+      background: linear-gradient(135deg, #ffffff 0%, #f6f8fb 100%);
       border-bottom: 1px solid var(--line);
     }
     .eyebrow {
@@ -993,7 +993,7 @@ let ImpresorasPosService = ImpresorasPosService_1 = class ImpresorasPosService {
       }
       .toolbar { display: none !important; }
       .banner {
-        background: #edf3fa !important;
+        background: #f6f8fb !important;
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
       }

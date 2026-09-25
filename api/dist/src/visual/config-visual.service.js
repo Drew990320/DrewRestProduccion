@@ -160,9 +160,13 @@ let ConfigVisualService = class ConfigVisualService {
             (0, nav_app_icon_1.esPaletaVisualLegacy)(resueltos);
         if (!debeAplicar)
             return row;
+        const estiloDeFabrica = row.estiloVisual == null || row.estiloVisual === 'minimalista';
         return this.prisma.configVisual.update({
             where: { idRestaurante: row.idRestaurante },
-            data: this.dataPaletaFabrica(),
+            data: {
+                ...this.dataPaletaFabrica(),
+                ...(estiloDeFabrica ? { estiloVisual: 'tabler' } : null),
+            },
         });
     }
     invalidateCache(tenantId) {

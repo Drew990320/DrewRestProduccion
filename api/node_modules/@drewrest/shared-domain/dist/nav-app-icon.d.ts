@@ -771,9 +771,13 @@ export declare function esNavAppIconValido(icono: string | null | undefined): ic
 export declare function resolverIconoNav(key: NavIconKey, guardado?: string | null): NavAppIconId;
 export declare const VISUAL_COLOR_KEYS: readonly ["primary", "primary_dark", "secondary", "background", "background_alt", "surface", "text", "text_muted", "border"];
 export type VisualColorKey = (typeof VISUAL_COLOR_KEYS)[number];
+/** Paleta Tabler (azul corporativo, fondo gris claro, tarjetas blancas). */
 export declare const VISUAL_COLOR_DEFAULTS: Record<VisualColorKey, string>;
+/** Paleta azul pastel anterior de DrewRest (estilo Minimalista y migración). */
+export declare const PASTEL_VISUAL_COLOR_DEFAULTS: Record<VisualColorKey, string>;
 /** Paleta terracota original de DrewRest (para migrar instalaciones existentes). */
 export declare const LEGACY_VISUAL_COLOR_DEFAULTS: Record<VisualColorKey, string>;
+/** Paleta de fábrica de una versión anterior (se reemplaza por la actual). */
 export declare function esPaletaVisualLegacy(palette: Record<VisualColorKey, string>): boolean;
 export declare function coloresVisualesSinConfigurar(stored: Partial<Record<VisualColorKey, string | null | undefined>>): boolean;
 export declare function esColorHexValido(color: string | null | undefined): boolean;

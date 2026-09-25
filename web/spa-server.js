@@ -254,7 +254,7 @@ function sendDescargarApp(res) {
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Descargar DrewRest</title>
 <style>
-body{font-family:sans-serif;background:#EDF3FA;color:#1a1a1a;margin:0;padding:24px;text-align:center}
+body{font-family:sans-serif;background:#F6F8FB;color:#1D273B;margin:0;padding:24px;text-align:center}
 a{display:inline-block;margin-top:16px;padding:14px 22px;background:#1B4F8A;color:#fff;text-decoration:none;border-radius:10px;font-weight:700}
 p{line-height:1.45;color:#334;max-width:28rem;margin:12px auto}
 .muted{color:#667;font-size:14px}
@@ -305,7 +305,7 @@ function sendAbrirWeb(res, reqUrl) {
 <meta http-equiv="refresh" content="0;url=${target}"/>
 <title>Abrir DrewRest</title>
 <style>
-body{font-family:sans-serif;background:#EDF3FA;color:#1a1a1a;margin:0;padding:24px;text-align:center}
+body{font-family:sans-serif;background:#F6F8FB;color:#1D273B;margin:0;padding:24px;text-align:center}
 a{display:inline-block;margin-top:16px;padding:14px 22px;background:#1B4F8A;color:#fff;text-decoration:none;border-radius:10px;font-weight:700}
 p{line-height:1.45;color:#334;max-width:28rem;margin:12px auto}
 </style>
@@ -325,7 +325,7 @@ function sendConectar(res) {
   if (!lan) {
     sendHtml(
       res,
-      `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Conectar celular</title></head><body style="font-family:sans-serif;padding:24px;background:#EDF3FA"><h1>Sin IP de red</h1><p>Conecta este PC al Wi‑Fi o Ethernet del restaurante y recarga.</p></body></html>`,
+      `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Conectar celular</title></head><body style="font-family:sans-serif;padding:24px;background:#F6F8FB"><h1>Sin IP de red</h1><p>Conecta este PC al Wi‑Fi o Ethernet del restaurante y recarga.</p></body></html>`,
     );
     return;
   }
@@ -345,7 +345,7 @@ function sendConectar(res) {
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Conectar celular · DrewRest</title>
 <style>
-body{font-family:sans-serif;background:#EDF3FA;color:#1a1a1a;margin:0;padding:20px 16px 40px}
+body{font-family:sans-serif;background:#F6F8FB;color:#1D273B;margin:0;padding:20px 16px 40px}
 h1{text-align:center;margin:0 0 8px}
 .lead{text-align:center;color:#445;max-width:36rem;margin:0 auto 20px;line-height:1.45}
 .grid{display:flex;flex-wrap:wrap;gap:20px;justify-content:center}
@@ -408,7 +408,7 @@ function sendVincular(res, reqUrl) {
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Vincular DrewRest</title>
 <style>
-body{font-family:sans-serif;background:#EDF3FA;color:#1a1a1a;margin:0;padding:24px;text-align:center}
+body{font-family:sans-serif;background:#F6F8FB;color:#1D273B;margin:0;padding:24px;text-align:center}
 a{display:inline-block;margin:10px 8px 0;padding:14px 20px;background:#1B4F8A;color:#fff;text-decoration:none;border-radius:10px;font-weight:700}
 a.secondary{background:#fff;color:#1B4F8A;border:2px solid #1B4F8A}
 p{line-height:1.45;color:#334;max-width:28rem;margin:12px auto}

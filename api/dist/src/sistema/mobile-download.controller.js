@@ -49,7 +49,7 @@ let MobileDownloadController = class MobileDownloadController {
 <meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Descargar DrewRest</title>
 <style>
-body{font-family:sans-serif;background:#EDF3FA;color:#1a1a1a;margin:0;padding:24px;text-align:center}
+body{font-family:sans-serif;background:#F6F8FB;color:#1D273B;margin:0;padding:24px;text-align:center}
 a{display:inline-block;margin-top:16px;padding:14px 22px;background:#1B4F8A;color:#fff;text-decoration:none;border-radius:10px;font-weight:700}
 p{line-height:1.45;color:#334;max-width:28rem;margin:12px auto}
 </style></head><body>
@@ -74,7 +74,7 @@ ${apk
 <meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Vincular DrewRest</title>
 <style>
-body{font-family:sans-serif;background:#EDF3FA;color:#1a1a1a;margin:0;padding:24px;text-align:center}
+body{font-family:sans-serif;background:#F6F8FB;color:#1D273B;margin:0;padding:24px;text-align:center}
 a{display:inline-block;margin:10px 8px 0;padding:14px 20px;background:#1B4F8A;color:#fff;text-decoration:none;border-radius:10px;font-weight:700}
 a.secondary{background:#fff;color:#1B4F8A;border:2px solid #1B4F8A}
 p{line-height:1.45;color:#334;max-width:28rem;margin:12px auto}
@@ -113,7 +113,7 @@ p{line-height:1.45;color:#334;max-width:28rem;margin:12px auto}
             }
         }
         if (!target) {
-            res.type('html').send(`<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Abrir web</title></head><body style="font-family:sans-serif;padding:24px;background:#EDF3FA"><h1>Sin IP de red</h1><p>Conecta este PC al Wi‑Fi del restaurante y vuelve a escanear el QR.</p></body></html>`);
+            res.type('html').send(`<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Abrir web</title></head><body style="font-family:sans-serif;padding:24px;background:#F6F8FB"><h1>Sin IP de red</h1><p>Conecta este PC al Wi‑Fi del restaurante y vuelve a escanear el QR.</p></body></html>`);
             return;
         }
         const safe = escapeHtml(target);
@@ -124,7 +124,7 @@ p{line-height:1.45;color:#334;max-width:28rem;margin:12px auto}
 <meta http-equiv="refresh" content="0;url=${safe}"/>
 <title>Abrir DrewRest</title>
 <style>
-body{font-family:sans-serif;background:#EDF3FA;color:#1a1a1a;margin:0;padding:24px;text-align:center}
+body{font-family:sans-serif;background:#F6F8FB;color:#1D273B;margin:0;padding:24px;text-align:center}
 a{display:inline-block;margin-top:16px;padding:14px 22px;background:#1B4F8A;color:#fff;text-decoration:none;border-radius:10px;font-weight:700}
 p{line-height:1.45;color:#334;max-width:28rem;margin:12px auto}
 .url{display:block;margin-top:16px;padding:8px;background:#F4F7FB;border-radius:8px;font-size:12px;word-break:break-all;text-align:left}
@@ -160,7 +160,7 @@ p{line-height:1.45;color:#334;max-width:28rem;margin:12px auto}
 <meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Conectar celular · DrewRest</title>
 <style>
-body{font-family:sans-serif;background:#EDF3FA;color:#1a1a1a;margin:0;padding:20px 16px 40px}
+body{font-family:sans-serif;background:#F6F8FB;color:#1D273B;margin:0;padding:20px 16px 40px}
 h1{text-align:center;margin:0 0 8px}
 .lead{text-align:center;color:#445;max-width:36rem;margin:0 auto 20px;line-height:1.45}
 .grid{display:flex;flex-wrap:wrap;gap:20px;justify-content:center}

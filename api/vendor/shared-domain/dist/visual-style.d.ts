@@ -1,7 +1,7 @@
 import type { VisualColorKey } from './nav-app-icon';
 import type { MesaFormaId, MesaVistaId } from './mesa-visual';
 import type { LogoTicketTamanoId, MenuImagenAjusteId, MenuImagenAlturaId } from './imagen-visual';
-export declare const VISUAL_STYLE_IDS: readonly ["minimalista", "profesional", "calido", "expresivo"];
+export declare const VISUAL_STYLE_IDS: readonly ["tabler", "minimalista", "profesional", "calido", "expresivo"];
 export type VisualStyleId = (typeof VISUAL_STYLE_IDS)[number];
 export declare const MENU_CATEGORIA_VISTA_IDS: readonly ["iconos", "texto", "ambos"];
 export type MenuCategoriaVistaId = (typeof MENU_CATEGORIA_VISTA_IDS)[number];
@@ -45,6 +45,7 @@ export type VisualStylePreset = {
     layout: VisualLayoutTokens;
     chrome: VisualChromeTokens;
 };
+/** Tabler: esquinas poco redondeadas, borde fino de 1px y títulos semibold. */
 export declare const VISUAL_LAYOUT_DEFAULTS: VisualLayoutTokens;
 export declare const VISUAL_CHROME_DEFAULTS: VisualChromeTokens;
 export declare const VISUAL_STYLE_PRESETS: Record<VisualStyleId, VisualStylePreset>;

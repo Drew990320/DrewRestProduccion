@@ -146,6 +146,8 @@ let MesasService = class MesasService {
                     },
                     select: {
                         idMesa: true,
+                        creadoEn: true,
+                        numComensales: true,
                         usuario: {
                             select: {
                                 nombre: true,
@@ -169,7 +171,13 @@ let MesasService = class MesasService {
             }),
         ]);
         const meseroPorMesa = new Map();
+        const abiertaDesdePorMesa = new Map();
+        const comensalesPorMesa = new Map();
         for (const p of pedidosActivos) {
+            const prev = abiertaDesdePorMesa.get(p.idMesa);
+            if (!prev || p.creadoEn < prev)
+                abiertaDesdePorMesa.set(p.idMesa, p.creadoEn);
+            comensalesPorMesa.set(p.idMesa, (comensalesPorMesa.get(p.idMesa) ?? 0) + p.numComensales);
             if (!meseroPorMesa.has(p.idMesa)) {
                 meseroPorMesa.set(p.idMesa, {
                     ...(0, usuario_display_1.nombreUsuarioPublico)(p.usuario.nombre, p.usuario.apellido, p.usuario.rol.nombre),
@@ -199,6 +207,8 @@ let MesasService = class MesasService {
             return {
                 ...this.mapMesaPublic(m),
                 mesero: meseroPorMesa.get(m.idMesa) ?? null,
+                abierta_desde: abiertaDesdePorMesa.get(m.idMesa)?.toISOString() ?? null,
+                comensales: comensalesPorMesa.get(m.idMesa) ?? null,
                 mesas_anexas: anexas.length > 0 ? [...anexas].sort((a, b) => a - b) : undefined,
                 mesa_principal_numero: comoAnexa?.principal,
             };
@@ -498,6 +508,32 @@ let MesasService = class MesasService {
         await this.prisma.mesa.delete({ where: { idMesa } });
         this.gateway.emitConfigActualizada('mesas', tenantId);
         return { ok: true, id_mesa: idMesa };
+    }
+    async cambiarReserva(idMesa, reservada, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
+        const m = await this.prisma.mesa.findFirst({
+            where: { idMesa, idRestaurante: tenantId },
+            include: { lugar: true },
+        });
+        if (!m) {
+            throw new common_1.NotFoundException('Mesa no encontrada');
+        }
+        const ocultas = await this.numerosOcultosGrilla(tenantId);
+        if (ocultas.includes(m.numero)) {
+            throw new common_1.BadRequestException('Las mesas virtuales no se pueden reservar');
+        }
+        const esperado = reservada ? 'libre' : 'reservada';
+        if (m.estado !== esperado) {
+            throw new common_1.ConflictException(reservada
+                ? 'Solo se puede reservar una mesa libre'
+                : 'La mesa no está reservada');
+        }
+        const actualizada = await this.prisma.mesa.update({
+            where: { idMesa },
+            data: { estado: reservada ? 'reservada' : 'libre' },
+            include: { lugar: true },
+        });
+        this.gateway.emitConfigActualizada('mesas', tenantId);
+        return this.mapMesaPublic(actualizada);
     }
     async obtenerPorId(idMesa, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
         const m = await this.prisma.mesa.findFirst({

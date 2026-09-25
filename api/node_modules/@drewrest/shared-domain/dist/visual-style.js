@@ -8,6 +8,7 @@ exports.resolverEstiloVisual = resolverEstiloVisual;
 exports.presetEstiloVisual = presetEstiloVisual;
 const nav_app_icon_1 = require("./nav-app-icon");
 exports.VISUAL_STYLE_IDS = [
+    'tabler',
     'minimalista',
     'profesional',
     'calido',
@@ -31,19 +32,20 @@ function esMenuCategoriaVistaValida(id) {
 function resolverMenuCategoriaVista(guardado) {
     return esMenuCategoriaVistaValida(guardado) ? guardado : 'iconos';
 }
+/** Tabler: esquinas poco redondeadas, borde fino de 1px y títulos semibold. */
 exports.VISUAL_LAYOUT_DEFAULTS = {
-    radiusSm: 8,
-    radiusMd: 12,
-    radiusLg: 16,
-    cardBorderWidth: 0.5,
-    titleWeight: '700',
-    chromeElevation: 'flat',
+    radiusSm: 4,
+    radiusMd: 6,
+    radiusLg: 8,
+    cardBorderWidth: 1,
+    titleWeight: '600',
+    chromeElevation: 'soft',
 };
 exports.VISUAL_CHROME_DEFAULTS = {
     navItem: 'ghost',
     navBar: 'flat',
-    iconButton: 'soft',
-    cta: 'classic',
+    iconButton: 'outline',
+    cta: 'corporate',
     navActiveFilled: false,
     iconButtonBorderWidth: 1,
     mesaForma: 'rectangular',
@@ -52,6 +54,35 @@ exports.VISUAL_CHROME_DEFAULTS = {
     logoTicketTamano: 'medio',
     menuImagenAltura: 'normal',
     menuImagenAjuste: 'contain',
+};
+/** Tokens del estilo Minimalista (esquinas redondeadas, sin sombra). */
+const MINIMALISTA_LAYOUT = {
+    radiusSm: 8,
+    radiusMd: 12,
+    radiusLg: 16,
+    cardBorderWidth: 0.5,
+    titleWeight: '700',
+    chromeElevation: 'flat',
+};
+const MINIMALISTA_CHROME = {
+    ...exports.VISUAL_CHROME_DEFAULTS,
+    iconButton: 'soft',
+    cta: 'classic',
+};
+/**
+ * Azul pastel del estilo Minimalista. Debe diferir de PASTEL_VISUAL_COLOR_DEFAULTS:
+ * esa paleta exacta se trata como "de fábrica" y se migra a Tabler.
+ */
+const PALETA_MINIMALISTA = {
+    primary: '#80B3D5',
+    primary_dark: '#5E96B8',
+    secondary: '#A3C9E3',
+    background: '#EDF3FA',
+    background_alt: '#E4ECF5',
+    surface: '#FFFFFF',
+    text: '#3D4F63',
+    text_muted: '#6B7D91',
+    border: '#CDD9E8',
 };
 /** Paleta terracota DrewRest (referencia estilo cálido). */
 const PALETA_CALIDA = {
@@ -66,20 +97,21 @@ const PALETA_CALIDA = {
     border: '#E8DFD4',
 };
 exports.VISUAL_STYLE_PRESETS = {
+    tabler: {
+        id: 'tabler',
+        nombre: 'Tabler',
+        descripcion: 'Panel moderno: fondo gris claro, tarjetas blancas con borde fino, azul corporativo y botones sobrios.',
+        colores: { ...nav_app_icon_1.VISUAL_COLOR_DEFAULTS },
+        layout: { ...exports.VISUAL_LAYOUT_DEFAULTS },
+        chrome: { ...exports.VISUAL_CHROME_DEFAULTS },
+    },
     minimalista: {
         id: 'minimalista',
         nombre: 'Minimalista',
         descripcion: 'Limpio y ligero. Nav discreta, botones con borde suave y CTAs planos.',
-        colores: { ...nav_app_icon_1.VISUAL_COLOR_DEFAULTS },
-        layout: {
-            radiusSm: 8,
-            radiusMd: 12,
-            radiusLg: 16,
-            cardBorderWidth: 0.5,
-            titleWeight: '700',
-            chromeElevation: 'flat',
-        },
-        chrome: { ...exports.VISUAL_CHROME_DEFAULTS },
+        colores: { ...PALETA_MINIMALISTA },
+        layout: { ...MINIMALISTA_LAYOUT },
+        chrome: { ...MINIMALISTA_CHROME },
     },
     profesional: {
         id: 'profesional',
@@ -185,7 +217,7 @@ function esEstiloVisualValido(id) {
         exports.VISUAL_STYLE_IDS.includes(id));
 }
 function resolverEstiloVisual(guardado) {
-    return esEstiloVisualValido(guardado) ? guardado : 'minimalista';
+    return esEstiloVisualValido(guardado) ? guardado : 'tabler';
 }
 function presetEstiloVisual(id) {
     return exports.VISUAL_STYLE_PRESETS[id];

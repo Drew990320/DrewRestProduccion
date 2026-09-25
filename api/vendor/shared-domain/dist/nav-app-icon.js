@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.LEGACY_VISUAL_COLOR_DEFAULTS = exports.VISUAL_COLOR_DEFAULTS = exports.VISUAL_COLOR_KEYS = exports.NAV_ICON_SECCIONES = exports.NAV_ICON_LABELS = exports.NAV_ICON_DEFAULTS = exports.NAV_ICON_KEYS = exports.NAV_APP_ICONOS = exports.NAV_APP_ICON_CATEGORIAS = void 0;
+exports.LEGACY_VISUAL_COLOR_DEFAULTS = exports.PASTEL_VISUAL_COLOR_DEFAULTS = exports.VISUAL_COLOR_DEFAULTS = exports.VISUAL_COLOR_KEYS = exports.NAV_ICON_SECCIONES = exports.NAV_ICON_LABELS = exports.NAV_ICON_DEFAULTS = exports.NAV_ICON_KEYS = exports.NAV_APP_ICONOS = exports.NAV_APP_ICON_CATEGORIAS = void 0;
 exports.esNavAppIconValido = esNavAppIconValido;
 exports.resolverIconoNav = resolverIconoNav;
 exports.esPaletaVisualLegacy = esPaletaVisualLegacy;
@@ -514,7 +514,20 @@ exports.VISUAL_COLOR_KEYS = [
     'text_muted',
     'border',
 ];
+/** Paleta Tabler (azul corporativo, fondo gris claro, tarjetas blancas). */
 exports.VISUAL_COLOR_DEFAULTS = {
+    primary: '#206BC4',
+    primary_dark: '#1A569D',
+    secondary: '#4299E1',
+    background: '#F6F8FB',
+    background_alt: '#EDF1F7',
+    surface: '#FFFFFF',
+    text: '#1D273B',
+    text_muted: '#667382',
+    border: '#DCE1E7',
+};
+/** Paleta azul pastel anterior de DrewRest (estilo Minimalista y migración). */
+exports.PASTEL_VISUAL_COLOR_DEFAULTS = {
     primary: '#82B5D6',
     primary_dark: '#5E96B8',
     secondary: '#A3C9E3',
@@ -540,9 +553,13 @@ exports.LEGACY_VISUAL_COLOR_DEFAULTS = {
 function normalizarHexVisual(hex) {
     return hex.trim().toUpperCase();
 }
+function paletasIguales(a, b) {
+    return exports.VISUAL_COLOR_KEYS.every((key) => normalizarHexVisual(a[key]) === normalizarHexVisual(b[key]));
+}
+/** Paleta de fábrica de una versión anterior (se reemplaza por la actual). */
 function esPaletaVisualLegacy(palette) {
-    return exports.VISUAL_COLOR_KEYS.every((key) => normalizarHexVisual(palette[key]) ===
-        normalizarHexVisual(exports.LEGACY_VISUAL_COLOR_DEFAULTS[key]));
+    return (paletasIguales(palette, exports.LEGACY_VISUAL_COLOR_DEFAULTS) ||
+        paletasIguales(palette, exports.PASTEL_VISUAL_COLOR_DEFAULTS));
 }
 function coloresVisualesSinConfigurar(stored) {
     return exports.VISUAL_COLOR_KEYS.every((key) => {
