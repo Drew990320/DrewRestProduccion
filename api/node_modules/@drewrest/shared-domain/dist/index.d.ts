@@ -18,6 +18,7 @@ export * from './visual-palette';
 export * from './companero-pedido';
 export * from './cobro-parcial';
 export * from './cobro-invariantes';
+export * from './impoconsumo';
 export * from './repartir-monto-cop';
 export * from './consolidar-fragmentos-precio';
 export * from './saldo-restante';

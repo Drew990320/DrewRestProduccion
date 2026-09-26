@@ -26,6 +26,7 @@ class CreateCategoriaDto {
     participa_descuento_sopas;
     es_linea_empaque;
     visible_en_mostrador;
+    aplica_impoconsumo;
     es_plato_principal_default;
     prioridad_cocina_baja;
     tipo_linea_cocina_default;
@@ -100,6 +101,11 @@ __decorate([
     (0, class_validator_1.IsBoolean)(),
     __metadata("design:type", Boolean)
 ], CreateCategoriaDto.prototype, "visible_en_mostrador", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], CreateCategoriaDto.prototype, "aplica_impoconsumo", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsBoolean)(),

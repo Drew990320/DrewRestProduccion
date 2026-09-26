@@ -150,67 +150,51 @@ function validarInvariantesCobroPedido(opts) {
     }
     return { ok: errores.length === 0, errores };
 }
-/**
- * Reparte subtotal/descuentos de una operación entre patas mixto de forma
- * que la suma de totales coincida exactamente con el total de la operación.
- * La primera pata usa montos redondeados; la segunda recibe el residuo.
- */
 function importesProporcionalesMixto(full, montoPrimeraPata) {
     const totalFull = Math.round(full.total);
     const subFull = Math.round(full.subtotal);
     const dS = Math.round(full.descuento_sopas);
     const dM = Math.round(full.descuento_muleros);
     const dP = Math.round(full.descuento_promociones);
+    const imp = Math.round(full.monto_impoconsumo ?? 0);
     const monto1 = Math.round(montoPrimeraPata);
     const monto2 = totalFull - monto1;
+    const completa = {
+        subtotal: subFull,
+        descuento_sopas: dS,
+        descuento_muleros: dM,
+        descuento_promociones: dP,
+        monto_impoconsumo: imp,
+        total: totalFull,
+    };
+    const vacia = {
+        subtotal: 0,
+        descuento_sopas: 0,
+        descuento_muleros: 0,
+        descuento_promociones: 0,
+        monto_impoconsumo: 0,
+        total: 0,
+    };
     if (totalFull <= 0 || monto1 <= 0) {
-        return {
-            primera: {
-                subtotal: 0,
-                descuento_sopas: 0,
-                descuento_muleros: 0,
-                descuento_promociones: 0,
-                total: 0,
-            },
-            segunda: {
-                subtotal: subFull,
-                descuento_sopas: dS,
-                descuento_muleros: dM,
-                descuento_promociones: dP,
-                total: totalFull,
-            },
-        };
+        return { primera: vacia, segunda: completa };
     }
     if (monto2 <= 0) {
-        return {
-            primera: {
-                subtotal: subFull,
-                descuento_sopas: dS,
-                descuento_muleros: dM,
-                descuento_promociones: dP,
-                total: totalFull,
-            },
-            segunda: {
-                subtotal: 0,
-                descuento_sopas: 0,
-                descuento_muleros: 0,
-                descuento_promociones: 0,
-                total: 0,
-            },
-        };
+        return { primera: completa, segunda: vacia };
     }
     const scale = monto1 / totalFull;
     const dS1 = Math.round(dS * scale);
     const dM1 = Math.round(dM * scale);
     const dP1 = Math.round(dP * scale);
+    const imp1 = Math.round(imp * scale);
     const desc1 = dS1 + dM1 + dP1;
-    const sub1 = monto1 + desc1;
+    const sub1 = monto1 + desc1 - imp1;
     return {
         primera: {
             subtotal: sub1,
             descuento_sopas: dS1,
             descuento_muleros: dM1,
             descuento_promociones: dP1,
+            monto_impoconsumo: imp1,
             total: monto1,
         },
         segunda: {
@@ -218,6 +202,7 @@ function importesProporcionalesMixto(full, montoPrimeraPata) {
             descuento_sopas: dS - dS1,
             descuento_muleros: dM - dM1,
             descuento_promociones: dP - dP1,
+            monto_impoconsumo: imp - imp1,
             total: monto2,
         },
     };

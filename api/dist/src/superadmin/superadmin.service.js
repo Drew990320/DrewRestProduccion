@@ -166,6 +166,7 @@ let SuperadminService = class SuperadminService {
                     moduloProduccionPorcionesActivo: true,
                     moduloConexionMovilActivo: true,
                     moduloEnvioCorreoActivo: true,
+                    moduloImpoconsumoActivo: true,
                 },
             }),
         ]);
@@ -187,6 +188,7 @@ let SuperadminService = class SuperadminService {
                 modulo_produccion_porciones_activo: cfg?.moduloProduccionPorcionesActivo ?? false,
                 modulo_conexion_movil_activo: cfg?.moduloConexionMovilActivo ?? false,
                 modulo_envio_correo_activo: cfg?.moduloEnvioCorreoActivo ?? false,
+                modulo_impoconsumo_activo: cfg?.moduloImpoconsumoActivo ?? false,
             },
             admin_registrado: adminCount > 0,
             totales: {
@@ -434,7 +436,8 @@ let SuperadminService = class SuperadminService {
             dto.modulo_menu_imagenes_activo === undefined &&
             dto.modulo_produccion_porciones_activo === undefined &&
             dto.modulo_conexion_movil_activo === undefined &&
-            dto.modulo_envio_correo_activo === undefined) {
+            dto.modulo_envio_correo_activo === undefined &&
+            dto.modulo_impoconsumo_activo === undefined) {
             throw new common_1.BadRequestException('Nada que actualizar');
         }
         await this.prisma.restaurante.upsert({
@@ -476,6 +479,9 @@ let SuperadminService = class SuperadminService {
                 ...(dto.modulo_envio_correo_activo !== undefined
                     ? { moduloEnvioCorreoActivo: dto.modulo_envio_correo_activo }
                     : {}),
+                ...(dto.modulo_impoconsumo_activo !== undefined
+                    ? { moduloImpoconsumoActivo: dto.modulo_impoconsumo_activo }
+                    : {}),
             },
             update: {
                 ...(dto.modulo_retail_activo !== undefined
@@ -504,6 +510,9 @@ let SuperadminService = class SuperadminService {
                 ...(dto.modulo_envio_correo_activo !== undefined
                     ? { moduloEnvioCorreoActivo: dto.modulo_envio_correo_activo }
                     : {}),
+                ...(dto.modulo_impoconsumo_activo !== undefined
+                    ? { moduloImpoconsumoActivo: dto.modulo_impoconsumo_activo }
+                    : {}),
             },
         });
         (0, config_restaurante_cache_1.invalidateConfigRestauranteCache)(tenantId);
@@ -521,6 +530,7 @@ let SuperadminService = class SuperadminService {
             modulo_produccion_porciones_activo: row.moduloProduccionPorcionesActivo,
             modulo_conexion_movil_activo: row.moduloConexionMovilActivo,
             modulo_envio_correo_activo: row.moduloEnvioCorreoActivo,
+            modulo_impoconsumo_activo: row.moduloImpoconsumoActivo,
         };
     }
     async asegurarMesaBoutique(tenantId) {

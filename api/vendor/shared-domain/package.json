@@ -113,6 +113,10 @@
                                              "types":  "./dist/redondeo-cobro.d.ts",
                                              "default":  "./dist/redondeo-cobro.js"
                                          },
+                    "./impoconsumo":  {
+                                          "types":  "./dist/impoconsumo.d.ts",
+                                          "default":  "./dist/impoconsumo.js"
+                                      },
                     "./consolidar-fragmentos-precio":  {
                                                            "types":  "./dist/consolidar-fragmentos-precio.d.ts",
                                                            "default":  "./dist/consolidar-fragmentos-precio.js"

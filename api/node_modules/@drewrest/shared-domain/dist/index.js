@@ -34,6 +34,7 @@ __exportStar(require("./visual-palette"), exports);
 __exportStar(require("./companero-pedido"), exports);
 __exportStar(require("./cobro-parcial"), exports);
 __exportStar(require("./cobro-invariantes"), exports);
+__exportStar(require("./impoconsumo"), exports);
 __exportStar(require("./repartir-monto-cop"), exports);
 __exportStar(require("./consolidar-fragmentos-precio"), exports);
 __exportStar(require("./saldo-restante"), exports);

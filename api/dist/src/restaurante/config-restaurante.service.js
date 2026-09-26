@@ -123,6 +123,7 @@ let ConfigRestauranteService = class ConfigRestauranteService {
             modulo_menu_imagenes_activo: row.moduloMenuImagenesActivo,
             modulo_produccion_porciones_activo: row.moduloProduccionPorcionesActivo,
             modulo_conexion_movil_activo: row.moduloConexionMovilActivo,
+            modulo_impoconsumo_activo: row.moduloImpoconsumoActivo,
             login_pin_compartido_activo: row.loginPinCompartidoActivo,
             login_pin_definido: Boolean(row.loginPinHash?.trim()),
             actualizado_en: row.actualizadoEn.toISOString(),

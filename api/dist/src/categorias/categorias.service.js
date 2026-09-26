@@ -62,6 +62,7 @@ let CategoriasService = class CategoriasService {
             participa_descuento_sopas: c.participaDescuentoSopas,
             es_linea_empaque: c.esLineaEmpaque,
             visible_en_mostrador: c.visibleEnMostrador,
+            aplica_impoconsumo: c.aplicaImpoconsumo,
             tipo_linea_cocina_default: c.tipoLineaCocinaDefault,
             es_plato_principal_default: c.esPlatoPrincipalDefault,
             prioridad_cocina_baja: c.prioridadCocinaBaja,
@@ -149,6 +150,7 @@ let CategoriasService = class CategoriasService {
                 participaDescuentoSopas: dto.participa_descuento_sopas ?? defaults.participa_descuento_sopas,
                 esLineaEmpaque: dto.es_linea_empaque ?? defaults.es_linea_empaque,
                 visibleEnMostrador: dto.visible_en_mostrador ?? defaults.visible_en_mostrador,
+                aplicaImpoconsumo: dto.aplica_impoconsumo ?? false,
                 tipoLineaCocinaDefault: (dto.tipo_linea_cocina_default ??
                     defaults.tipo_linea_cocina_default),
                 esPlatoPrincipalDefault: dto.es_plato_principal_default ?? defaults.es_plato_principal_default,
@@ -242,6 +244,9 @@ let CategoriasService = class CategoriasService {
                         : {}),
                     ...(dto.visible_en_mostrador != null
                         ? { visibleEnMostrador: dto.visible_en_mostrador }
+                        : {}),
+                    ...(dto.aplica_impoconsumo != null
+                        ? { aplicaImpoconsumo: dto.aplica_impoconsumo }
                         : {}),
                     ...(dto.es_plato_principal_default != null
                         ? { esPlatoPrincipalDefault: dto.es_plato_principal_default }
@@ -355,6 +360,7 @@ let CategoriasService = class CategoriasService {
             participa_descuento_sopas: c.participaDescuentoSopas,
             es_linea_empaque: c.esLineaEmpaque,
             visible_en_mostrador: c.visibleEnMostrador,
+            aplica_impoconsumo: c.aplicaImpoconsumo,
             tipo_linea_cocina_default: c.tipoLineaCocinaDefault,
             es_plato_principal_default: c.esPlatoPrincipalDefault,
             prioridad_cocina_baja: c.prioridadCocinaBaja,
@@ -464,6 +470,9 @@ let CategoriasService = class CategoriasService {
                             ...(item.visible_en_mostrador != null
                                 ? { visibleEnMostrador: item.visible_en_mostrador }
                                 : {}),
+                            ...(item.aplica_impoconsumo != null
+                                ? { aplicaImpoconsumo: item.aplica_impoconsumo }
+                                : {}),
                             ...(item.es_plato_principal_default != null
                                 ? { esPlatoPrincipalDefault: item.es_plato_principal_default }
                                 : {}),
@@ -511,6 +520,7 @@ let CategoriasService = class CategoriasService {
                             defaults.participa_descuento_sopas,
                         esLineaEmpaque: false,
                         visibleEnMostrador: item.visible_en_mostrador ?? defaults.visible_en_mostrador,
+                        aplicaImpoconsumo: item.aplica_impoconsumo ?? false,
                         tipoLineaCocinaDefault: (item.tipo_linea_cocina_default ??
                             defaults.tipo_linea_cocina_default),
                         esPlatoPrincipalDefault: item.es_plato_principal_default ??

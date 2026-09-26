@@ -119,25 +119,22 @@ export declare function validarInvariantesCobroPedido(opts: {
  * que la suma de totales coincida exactamente con el total de la operación.
  * La primera pata usa montos redondeados; la segunda recibe el residuo.
  */
+export type ImportesPataMixto = {
+    subtotal: number;
+    descuento_sopas: number;
+    descuento_muleros: number;
+    descuento_promociones: number;
+    monto_impoconsumo: number;
+    total: number;
+};
 export declare function importesProporcionalesMixto(full: {
     subtotal: number;
     descuento_sopas: number;
     descuento_muleros: number;
     descuento_promociones: number;
+    monto_impoconsumo?: number;
     total: number;
 }, montoPrimeraPata: number): {
-    primera: {
-        subtotal: number;
-        descuento_sopas: number;
-        descuento_muleros: number;
-        descuento_promociones: number;
-        total: number;
-    };
-    segunda: {
-        subtotal: number;
-        descuento_sopas: number;
-        descuento_muleros: number;
-        descuento_promociones: number;
-        total: number;
-    };
+    primera: ImportesPataMixto;
+    segunda: ImportesPataMixto;
 };

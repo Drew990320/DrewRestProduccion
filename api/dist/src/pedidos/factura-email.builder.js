@@ -76,6 +76,9 @@ function buildFacturaEmailText(ticket) {
             lines.push(`Desc. promociones: -${formatCop(ticket.descuento_promociones)}`);
         }
     }
+    if (ticket.monto_impoconsumo && ticket.monto_impoconsumo > 0) {
+        lines.push(`${ticket.etiqueta_impoconsumo ?? 'Impoconsumo'}: ${formatCop(ticket.monto_impoconsumo)}`);
+    }
     lines.push(`TOTAL: ${formatCop(ticket.total)}`);
     if (flags.vuelto) {
         if (!ticket.es_precuenta &&
@@ -153,6 +156,9 @@ function buildFacturaEmailHtml(ticket) {
         if (ticket.descuento_promociones > 0) {
             descuentos.push(`<tr><td>Desc. promociones</td><td style="text-align:right">-${formatCop(ticket.descuento_promociones)}</td></tr>`);
         }
+    }
+    if (ticket.monto_impoconsumo && ticket.monto_impoconsumo > 0) {
+        descuentos.push(`<tr><td>${escapeHtml(ticket.etiqueta_impoconsumo ?? 'Impoconsumo')}</td><td style="text-align:right">${formatCop(ticket.monto_impoconsumo)}</td></tr>`);
     }
     const vueltoHtml = flags.vuelto &&
         !ticket.es_precuenta &&

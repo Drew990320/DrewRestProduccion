@@ -174,6 +174,9 @@ async function buildFacturaEscPos(ticket, charWidthOrOpts = escpos_utils_1.DEFAU
             await printer.println((0, escpos_utils_1.lineaConPrecio)('Desc. promociones', `-${(0, escpos_utils_1.formatCopEscPos)(ticket.descuento_promociones)}`, w));
         }
     }
+    if (ticket.monto_impoconsumo && ticket.monto_impoconsumo > 0) {
+        await printer.println((0, escpos_utils_1.lineaConPrecio)(ticket.etiqueta_impoconsumo ?? 'Impoconsumo', (0, escpos_utils_1.formatCopEscPos)(ticket.monto_impoconsumo), w));
+    }
     await printer.bold(true);
     await printer.println((0, escpos_utils_1.lineaConPrecio)('TOTAL', (0, escpos_utils_1.formatCopEscPos)(ticket.total), w));
     await printer.bold(false);

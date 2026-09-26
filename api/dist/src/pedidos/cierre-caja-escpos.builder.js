@@ -201,6 +201,9 @@ async function buildItemsMenuEscPos(ticket, charWidth = escpos_utils_1.DEFAULT_E
     if (ticket.total_descuentos_dia > 0) {
         await printer.println((0, escpos_utils_1.lineaConPrecio)('Descuentos', `-${(0, escpos_utils_1.formatCopEscPos)(ticket.total_descuentos_dia)}`, w));
     }
+    if (ticket.total_impoconsumo_dia && ticket.total_impoconsumo_dia > 0) {
+        await printer.println((0, escpos_utils_1.lineaConPrecio)('Impoconsumo', (0, escpos_utils_1.formatCopEscPos)(ticket.total_impoconsumo_dia), w));
+    }
     await printer.bold(true);
     await printer.println((0, escpos_utils_1.lineaConPrecio)('Total facturado', (0, escpos_utils_1.formatCopEscPos)(ticket.total_facturado), w));
     await printer.bold(false);

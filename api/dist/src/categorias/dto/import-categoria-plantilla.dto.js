@@ -76,6 +76,7 @@ class CategoriaPlantillaItemDto {
     participa_descuento_sopas;
     es_linea_empaque;
     visible_en_mostrador;
+    aplica_impoconsumo;
     tipo_linea_cocina_default;
     es_plato_principal_default;
     prioridad_cocina_baja;
@@ -163,6 +164,11 @@ __decorate([
     (0, class_validator_1.IsBoolean)(),
     __metadata("design:type", Boolean)
 ], CategoriaPlantillaItemDto.prototype, "visible_en_mostrador", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], CategoriaPlantillaItemDto.prototype, "aplica_impoconsumo", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),

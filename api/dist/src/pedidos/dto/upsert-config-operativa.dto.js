@@ -29,6 +29,7 @@ class UpsertConfigOperativaDto {
     prioridad_cocina_modo;
     redondeo_paso;
     redondeo_umbral;
+    impoconsumo_porcentaje;
     imprimir_entrada_caja;
     imprimir_salida_caja;
     cocina_tamano_texto;
@@ -138,6 +139,14 @@ __decorate([
     (0, class_validator_1.Min)(0),
     __metadata("design:type", Number)
 ], UpsertConfigOperativaDto.prototype, "redondeo_umbral", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsNumber)({ maxDecimalPlaces: 2 }),
+    (0, class_validator_1.Min)(0),
+    (0, class_validator_1.Max)(100),
+    __metadata("design:type", Number)
+], UpsertConfigOperativaDto.prototype, "impoconsumo_porcentaje", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsBoolean)(),
