@@ -82,28 +82,6 @@ const OPERATOR_GUARD_SNIPPET = `
 </script>
 `;
 
-/** Conexión móvil del SPA → página /conectar (QRs que la cámara sí abre). */
-const CONEXION_REDIRECT_SNIPPET = `
-<script>
-(function(){
-  function go(){
-    var p = location.pathname || '';
-    if (p === '/conexion-movil' || p === '/conexion-movil/') {
-      location.replace('/conectar');
-    }
-  }
-  go();
-  var push = history.pushState;
-  history.pushState = function(){
-    var r = push.apply(this, arguments);
-    go();
-    return r;
-  };
-  window.addEventListener('popstate', go);
-})();
-</script>
-`;
-
 function sendFile(res, filePath) {
   const ext = path.extname(filePath).toLowerCase();
   res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream' });
@@ -209,15 +187,9 @@ function sendIndex(res) {
     }
     if (!out.includes('__DREWREST_ALLOW_DEVTOOLS__')) {
       if (/<\/head>/i.test(out)) {
-        out = out.replace(/<\/head>/i, `${OPERATOR_GUARD_SNIPPET}${CONEXION_REDIRECT_SNIPPET}</head>`);
+        out = out.replace(/<\/head>/i, `${OPERATOR_GUARD_SNIPPET}</head>`);
       } else {
-        out = OPERATOR_GUARD_SNIPPET + CONEXION_REDIRECT_SNIPPET + out;
-      }
-    } else if (!out.includes('/conectar')) {
-      if (/<\/head>/i.test(out)) {
-        out = out.replace(/<\/head>/i, `${CONEXION_REDIRECT_SNIPPET}</head>`);
-      } else {
-        out = CONEXION_REDIRECT_SNIPPET + out;
+        out = OPERATOR_GUARD_SNIPPET + out;
       }
     }
     const buf = Buffer.from(out, 'utf8');
@@ -442,12 +414,7 @@ function onRequest(req, res) {
   }
 
   const pathOnly = req.url.split('?')[0];
-  if (
-    pathOnly === '/conectar' ||
-    pathOnly === '/conectar/' ||
-    pathOnly === '/conexion-movil' ||
-    pathOnly === '/conexion-movil/'
-  ) {
+  if (pathOnly === '/conectar' || pathOnly === '/conectar/') {
     if (req.method === 'HEAD') {
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
       res.end();
