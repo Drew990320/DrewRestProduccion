@@ -17,6 +17,7 @@ class ImprimirPrecuentaDto {
     factura_con_copia;
     id_detalles;
     detalles_cobro;
+    sin_impoconsumo;
 }
 exports.ImprimirPrecuentaDto = ImprimirPrecuentaDto;
 __decorate([
@@ -37,4 +38,9 @@ __decorate([
     (0, class_transformer_1.Type)(() => detalle_cobro_dto_1.DetalleCobroDto),
     __metadata("design:type", Array)
 ], ImprimirPrecuentaDto.prototype, "detalles_cobro", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], ImprimirPrecuentaDto.prototype, "sin_impoconsumo", void 0);
 //# sourceMappingURL=imprimir-precuenta.dto.js.map

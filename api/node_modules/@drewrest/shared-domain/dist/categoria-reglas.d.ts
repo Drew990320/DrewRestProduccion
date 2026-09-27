@@ -1,5 +1,5 @@
 /** Reglas operativas por categoría (Fase 2 — reemplazan heurísticas por nombre). */
-export type TipoLineaCocinaCategoria = 'plato' | 'entrada' | 'adicional';
+export type TipoLineaCocinaCategoria = 'plato' | 'entrada' | 'adicional' | 'sopa';
 export type CategoriaReglas = {
     nombre: string;
     es_bebida: boolean;

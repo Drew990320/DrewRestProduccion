@@ -255,7 +255,9 @@ let CategoriasService = class CategoriasService {
                         ? { prioridadCocinaBaja: dto.prioridad_cocina_baja }
                         : {}),
                     ...(dto.tipo_linea_cocina_default != null
-                        ? { tipoLineaCocinaDefault: dto.tipo_linea_cocina_default }
+                        ? {
+                            tipoLineaCocinaDefault: dto.tipo_linea_cocina_default,
+                        }
                         : {}),
                     ...(dto.icono_menu !== undefined
                         ? {

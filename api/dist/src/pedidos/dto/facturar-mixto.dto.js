@@ -27,6 +27,7 @@ class FacturarMixtoDto {
     monto_persona_plan;
     devolucion_exceso_metodo;
     aplicar_redondeo;
+    sin_impoconsumo;
 }
 exports.FacturarMixtoDto = FacturarMixtoDto;
 __decorate([
@@ -104,4 +105,9 @@ __decorate([
     (0, class_validator_1.IsBoolean)(),
     __metadata("design:type", Boolean)
 ], FacturarMixtoDto.prototype, "aplicar_redondeo", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], FacturarMixtoDto.prototype, "sin_impoconsumo", void 0);
 //# sourceMappingURL=facturar-mixto.dto.js.map

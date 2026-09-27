@@ -319,7 +319,7 @@ let PedidosService = class PedidosService {
             esAdicional: cocina.esAdicional,
             emitidaEn: cocina.emitidaEn,
         });
-        return this.encolarImpresionComanda(comanda, idPedido);
+        return this.encolarComandaAutomatica(comanda, idPedido, pedido.idRestaurante);
     }
     emit(pedidoId, mesaId, idUsuario, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
         this.gateway.emitPedidoActualizado(pedidoId, mesaId, idUsuario, tenantId);
@@ -447,6 +447,21 @@ let PedidosService = class PedidosService {
             this.logger.error(`Error en cola de impresión (${contexto}${pedidoId != null ? ` pedido ${pedidoId}` : ''}): ${msg}`);
         });
         return { impreso: false, en_cola: true };
+    }
+    async encolarComandaAutomatica(comanda, idPedido, tenantId) {
+        const cfg = await this.obtenerConfigOperativaRow(tenantId);
+        if (cfg.imprimirComandaAlEnviar !== false) {
+            return this.encolarImpresionComanda(comanda, idPedido);
+        }
+        await this.asegurarEsquemaImpresoCocina();
+        const ids = (0, comanda_lineas_group_1.idsDetalleDeLineasComanda)(comanda.lineas);
+        if (ids.length > 0) {
+            await this.prisma.detallePedido.updateMany({
+                where: { idPedido, idDetalle: { in: ids } },
+                data: { impresoCocina: true },
+            });
+        }
+        return { impreso: false, omitido: true };
     }
     encolarImpresionComanda(comanda, idPedido) {
         void (async () => {
@@ -666,11 +681,14 @@ let PedidosService = class PedidosService {
         });
         const fechaStr = base.toFormat('yyyy-LL-dd');
         const monto = Number(row.montoBaseEfectivo);
-        const impresion = await this.comandaPrinter.imprimirBaseCaja({
-            fecha: fechaStr,
-            monto_base_efectivo: monto,
-            emitida_en: new Date().toISOString(),
-        });
+        const cfgImpresion = await this.obtenerConfigOperativaRow(tenantId);
+        const impresion = cfgImpresion.imprimirBaseCaja === false
+            ? this.impresionMovimientoCajaOmitida()
+            : await this.comandaPrinter.imprimirBaseCaja({
+                fecha: fechaStr,
+                monto_base_efectivo: monto,
+                emitida_en: new Date().toISOString(),
+            });
         this.emitirAlertaImpresora(impresion, 'cierre');
         return {
             fecha: fechaStr,
@@ -702,12 +720,15 @@ let PedidosService = class PedidosService {
         const fechaStr = base.toFormat('yyyy-LL-dd');
         const montoCierre = Number(row.montoBaseCierreEfectivo ?? 0);
         const efectivoEsperado = resumen.efectivo_esperado_en_caja ?? 0;
-        const impresion = await this.comandaPrinter.imprimirBaseCajaCierre({
-            fecha: fechaStr,
-            monto_base_cierre_efectivo: montoCierre,
-            efectivo_esperado_en_caja: efectivoEsperado,
-            emitida_en: new Date().toISOString(),
-        });
+        const cfgImpresion = await this.obtenerConfigOperativaRow(tenantId);
+        const impresion = cfgImpresion.imprimirCierreBaseCaja === false
+            ? this.impresionMovimientoCajaOmitida()
+            : await this.comandaPrinter.imprimirBaseCajaCierre({
+                fecha: fechaStr,
+                monto_base_cierre_efectivo: montoCierre,
+                efectivo_esperado_en_caja: efectivoEsperado,
+                emitida_en: new Date().toISOString(),
+            });
         this.emitirAlertaImpresora(impresion, 'cierre');
         return {
             fecha: fechaStr,
@@ -1013,8 +1034,15 @@ let PedidosService = class PedidosService {
             redondeo_paso: row.redondeoPaso,
             redondeo_umbral: row.redondeoUmbral,
             impoconsumo_porcentaje: Number(row.impoconsumoPorcentaje ?? impoconsumo_1.IMPOCONSUMO_PORCENTAJE_DEFECTO),
+            impoconsumo_metodos_pago: (0, impoconsumo_1.normalizarMetodosImpoconsumo)(row.impoconsumoMetodosPago),
             imprimir_entrada_caja: row.imprimirEntradaCaja,
             imprimir_salida_caja: row.imprimirSalidaCaja,
+            imprimir_comanda_al_enviar: row.imprimirComandaAlEnviar !== false,
+            imprimir_factura_al_cobrar: row.imprimirFacturaAlCobrar !== false,
+            factura_copia_cliente_defecto: Boolean(row.facturaCopiaClienteDefecto),
+            imprimir_ticket_autoservicio: row.imprimirTicketAutoservicio !== false,
+            imprimir_base_caja: row.imprimirBaseCaja !== false,
+            imprimir_cierre_base_caja: row.imprimirCierreBaseCaja !== false,
             cocina_tamano_texto: row.cocinaTamanoTexto ?? 'normal',
             mesero_corregir_comanda_en_cocina: row.meseroCorregirComandaEnCocina,
         };
@@ -1158,16 +1186,38 @@ let PedidosService = class PedidosService {
             moduloOn = row?.moduloImpoconsumoActivo ?? false;
         }
         if (!moduloOn)
-            return 0;
+            return { tarifa: 0, metodos: [] };
         const op = await this.obtenerConfigOperativaRow(tenantId);
-        return (0, impoconsumo_1.tarifaImpoconsumoEfectiva)(true, Number(op.impoconsumoPorcentaje));
+        return {
+            tarifa: (0, impoconsumo_1.tarifaImpoconsumoEfectiva)(true, Number(op.impoconsumoPorcentaje)),
+            metodos: (0, impoconsumo_1.normalizarMetodosImpoconsumo)(op.impoconsumoMetodosPago),
+        };
     }
     async obtenerConfigCobro(tenantId) {
-        const [row, impoconsumo_porcentaje] = await Promise.all([
+        const [row, impo] = await Promise.all([
             this.obtenerConfigDescuentosRow(tenantId),
             this.tarifaImpoconsumo(tenantId),
         ]);
-        return { ...this.mapConfigDescuentos(row), impoconsumo_porcentaje };
+        return {
+            ...this.mapConfigDescuentos(row),
+            impoconsumo_tarifa_base: impo.tarifa,
+            impoconsumo_metodos: impo.metodos,
+            impoconsumo_porcentaje: (0, impoconsumo_1.tarifaImpoconsumoParaMetodo)(impo.tarifa, impo.metodos, null),
+        };
+    }
+    configCobroSinImpoconsumoSiPide(config, dto, actor) {
+        if (dto.sin_impoconsumo !== true)
+            return config;
+        if (actor.rol.nombre !== 'admin') {
+            throw new common_1.ForbiddenException('Solo el administrador puede quitar el impoconsumo de un cobro');
+        }
+        return { ...config, impoconsumo_tarifa_base: 0, impoconsumo_porcentaje: 0 };
+    }
+    configCobroParaMetodo(config, metodo) {
+        return {
+            ...config,
+            impoconsumo_porcentaje: (0, impoconsumo_1.tarifaImpoconsumoParaMetodo)(config.impoconsumo_tarifa_base ?? 0, config.impoconsumo_metodos ?? [], metodo),
+        };
     }
     async upsertConfigOperativa(dto, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
         if (dto.id_producto_mazorca != null) {
@@ -1263,11 +1313,34 @@ let PedidosService = class PedidosService {
                 ...(dto.impoconsumo_porcentaje != null
                     ? { impoconsumoPorcentaje: dto.impoconsumo_porcentaje }
                     : {}),
+                ...(dto.impoconsumo_metodos_pago != null
+                    ? {
+                        impoconsumoMetodosPago: (0, impoconsumo_1.normalizarMetodosImpoconsumo)(dto.impoconsumo_metodos_pago),
+                    }
+                    : {}),
                 ...(dto.imprimir_entrada_caja != null
                     ? { imprimirEntradaCaja: dto.imprimir_entrada_caja }
                     : {}),
                 ...(dto.imprimir_salida_caja != null
                     ? { imprimirSalidaCaja: dto.imprimir_salida_caja }
+                    : {}),
+                ...(dto.imprimir_comanda_al_enviar != null
+                    ? { imprimirComandaAlEnviar: dto.imprimir_comanda_al_enviar }
+                    : {}),
+                ...(dto.imprimir_factura_al_cobrar != null
+                    ? { imprimirFacturaAlCobrar: dto.imprimir_factura_al_cobrar }
+                    : {}),
+                ...(dto.factura_copia_cliente_defecto != null
+                    ? { facturaCopiaClienteDefecto: dto.factura_copia_cliente_defecto }
+                    : {}),
+                ...(dto.imprimir_ticket_autoservicio != null
+                    ? { imprimirTicketAutoservicio: dto.imprimir_ticket_autoservicio }
+                    : {}),
+                ...(dto.imprimir_base_caja != null
+                    ? { imprimirBaseCaja: dto.imprimir_base_caja }
+                    : {}),
+                ...(dto.imprimir_cierre_base_caja != null
+                    ? { imprimirCierreBaseCaja: dto.imprimir_cierre_base_caja }
                     : {}),
                 ...(dto.cocina_tamano_texto != null
                     ? { cocinaTamanoTexto: dto.cocina_tamano_texto }
@@ -1882,6 +1955,7 @@ let PedidosService = class PedidosService {
         let totalFacturado = 0;
         for (const f of facturas) {
             const t = Number(f.total);
+            const impo = Math.round(Number(f.montoImpoconsumo ?? 0));
             totalFacturado += t;
             if (f.metodoPago === 'efectivo')
                 totalesPorMetodo.efectivo += t;
@@ -1895,9 +1969,10 @@ let PedidosService = class PedidosService {
                 totalesPorMetodo.fiado += t;
             }
             const numero = f.pedido.mesa.numero;
-            const prev = byMesa.get(numero) ?? { pedidos: 0, total: 0 };
+            const prev = byMesa.get(numero) ?? { pedidos: 0, total: 0, impoconsumo: 0 };
             prev.pedidos += 1;
             prev.total += t;
+            prev.impoconsumo += impo;
             byMesa.set(numero, prev);
         }
         const mesas = Array.from(byMesa.entries())
@@ -1906,6 +1981,8 @@ let PedidosService = class PedidosService {
             pedidos_atendidos: val.pedidos,
             cobros_atendidos: val.pedidos,
             total_facturado: val.total,
+            total_impoconsumo: val.impoconsumo,
+            total_consumo: val.total - val.impoconsumo,
         }))
             .sort((a, b) => b.total_facturado - a.total_facturado ||
             a.mesa_numero - b.mesa_numero);
@@ -1921,6 +1998,7 @@ let PedidosService = class PedidosService {
                 descuento_muleros: Number(f.descuentoMuleros),
                 descuento_promociones: Number(f.descuentoPromociones),
                 total: Number(f.total),
+                monto_impoconsumo: Math.round(Number(f.montoImpoconsumo ?? 0)),
                 metodo_pago: f.metodoPago,
                 emitida_en: f.emitidaEn.toISOString(),
                 es_parcial: f.esParcial,
@@ -3261,7 +3339,11 @@ let PedidosService = class PedidosService {
             ticket.es_autoservicio_caja = true;
             ticket.es_precuenta = true;
             totalAprox = ticket.total;
-            impresionPrecuenta = this.encolarImpresionFactura(ticket, idPedido, false);
+            const cfgImpresion = await this.obtenerConfigOperativaRow(pedido.idRestaurante);
+            impresionPrecuenta =
+                cfgImpresion.imprimirTicketAutoservicio === false
+                    ? { impreso: false, omitido: true }
+                    : this.encolarImpresionFactura(ticket, idPedido, false);
         }
         catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
@@ -5944,13 +6026,16 @@ let PedidosService = class PedidosService {
         }
         const pedidoSerializado = this.serializarPedido(pedido);
         this.emit(idPedido, pedido.idMesa, pedido.idUsuario, pedido.idRestaurante);
-        const impresion = this.encolarImpresionComanda(comanda, idPedido);
+        const impresion = soloReintento
+            ? this.encolarImpresionComanda(comanda, idPedido)
+            : await this.encolarComandaAutomatica(comanda, idPedido, pedido.idRestaurante);
         return {
             ok: true,
             es_adicional: esAdicional && !soloReintento,
             es_reintento_impresion: soloReintento,
             comanda,
             impreso: impresion.impreso,
+            impresion_omitida: impresion.omitido ?? false,
             impresion_en_cola: impresion.en_cola ?? false,
             impresora_destino: impresion.destino ?? null,
             error_impresion: impresion.error ?? null,
@@ -6211,6 +6296,9 @@ let PedidosService = class PedidosService {
     }
     async imprimirPrecuenta(idPedido, dto, actor) {
         await this.exigirPermisoMesero(actor, 'precuenta');
+        if (dto.sin_impoconsumo === true && actor.rol.nombre !== 'admin') {
+            throw new common_1.ForbiddenException('Solo el administrador puede quitar el impoconsumo de un cobro');
+        }
         const ticket = await this.construirTicketPrecuentaDesdeDto(idPedido, dto);
         const conCopia = dto.factura_con_copia === true;
         const impresion = this.encolarImpresionFactura(ticket, idPedido, conCopia);
@@ -6249,7 +6337,10 @@ let PedidosService = class PedidosService {
             cantidad: d.cantidad,
         })), solicitudes);
         const subtotal = new client_1.Prisma.Decimal(subtotalNum);
-        const config = await this.obtenerConfigCobro(pedido.idRestaurante);
+        const configBase = await this.obtenerConfigCobro(pedido.idRestaurante);
+        const config = dto.sin_impoconsumo === true
+            ? { ...configBase, impoconsumo_tarifa_base: 0, impoconsumo_porcentaje: 0 }
+            : configBase;
         const lineas = (0, cobro_parcial_1.lineasDescuentoDesdeSolicitudes)(detallesCobro.map((d) => ({
             id_detalle: d.idDetalle,
             cantidad: d.cantidad,
@@ -7131,10 +7222,11 @@ let PedidosService = class PedidosService {
         }
         let solicitudes = this.prepararSolicitudesCobro(pedido, dto);
         let pedidoParaCobro = pedido;
-        const [config, invCfg] = await Promise.all([
+        const [configBase, invCfg] = await Promise.all([
             this.obtenerConfigCobro(pedido.idRestaurante),
             this.inventarioDeduccion.obtenerConfig(pedido.idRestaurante),
         ]);
+        const config = this.configCobroSinImpoconsumoSiPide(configBase, dto, actor);
         const eventoFactura = (invCfg.evento_deduccion_consumible ??
             invCfg.evento_deduccion_comercial);
         const cuotaPlan = await this.aplicarCuotaPlanEnFacturacion(idPedido, dto, pedidoParaCobro, solicitudes, config);
@@ -7163,12 +7255,13 @@ let PedidosService = class PedidosService {
             }
         }
         const detallesSerial = this.serialDetallesCobro(pedidoParaCobro.detalles);
-        const importes = this.calcularImportesFactura(pedidoParaCobro, solicitudes, config);
+        const configMetodo = this.configCobroParaMetodo(config, dto.metodo_pago);
+        const importes = this.calcularImportesFactura(pedidoParaCobro, solicitudes, configMetodo);
         const { subtotal, dS, dM, dP } = importes;
         let total = importes.total;
         const montoImpoconsumoDec = importes.impo.gt(0)
             ? importes.impo
-            : this.impoconsumoIncluidoEnCuotaPlan(pedidoParaCobro, dto, config, total);
+            : this.impoconsumoIncluidoEnCuotaPlan(pedidoParaCobro, dto, configMetodo, total);
         let montoRedondeoDec = new client_1.Prisma.Decimal(0);
         const subtotalFactura = montoImpoconsumoDec.gt(importes.impo)
             ? subtotal.sub(montoImpoconsumoDec)
@@ -7441,10 +7534,11 @@ let PedidosService = class PedidosService {
             throw new common_1.BadRequestException('No hay ítems pendientes de cobro');
         }
         let pedidoParaCobro = pedido;
-        const [config, invCfgMixto] = await Promise.all([
+        const [configBase, invCfgMixto] = await Promise.all([
             this.obtenerConfigCobro(pedido.idRestaurante),
             this.inventarioDeduccion.obtenerConfig(pedido.idRestaurante),
         ]);
+        const config = this.configCobroSinImpoconsumoSiPide(configBase, dto, actor);
         const eventoFacturaMixto = (invCfgMixto.evento_deduccion_consumible ??
             invCfgMixto.evento_deduccion_comercial);
         const cuotaPlan = await this.aplicarCuotaPlanEnFacturacion(idPedido, dto, pedidoParaCobro, solicitudes, config);
@@ -7473,7 +7567,8 @@ let PedidosService = class PedidosService {
             }
         }
         const detallesSerial = this.serialDetallesCobro(pedidoParaCobro.detalles);
-        const importesTotales = this.calcularImportesFactura(pedidoParaCobro, solicitudes, config);
+        const configMetodo = this.configCobroParaMetodo(config, 'mixto');
+        const importesTotales = this.calcularImportesFactura(pedidoParaCobro, solicitudes, configMetodo);
         let totalNeto = Number(importesTotales.total);
         let montoRedondeoMixto = 0;
         if (dto.aplicar_redondeo) {
@@ -7533,7 +7628,7 @@ let PedidosService = class PedidosService {
             if (base.length === 0)
                 return 0;
             const expandidas = (0, cobro_parcial_1.ordenarSolicitudesCobro)(detallesSerial, (0, cobro_parcial_1.expandirSolicitudesConEmpaques)(detallesSerial, base));
-            return Number(this.calcularImportesFactura(pedidoParaCobro, expandidas, config).total);
+            return Number(this.calcularImportesFactura(pedidoParaCobro, expandidas, configMetodo).total);
         };
         const expandirCantidades = (cantidades) => {
             const base = Object.entries(cantidades)
@@ -7579,7 +7674,7 @@ let PedidosService = class PedidosService {
             Number(importesTotales.dP);
         const impoMixto = Number(importesTotales.impo.gt(0)
             ? importesTotales.impo
-            : this.impoconsumoIncluidoEnCuotaPlan(pedidoParaCobro, dto, config, importesTotales.total));
+            : this.impoconsumoIncluidoEnCuotaPlan(pedidoParaCobro, dto, configMetodo, importesTotales.total));
         const fullImportes = {
             subtotal: totalNeto === Number(importesTotales.total)
                 ? Number(importesTotales.subtotal) -

@@ -47,6 +47,9 @@ function inferirReglasCategoriaDesdeNombre(nombre) {
     if (lower.includes('entrada') || lower.includes('adicional')) {
         tipo = 'entrada';
     }
+    else if (participaSopas) {
+        tipo = 'sopa';
+    }
     return {
         nombre: n,
         es_bebida: esBebida,

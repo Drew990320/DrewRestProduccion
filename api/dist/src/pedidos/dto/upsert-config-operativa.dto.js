@@ -30,8 +30,15 @@ class UpsertConfigOperativaDto {
     redondeo_paso;
     redondeo_umbral;
     impoconsumo_porcentaje;
+    impoconsumo_metodos_pago;
     imprimir_entrada_caja;
     imprimir_salida_caja;
+    imprimir_comanda_al_enviar;
+    imprimir_factura_al_cobrar;
+    factura_copia_cliente_defecto;
+    imprimir_ticket_autoservicio;
+    imprimir_base_caja;
+    imprimir_cierre_base_caja;
     cocina_tamano_texto;
     mesero_corregir_comanda_en_cocina;
 }
@@ -149,6 +156,13 @@ __decorate([
 ], UpsertConfigOperativaDto.prototype, "impoconsumo_porcentaje", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsArray)(),
+    (0, class_validator_1.ArrayMaxSize)(4),
+    (0, class_validator_1.IsIn)(['efectivo', 'transferencia', 'tarjeta', 'fiado'], { each: true }),
+    __metadata("design:type", Array)
+], UpsertConfigOperativaDto.prototype, "impoconsumo_metodos_pago", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsBoolean)(),
     __metadata("design:type", Boolean)
 ], UpsertConfigOperativaDto.prototype, "imprimir_entrada_caja", void 0);
@@ -157,6 +171,36 @@ __decorate([
     (0, class_validator_1.IsBoolean)(),
     __metadata("design:type", Boolean)
 ], UpsertConfigOperativaDto.prototype, "imprimir_salida_caja", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], UpsertConfigOperativaDto.prototype, "imprimir_comanda_al_enviar", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], UpsertConfigOperativaDto.prototype, "imprimir_factura_al_cobrar", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], UpsertConfigOperativaDto.prototype, "factura_copia_cliente_defecto", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], UpsertConfigOperativaDto.prototype, "imprimir_ticket_autoservicio", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], UpsertConfigOperativaDto.prototype, "imprimir_base_caja", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], UpsertConfigOperativaDto.prototype, "imprimir_cierre_base_caja", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
