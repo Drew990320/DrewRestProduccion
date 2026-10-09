@@ -433,7 +433,7 @@ exports.NAV_ICON_LABELS = {
     descuentos_promociones: 'Descuentos y promociones',
     creditos: 'Créditos / fiados',
     inventario: 'Inventario interno',
-    recursos: 'Bodega',
+    recursos: 'Inventario',
     contabilidad: 'Contabilidad',
     ganancias: 'Ganancias',
     tienda: 'Catálogo tienda',

@@ -13,6 +13,7 @@ exports.TiendaService = void 0;
 const common_1 = require("@nestjs/common");
 const client_1 = require("@prisma/client");
 const prisma_service_1 = require("../prisma/prisma.service");
+const stock_auditoria_1 = require("../common/stock-auditoria");
 const tenant_constants_1 = require("../tenant/tenant.constants");
 const mesa_label_1 = require("@drewrest/shared-domain/mesa-label");
 const tienda_1 = require("@drewrest/shared-domain/tienda");
@@ -378,7 +379,7 @@ let TiendaService = class TiendaService {
         });
         return mapProducto(created);
     }
-    async actualizarProducto(id, dto, tenantId = tenant_constants_1.DEFAULT_TENANT_ID, idTienda) {
+    async actualizarProducto(id, dto, tenantId = tenant_constants_1.DEFAULT_TENANT_ID, idTienda, actor) {
         const tid = await this.resolveTiendaId(tenantId, idTienda);
         const existing = await this.prisma.producto.findFirst({
             where: {
@@ -388,6 +389,11 @@ let TiendaService = class TiendaService {
         });
         if (!existing)
             throw new common_1.NotFoundException('Producto no encontrado');
+        const stockNuevo = dto.stock_disponible != null ? Math.max(0, Math.round(dto.stock_disponible)) : null;
+        const cambiaStock = stockNuevo != null && stockNuevo !== existing.stockDisponible;
+        const nombreAdmin = cambiaStock
+            ? await (0, stock_auditoria_1.exigirPasswordAdmin)(this.prisma, actor, dto.password_admin, 'cambiar el stock')
+            : null;
         if (dto.id_categoria != null) {
             const cat = await this.prisma.categoria.findFirst({
                 where: {
@@ -411,18 +417,30 @@ let TiendaService = class TiendaService {
                     : {}),
                 ...(dto.activo != null ? { activo: dto.activo } : {}),
                 ...(dto.control_stock != null ? { controlStock: dto.control_stock } : {}),
-                ...(dto.stock_disponible != null
-                    ? { stockDisponible: Math.max(0, Math.round(dto.stock_disponible)) }
-                    : {}),
+                ...(cambiaStock ? { stockDisponible: stockNuevo } : {}),
             },
             include: {
                 categoria: { select: { nombre: true, idTienda: true } },
                 variantes: { orderBy: [{ orden: 'asc' }, { idVariante: 'asc' }] },
             },
         });
+        if (cambiaStock && actor && nombreAdmin) {
+            await (0, stock_auditoria_1.registrarAuditoriaStock)(this.prisma, {
+                idRestaurante: tenantId,
+                accion: 'ajuste_stock',
+                origen: 'tienda',
+                idReferencia: id,
+                nombre: existing.nombre,
+                stockAnterior: existing.stockDisponible,
+                stockNuevo,
+                motivo: dto.motivo_ajuste_stock,
+                idUsuario: actor.idUsuario,
+                nombreUsuario: nombreAdmin,
+            });
+        }
         return mapProducto(updated);
     }
-    async upsertVariante(idProducto, dto, tenantId = tenant_constants_1.DEFAULT_TENANT_ID, idTienda) {
+    async upsertVariante(idProducto, dto, tenantId = tenant_constants_1.DEFAULT_TENANT_ID, idTienda, actor) {
         const tid = await this.resolveTiendaId(tenantId, idTienda);
         const producto = await this.prisma.producto.findFirst({
             where: {
@@ -441,19 +459,36 @@ let TiendaService = class TiendaService {
             });
             if (!existing)
                 throw new common_1.NotFoundException('Variante no encontrada');
+            const stockNuevo = dto.stock_disponible != null ? Math.max(0, Math.round(dto.stock_disponible)) : null;
+            const cambiaStock = stockNuevo != null && stockNuevo !== existing.stockDisponible;
+            const nombreAdmin = cambiaStock
+                ? await (0, stock_auditoria_1.exigirPasswordAdmin)(this.prisma, actor, dto.password_admin, 'cambiar el stock')
+                : null;
             const updated = await this.prisma.productoVariante.update({
                 where: { idVariante: dto.id_variante },
                 data: {
                     nombre,
                     etiquetaGrupo: dto.etiqueta_grupo?.trim() || null,
                     precio: dto.precio,
-                    ...(dto.stock_disponible != null
-                        ? { stockDisponible: Math.max(0, Math.round(dto.stock_disponible)) }
-                        : {}),
+                    ...(cambiaStock ? { stockDisponible: stockNuevo } : {}),
                     ...(dto.activo != null ? { activo: dto.activo } : {}),
                     ...(dto.orden != null ? { orden: dto.orden } : {}),
                 },
             });
+            if (cambiaStock && actor && nombreAdmin) {
+                await (0, stock_auditoria_1.registrarAuditoriaStock)(this.prisma, {
+                    idRestaurante: tenantId,
+                    accion: 'ajuste_stock',
+                    origen: 'variante',
+                    idReferencia: existing.idVariante,
+                    nombre: `${producto.nombre} · ${existing.nombre}`,
+                    stockAnterior: existing.stockDisponible,
+                    stockNuevo,
+                    motivo: dto.motivo_ajuste_stock,
+                    idUsuario: actor.idUsuario,
+                    nombreUsuario: nombreAdmin,
+                });
+            }
             return mapVariante(updated);
         }
         try {
@@ -478,7 +513,7 @@ let TiendaService = class TiendaService {
             throw e;
         }
     }
-    async eliminarVariante(idProducto, idVariante, tenantId = tenant_constants_1.DEFAULT_TENANT_ID, idTienda) {
+    async eliminarVariante(idProducto, idVariante, tenantId = tenant_constants_1.DEFAULT_TENANT_ID, idTienda, actor, passwordAdmin) {
         const tid = await this.resolveTiendaId(tenantId, idTienda);
         const producto = await this.prisma.producto.findFirst({
             where: {
@@ -488,9 +523,30 @@ let TiendaService = class TiendaService {
         });
         if (!producto)
             throw new common_1.NotFoundException('Producto no encontrado');
+        const variante = await this.prisma.productoVariante.findFirst({
+            where: { idVariante, idProducto },
+        });
+        if (!variante)
+            return { ok: true };
+        const nombreAdmin = variante.stockDisponible > 0
+            ? await (0, stock_auditoria_1.exigirPasswordAdmin)(this.prisma, actor, passwordAdmin, 'eliminar una variante con stock')
+            : null;
         await this.prisma.productoVariante.deleteMany({
             where: { idVariante, idProducto },
         });
+        if (nombreAdmin && actor) {
+            await (0, stock_auditoria_1.registrarAuditoriaStock)(this.prisma, {
+                idRestaurante: tenantId,
+                accion: 'eliminar_variante',
+                origen: 'variante',
+                idReferencia: idVariante,
+                nombre: `${producto.nombre} · ${variante.nombre}`,
+                stockAnterior: variante.stockDisponible,
+                stockNuevo: 0,
+                idUsuario: actor.idUsuario,
+                nombreUsuario: nombreAdmin,
+            });
+        }
         return { ok: true };
     }
     async catalogoVenta(tenantId = tenant_constants_1.DEFAULT_TENANT_ID, idTienda) {

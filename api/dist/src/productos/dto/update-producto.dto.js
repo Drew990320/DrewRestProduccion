@@ -31,6 +31,8 @@ class UpdateProductoDto {
     prioridad_cocina_baja;
     control_stock;
     stock_disponible;
+    password_admin;
+    motivo_ajuste_stock;
     ocultar_sin_stock;
     es_combo;
     combo_min;
@@ -136,6 +138,18 @@ __decorate([
     (0, class_validator_1.Min)(0),
     __metadata("design:type", Number)
 ], UpdateProductoDto.prototype, "stock_disponible", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(200),
+    __metadata("design:type", String)
+], UpdateProductoDto.prototype, "password_admin", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(255),
+    __metadata("design:type", String)
+], UpdateProductoDto.prototype, "motivo_ajuste_stock", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsBoolean)(),

@@ -1450,6 +1450,8 @@ model Recurso {
   idCategoria        Int            @map("id_categoria")
   unidad             String         @db.VarChar(20)
   costo              Decimal        @default(0) @db.Decimal(12, 4)
+  /// Precio de compra pactado por unidad base; lo propone Compras. No lo mueven las compras puntuales.
+  costoReferencia    Decimal?       @map("costo_referencia") @db.Decimal(12, 4)
   precio             Decimal?       @db.Decimal(12, 2)
   stock              Decimal        @default(0) @db.Decimal(12, 3)
   stockMin           Decimal        @default(0) @map("stock_min") @db.Decimal(12, 3)
@@ -1478,6 +1480,7 @@ model Recurso {
   movimientos        MovimientoRecurso[]
   mantenimientos     MantenimientoRecurso[]
   lineasReceta       RecetaLinea[]
+  presentaciones     PresentacionRecurso[]
 
   @@unique([idRestaurante, codigo])
   @@index([idRestaurante, idCategoria])
@@ -1487,6 +1490,43 @@ model Recurso {
   @@index([idRestaurante, stockMin])
   @@index([fechaVencimiento])
   @@map("recurso")
+}
+
+/// Cómo se compra o se cuenta un artículo (Paquete = 10 u, Bulto = 25 kg).
+/// `factor` está expresado en la unidad base del recurso.
+model PresentacionRecurso {
+  idPresentacion Int      @id @default(autoincrement()) @map("id_presentacion")
+  idRecurso      Int      @map("id_recurso")
+  nombre         String   @db.VarChar(40)
+  factor         Decimal  @db.Decimal(14, 6)
+  codigoBarras   String?  @map("codigo_barras") @db.VarChar(80)
+  costoUltimo    Decimal? @map("costo_ultimo") @db.Decimal(12, 2)
+  predeterminada Boolean  @default(false)
+  creadoEn       DateTime @default(now()) @map("creado_en")
+  recurso        Recurso  @relation(fields: [idRecurso], references: [idRecurso], onDelete: Cascade)
+
+  @@unique([idRecurso, nombre])
+  @@map("presentacion_recurso")
+}
+
+/// Cambios de stock fuera del kardex (ajuste manual de productos de menú/tienda, purgas).
+/// Siempre con contraseña del administrador confirmada en la misma petición.
+model AuditoriaStock {
+  idAuditoria   Int      @id @default(autoincrement()) @map("id_auditoria")
+  idRestaurante Int      @default(1) @map("id_restaurante")
+  accion        String   @db.VarChar(40)
+  origen        String   @db.VarChar(20)
+  idReferencia  Int?     @map("id_referencia")
+  nombre        String   @db.VarChar(200)
+  stockAnterior Decimal? @map("stock_anterior") @db.Decimal(12, 3)
+  stockNuevo    Decimal? @map("stock_nuevo") @db.Decimal(12, 3)
+  motivo        String?  @db.VarChar(255)
+  idUsuario     Int      @map("id_usuario")
+  nombreUsuario String   @map("nombre_usuario") @db.VarChar(120)
+  creadoEn      DateTime @default(now()) @map("creado_en")
+
+  @@index([idRestaurante, creadoEn])
+  @@map("auditoria_stock")
 }
 
 model MovimientoRecurso {

@@ -30,6 +30,7 @@ const facturar_mixto_dto_1 = require("./dto/facturar-mixto.dto");
 const omitir_cuota_plan_dto_1 = require("./dto/omitir-cuota-plan.dto");
 const imprimir_precuenta_dto_1 = require("./dto/imprimir-precuenta.dto");
 const imprimir_resumen_seleccion_dto_1 = require("./dto/imprimir-resumen-seleccion.dto");
+const mover_facturas_fecha_dto_1 = require("./dto/mover-facturas-fecha.dto");
 const caja_diaria_dto_1 = require("./dto/caja-diaria.dto");
 const caja_diaria_cierre_dto_1 = require("./dto/caja-diaria-cierre.dto");
 const crear_movimiento_caja_dto_1 = require("./dto/crear-movimiento-caja.dto");
@@ -157,6 +158,9 @@ let PedidosController = class PedidosController {
     }
     imprimirResumenSeleccion(dto, fecha) {
         return this.pedidos.imprimirResumenDiarioSeleccion(dto, fecha);
+    }
+    moverFacturasFecha(dto, fecha) {
+        return this.pedidos.moverFacturasAFecha(dto, fecha);
     }
     cajaDiaria(fecha, tenantId) {
         return this.pedidos.getCajaDiaria(fecha, tenantId);
@@ -558,6 +562,16 @@ __decorate([
     __metadata("design:paramtypes", [imprimir_resumen_seleccion_dto_1.ImprimirResumenSeleccionDto, String]),
     __metadata("design:returntype", void 0)
 ], PedidosController.prototype, "imprimirResumenSeleccion", null);
+__decorate([
+    (0, common_1.Post)('resumen-diario/mover-facturas'),
+    (0, common_1.UseGuards)(pedido_tenant_guard_1.PedidoTenantGuard, roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)('admin', 'superadmin'),
+    __param(0, (0, common_1.Body)()),
+    __param(1, (0, common_1.Query)('fecha')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [mover_facturas_fecha_dto_1.MoverFacturasFechaDto, String]),
+    __metadata("design:returntype", void 0)
+], PedidosController.prototype, "moverFacturasFecha", null);
 __decorate([
     (0, throttler_1.SkipThrottle)(),
     (0, common_1.Get)('caja-diaria'),

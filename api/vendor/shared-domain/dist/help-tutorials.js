@@ -288,8 +288,8 @@ exports.HELP_TUTORIAL_ACTIONS = [
         steps: [
             {
                 title: '1. Qué controla esta pantalla',
-                body: 'Bodega lleva ingredientes, insumos y vendibles. El stock no se edita a mano: cada cambio es un movimiento en el Kardex.',
-                buscar: 'Texto introductorio bajo las pestañas de Bodega',
+                body: 'Inventario lleva ingredientes, insumos y vendibles. El stock no se edita a mano: cada cambio es un movimiento en el Kardex.',
+                buscar: 'Cabecera «Inventario» con el resumen y las pestañas',
                 listoSi: 'inventario.en_pantalla',
                 pantalla: 'inventario',
                 irARuta: '/(app)/recursos',
@@ -297,7 +297,7 @@ exports.HELP_TUTORIAL_ACTIONS = [
             {
                 title: '2. Alta de un producto o insumo',
                 body: 'Código, nombre, categoría y unidad. Si ya llegó mercadería, ponla en stock inicial: queda en el Kardex como Entrada.',
-                buscar: 'Botón «Nuevo producto / insumo»',
+                buscar: 'Botón «Nuevo artículo» en la cabecera',
                 accion: 'Pulsa para abrir el formulario de alta.',
                 target: 'inventario.agregar_item',
                 listoSi: 'inventario.tiene_items',
@@ -306,7 +306,7 @@ exports.HELP_TUTORIAL_ACTIONS = [
             {
                 title: '3. Entrada de stock (reposición)',
                 body: 'En la tarjeta del ítem, «Entrada de stock» suma unidades al inventario. Consumo, pérdida u otros van en «Otros movimientos».',
-                buscar: 'Botón «Entrada de stock» en la tarjeta de un ítem',
+                buscar: 'Botón «Entrada de stock» en la tarjeta de un artículo (pestaña Artículos)',
                 accion: 'Pulsa para registrar la cantidad que acabas de recibir.',
                 target: 'inventario.movimiento_entrada',
                 pantalla: 'inventario',
@@ -333,7 +333,7 @@ exports.HELP_TUTORIAL_ACTIONS = [
         steps: [
             {
                 title: '1. Abre Compras',
-                body: 'En Más, sección Inventario y finanzas, está Compras. Junto a Bodega, Contabilidad y Ganancias.',
+                body: 'En Más, sección Inventario y finanzas, está Compras. Junto a Inventario, Contabilidad y Ganancias.',
                 buscar: 'Más → Inventario y finanzas → Compras',
                 listoSi: 'compras.en_pantalla',
                 pantalla: 'compras',

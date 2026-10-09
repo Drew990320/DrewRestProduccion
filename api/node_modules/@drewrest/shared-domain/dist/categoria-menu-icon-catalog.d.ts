@@ -1,5 +1,5 @@
 /**
- * Catálogo completo de iconos de comida (Material Community Icons).
+ * Catálogos de iconos de categorías (Material Community Icons): comida y rubros de tienda.
  * Generado con scripts/generate-categoria-menu-icon-catalog.js
  * contra @expo/vector-icons — no editar a mano.
  */
@@ -570,5 +570,652 @@ export declare const CATEGORIA_MENU_ICON_CATEGORIAS: readonly [{
     }, {
         readonly id: "food-hot-dog";
         readonly label: "Perro caliente";
+    }];
+}];
+export declare const CATEGORIA_TIENDA_ICON_CATEGORIAS: readonly [{
+    readonly id: "tienda_general";
+    readonly titulo: "Tienda general";
+    readonly iconos: readonly [{
+        readonly id: "store-outline";
+        readonly label: "Tienda";
+    }, {
+        readonly id: "storefront-outline";
+        readonly label: "Local / vitrina";
+    }, {
+        readonly id: "shopping-outline";
+        readonly label: "Compras / bolsa";
+    }, {
+        readonly id: "cart-outline";
+        readonly label: "Carrito";
+    }, {
+        readonly id: "basket-outline";
+        readonly label: "Canasta";
+    }, {
+        readonly id: "tag-outline";
+        readonly label: "Etiqueta / precio";
+    }, {
+        readonly id: "tag-multiple-outline";
+        readonly label: "Varios precios";
+    }, {
+        readonly id: "sale";
+        readonly label: "Oferta";
+    }, {
+        readonly id: "percent-outline";
+        readonly label: "Descuento";
+    }, {
+        readonly id: "new-box";
+        readonly label: "Nuevo";
+    }, {
+        readonly id: "star-outline";
+        readonly label: "Destacado";
+    }, {
+        readonly id: "fire";
+        readonly label: "Lo más vendido";
+    }, {
+        readonly id: "package-variant-closed";
+        readonly label: "Paquete";
+    }, {
+        readonly id: "archive-outline";
+        readonly label: "Bodega / caja";
+    }, {
+        readonly id: "truck-delivery-outline";
+        readonly label: "Domicilio";
+    }, {
+        readonly id: "barcode";
+        readonly label: "Código de barras";
+    }, {
+        readonly id: "cash-register";
+        readonly label: "Caja registradora";
+    }, {
+        readonly id: "dots-grid";
+        readonly label: "Varios";
+    }];
+}, {
+    readonly id: "mercado";
+    readonly titulo: "Mercado y abarrotes";
+    readonly iconos: readonly [{
+        readonly id: "basket";
+        readonly label: "Mercado";
+    }, {
+        readonly id: "cart-variant";
+        readonly label: "Abarrotes";
+    }, {
+        readonly id: "food-apple-outline";
+        readonly label: "Frutas y verduras";
+    }, {
+        readonly id: "carrot";
+        readonly label: "Verduras";
+    }, {
+        readonly id: "egg-outline";
+        readonly label: "Huevos";
+    }, {
+        readonly id: "cheese";
+        readonly label: "Lácteos / quesos";
+    }, {
+        readonly id: "cup-water";
+        readonly label: "Bebidas";
+    }, {
+        readonly id: "bottle-soda-outline";
+        readonly label: "Gaseosas";
+    }, {
+        readonly id: "beer-outline";
+        readonly label: "Cervezas";
+    }, {
+        readonly id: "liquor";
+        readonly label: "Licores";
+    }, {
+        readonly id: "bread-slice-outline";
+        readonly label: "Panadería";
+    }, {
+        readonly id: "rice";
+        readonly label: "Granos / arroz";
+    }, {
+        readonly id: "shaker-outline";
+        readonly label: "Condimentos";
+    }, {
+        readonly id: "candy-outline";
+        readonly label: "Dulces";
+    }, {
+        readonly id: "cookie";
+        readonly label: "Galletas";
+    }, {
+        readonly id: "popcorn";
+        readonly label: "Snacks / paquetes";
+    }, {
+        readonly id: "ice-cream";
+        readonly label: "Helados";
+    }, {
+        readonly id: "snowflake";
+        readonly label: "Congelados";
+    }, {
+        readonly id: "coffee-outline";
+        readonly label: "Café";
+    }, {
+        readonly id: "smoking";
+        readonly label: "Cigarrillos";
+    }];
+}, {
+    readonly id: "aseo";
+    readonly titulo: "Aseo y limpieza";
+    readonly iconos: readonly [{
+        readonly id: "spray-bottle";
+        readonly label: "Limpiadores";
+    }, {
+        readonly id: "broom";
+        readonly label: "Escobas / traperos";
+    }, {
+        readonly id: "bucket-outline";
+        readonly label: "Baldes";
+    }, {
+        readonly id: "washing-machine";
+        readonly label: "Lavandería / detergente";
+    }, {
+        readonly id: "paper-roll-outline";
+        readonly label: "Papel higiénico";
+    }, {
+        readonly id: "hand-wash-outline";
+        readonly label: "Jabón de manos";
+    }, {
+        readonly id: "delete-outline";
+        readonly label: "Bolsas de basura";
+    }, {
+        readonly id: "water-outline";
+        readonly label: "Agua / desinfectante";
+    }, {
+        readonly id: "air-filter";
+        readonly label: "Ambientadores";
+    }];
+}, {
+    readonly id: "belleza";
+    readonly titulo: "Belleza y cuidado personal";
+    readonly iconos: readonly [{
+        readonly id: "lipstick";
+        readonly label: "Maquillaje";
+    }, {
+        readonly id: "face-woman-shimmer-outline";
+        readonly label: "Cuidado facial";
+    }, {
+        readonly id: "lotion-outline";
+        readonly label: "Cremas";
+    }, {
+        readonly id: "lotion-plus-outline";
+        readonly label: "Cuidado de piel";
+    }, {
+        readonly id: "hair-dryer-outline";
+        readonly label: "Peluquería";
+    }, {
+        readonly id: "content-cut";
+        readonly label: "Barbería / tijeras";
+    }, {
+        readonly id: "razor-double-edge";
+        readonly label: "Afeitado";
+    }, {
+        readonly id: "toothbrush-paste";
+        readonly label: "Higiene oral";
+    }, {
+        readonly id: "shower-head";
+        readonly label: "Baño / ducha";
+    }, {
+        readonly id: "mirror";
+        readonly label: "Espejos / accesorios";
+    }, {
+        readonly id: "spa-outline";
+        readonly label: "Spa / relajación";
+    }, {
+        readonly id: "flower-outline";
+        readonly label: "Perfumes / fragancias";
+    }];
+}, {
+    readonly id: "salud";
+    readonly titulo: "Salud y farmacia";
+    readonly iconos: readonly [{
+        readonly id: "pill";
+        readonly label: "Medicamentos";
+    }, {
+        readonly id: "pill-multiple";
+        readonly label: "Vitaminas";
+    }, {
+        readonly id: "medical-bag";
+        readonly label: "Botiquín";
+    }, {
+        readonly id: "bandage";
+        readonly label: "Curitas / vendas";
+    }, {
+        readonly id: "thermometer";
+        readonly label: "Termómetros";
+    }, {
+        readonly id: "needle";
+        readonly label: "Inyectables";
+    }, {
+        readonly id: "heart-pulse";
+        readonly label: "Salud";
+    }, {
+        readonly id: "hospital-box-outline";
+        readonly label: "Droguería";
+    }, {
+        readonly id: "face-mask-outline";
+        readonly label: "Tapabocas";
+    }, {
+        readonly id: "glasses";
+        readonly label: "Óptica";
+    }];
+}, {
+    readonly id: "ropa";
+    readonly titulo: "Ropa y moda";
+    readonly iconos: readonly [{
+        readonly id: "tshirt-crew-outline";
+        readonly label: "Camisetas";
+    }, {
+        readonly id: "tshirt-v-outline";
+        readonly label: "Ropa";
+    }, {
+        readonly id: "hanger";
+        readonly label: "Prendas / percha";
+    }, {
+        readonly id: "shoe-sneaker";
+        readonly label: "Tenis";
+    }, {
+        readonly id: "shoe-heel";
+        readonly label: "Zapatos de tacón";
+    }, {
+        readonly id: "shoe-formal";
+        readonly label: "Zapatos formales";
+    }, {
+        readonly id: "hat-fedora";
+        readonly label: "Sombreros / gorras";
+    }, {
+        readonly id: "sunglasses";
+        readonly label: "Gafas de sol";
+    }, {
+        readonly id: "watch-variant";
+        readonly label: "Relojes";
+    }, {
+        readonly id: "purse-outline";
+        readonly label: "Bolsos";
+    }, {
+        readonly id: "wallet-outline";
+        readonly label: "Billeteras";
+    }, {
+        readonly id: "bag-personal-outline";
+        readonly label: "Morrales";
+    }, {
+        readonly id: "necklace";
+        readonly label: "Collares / bisutería";
+    }, {
+        readonly id: "ring";
+        readonly label: "Anillos";
+    }, {
+        readonly id: "diamond-stone";
+        readonly label: "Joyería";
+    }, {
+        readonly id: "tie";
+        readonly label: "Corbatas";
+    }, {
+        readonly id: "umbrella-outline";
+        readonly label: "Sombrillas";
+    }];
+}, {
+    readonly id: "bebes";
+    readonly titulo: "Bebés, niños y juguetes";
+    readonly iconos: readonly [{
+        readonly id: "baby-bottle-outline";
+        readonly label: "Teteros";
+    }, {
+        readonly id: "baby-carriage";
+        readonly label: "Coches de bebé";
+    }, {
+        readonly id: "baby-face-outline";
+        readonly label: "Bebés";
+    }, {
+        readonly id: "human-child";
+        readonly label: "Niños";
+    }, {
+        readonly id: "teddy-bear";
+        readonly label: "Peluches";
+    }, {
+        readonly id: "toy-brick-outline";
+        readonly label: "Juguetes";
+    }, {
+        readonly id: "puzzle-outline";
+        readonly label: "Rompecabezas";
+    }, {
+        readonly id: "robot-outline";
+        readonly label: "Juguetes electrónicos";
+    }, {
+        readonly id: "gamepad-variant-outline";
+        readonly label: "Videojuegos";
+    }];
+}, {
+    readonly id: "tecnologia";
+    readonly titulo: "Tecnología";
+    readonly iconos: readonly [{
+        readonly id: "cellphone";
+        readonly label: "Celulares";
+    }, {
+        readonly id: "tablet";
+        readonly label: "Tablets";
+    }, {
+        readonly id: "laptop";
+        readonly label: "Portátiles";
+    }, {
+        readonly id: "monitor";
+        readonly label: "Monitores";
+    }, {
+        readonly id: "desktop-tower-monitor";
+        readonly label: "Computadores";
+    }, {
+        readonly id: "headphones";
+        readonly label: "Audífonos";
+    }, {
+        readonly id: "speaker";
+        readonly label: "Parlantes";
+    }, {
+        readonly id: "television";
+        readonly label: "Televisores";
+    }, {
+        readonly id: "camera-outline";
+        readonly label: "Cámaras";
+    }, {
+        readonly id: "printer-outline";
+        readonly label: "Impresoras";
+    }, {
+        readonly id: "keyboard-outline";
+        readonly label: "Teclados";
+    }, {
+        readonly id: "mouse";
+        readonly label: "Mouse";
+    }, {
+        readonly id: "usb-flash-drive-outline";
+        readonly label: "Memorias USB";
+    }, {
+        readonly id: "battery-charging-outline";
+        readonly label: "Baterías / cargadores";
+    }, {
+        readonly id: "power-plug-outline";
+        readonly label: "Enchufes";
+    }, {
+        readonly id: "cable-data";
+        readonly label: "Cables";
+    }, {
+        readonly id: "router-wireless";
+        readonly label: "Redes / wifi";
+    }, {
+        readonly id: "sim-outline";
+        readonly label: "SIM / recargas";
+    }];
+}, {
+    readonly id: "hogar";
+    readonly titulo: "Hogar y decoración";
+    readonly iconos: readonly [{
+        readonly id: "home-outline";
+        readonly label: "Hogar";
+    }, {
+        readonly id: "sofa-outline";
+        readonly label: "Muebles";
+    }, {
+        readonly id: "bed-outline";
+        readonly label: "Habitación / ropa de cama";
+    }, {
+        readonly id: "lamp-outline";
+        readonly label: "Lámparas";
+    }, {
+        readonly id: "lightbulb-outline";
+        readonly label: "Bombillos";
+    }, {
+        readonly id: "silverware-variant";
+        readonly label: "Menaje / cubiertos";
+    }, {
+        readonly id: "pot-outline";
+        readonly label: "Ollas";
+    }, {
+        readonly id: "fridge-outline";
+        readonly label: "Electrodomésticos";
+    }, {
+        readonly id: "microwave";
+        readonly label: "Microondas";
+    }, {
+        readonly id: "blender-outline";
+        readonly label: "Licuadoras";
+    }, {
+        readonly id: "iron-outline";
+        readonly label: "Planchas";
+    }, {
+        readonly id: "fan";
+        readonly label: "Ventiladores";
+    }, {
+        readonly id: "curtains";
+        readonly label: "Cortinas";
+    }, {
+        readonly id: "flower-tulip-outline";
+        readonly label: "Flores / plantas";
+    }, {
+        readonly id: "candle";
+        readonly label: "Velas / decoración";
+    }, {
+        readonly id: "rug";
+        readonly label: "Tapetes";
+    }];
+}, {
+    readonly id: "ferreteria";
+    readonly titulo: "Ferretería y herramientas";
+    readonly iconos: readonly [{
+        readonly id: "hammer";
+        readonly label: "Martillos";
+    }, {
+        readonly id: "wrench-outline";
+        readonly label: "Llaves";
+    }, {
+        readonly id: "screwdriver";
+        readonly label: "Destornilladores";
+    }, {
+        readonly id: "toolbox-outline";
+        readonly label: "Herramientas";
+    }, {
+        readonly id: "tape-measure";
+        readonly label: "Metros";
+    }, {
+        readonly id: "saw-blade";
+        readonly label: "Sierras";
+    }, {
+        readonly id: "nail";
+        readonly label: "Puntillas / tornillos";
+    }, {
+        readonly id: "format-paint";
+        readonly label: "Pinturas";
+    }, {
+        readonly id: "brush-outline";
+        readonly label: "Brochas";
+    }, {
+        readonly id: "pipe-wrench";
+        readonly label: "Plomería";
+    }, {
+        readonly id: "flash-outline";
+        readonly label: "Eléctricos";
+    }, {
+        readonly id: "ladder";
+        readonly label: "Escaleras";
+    }, {
+        readonly id: "key-variant";
+        readonly label: "Llaves / cerrajería";
+    }, {
+        readonly id: "lock-outline";
+        readonly label: "Candados";
+    }];
+}, {
+    readonly id: "papeleria";
+    readonly titulo: "Papelería y oficina";
+    readonly iconos: readonly [{
+        readonly id: "pencil-outline";
+        readonly label: "Lápices";
+    }, {
+        readonly id: "pen";
+        readonly label: "Esferos";
+    }, {
+        readonly id: "notebook-outline";
+        readonly label: "Cuadernos";
+    }, {
+        readonly id: "book-open-variant";
+        readonly label: "Libros";
+    }, {
+        readonly id: "folder-outline";
+        readonly label: "Carpetas";
+    }, {
+        readonly id: "paperclip";
+        readonly label: "Clips / útiles";
+    }, {
+        readonly id: "scissors-cutting";
+        readonly label: "Tijeras";
+    }, {
+        readonly id: "palette-outline";
+        readonly label: "Arte / colores";
+    }, {
+        readonly id: "calculator-variant-outline";
+        readonly label: "Calculadoras";
+    }, {
+        readonly id: "file-document-outline";
+        readonly label: "Documentos / fotocopias";
+    }, {
+        readonly id: "bag-personal-outline";
+        readonly label: "Útiles escolares";
+    }];
+}, {
+    readonly id: "deportes";
+    readonly titulo: "Deportes y aire libre";
+    readonly iconos: readonly [{
+        readonly id: "soccer";
+        readonly label: "Fútbol";
+    }, {
+        readonly id: "basketball";
+        readonly label: "Baloncesto";
+    }, {
+        readonly id: "tennis";
+        readonly label: "Tenis";
+    }, {
+        readonly id: "volleyball";
+        readonly label: "Voleibol";
+    }, {
+        readonly id: "dumbbell";
+        readonly label: "Gimnasio";
+    }, {
+        readonly id: "bike";
+        readonly label: "Bicicletas";
+    }, {
+        readonly id: "run";
+        readonly label: "Running";
+    }, {
+        readonly id: "swim";
+        readonly label: "Natación";
+    }, {
+        readonly id: "tent";
+        readonly label: "Camping";
+    }, {
+        readonly id: "hook";
+        readonly label: "Pesca";
+    }];
+}, {
+    readonly id: "mascotas";
+    readonly titulo: "Mascotas";
+    readonly iconos: readonly [{
+        readonly id: "paw";
+        readonly label: "Mascotas";
+    }, {
+        readonly id: "dog";
+        readonly label: "Perros";
+    }, {
+        readonly id: "cat";
+        readonly label: "Gatos";
+    }, {
+        readonly id: "bone";
+        readonly label: "Snacks para mascotas";
+    }, {
+        readonly id: "bird";
+        readonly label: "Aves";
+    }, {
+        readonly id: "fish";
+        readonly label: "Peces";
+    }, {
+        readonly id: "rabbit";
+        readonly label: "Conejos";
+    }];
+}, {
+    readonly id: "fiestas";
+    readonly titulo: "Regalos y fiestas";
+    readonly iconos: readonly [{
+        readonly id: "gift-outline";
+        readonly label: "Regalos";
+    }, {
+        readonly id: "balloon";
+        readonly label: "Globos";
+    }, {
+        readonly id: "party-popper";
+        readonly label: "Fiestas";
+    }, {
+        readonly id: "cake-variant-outline";
+        readonly label: "Cumpleaños";
+    }, {
+        readonly id: "flower";
+        readonly label: "Flores";
+    }, {
+        readonly id: "wallet-giftcard";
+        readonly label: "Tarjetas de regalo";
+    }, {
+        readonly id: "ribbon";
+        readonly label: "Moños / empaques";
+    }, {
+        readonly id: "firework";
+        readonly label: "Pólvora / celebración";
+    }];
+}, {
+    readonly id: "vehiculos";
+    readonly titulo: "Vehículos";
+    readonly iconos: readonly [{
+        readonly id: "car-outline";
+        readonly label: "Carros";
+    }, {
+        readonly id: "motorbike";
+        readonly label: "Motos";
+    }, {
+        readonly id: "car-wrench";
+        readonly label: "Repuestos / taller";
+    }, {
+        readonly id: "oil";
+        readonly label: "Aceites";
+    }, {
+        readonly id: "tire";
+        readonly label: "Llantas";
+    }, {
+        readonly id: "car-battery";
+        readonly label: "Baterías";
+    }, {
+        readonly id: "gas-station-outline";
+        readonly label: "Combustible";
+    }];
+}, {
+    readonly id: "servicios";
+    readonly titulo: "Servicios y pagos";
+    readonly iconos: readonly [{
+        readonly id: "cellphone-arrow-down";
+        readonly label: "Recargas";
+    }, {
+        readonly id: "cash";
+        readonly label: "Efectivo";
+    }, {
+        readonly id: "credit-card-outline";
+        readonly label: "Tarjetas";
+    }, {
+        readonly id: "ticket-outline";
+        readonly label: "Boletas / rifas";
+    }, {
+        readonly id: "printer-outline";
+        readonly label: "Impresiones";
+    }, {
+        readonly id: "content-copy";
+        readonly label: "Fotocopias";
+    }, {
+        readonly id: "truck-fast-outline";
+        readonly label: "Envíos";
+    }, {
+        readonly id: "tools";
+        readonly label: "Reparaciones";
     }];
 }];

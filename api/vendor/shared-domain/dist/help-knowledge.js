@@ -65,14 +65,14 @@ exports.HELP_KNOWLEDGE_TOPICS = [
         id: 'inventario_interno',
         moduleId: 'admin_operacion',
         title: 'Inventario interno',
-        summary: 'Más → Bodega. Alta con «Nuevo producto / insumo». Reposición en la tarjeta con «Entrada de stock». El historial está en la pestaña Kardex.',
+        summary: 'Más → Inventario. Alta con «Nuevo artículo». Reposición en la tarjeta con «Entrada de stock». El historial está en la pestaña Kardex.',
         screenIds: ['inventario'],
         roles: ['admin'],
         relatedTargetIds: ['nav.recursos', 'inventario.agregar_item', 'inventario.movimiento_entrada'],
         faq: [
             {
                 q: '¿Cómo registro un producto nuevo?',
-                a: 'Bodega → Recursos → «Nuevo producto / insumo». Código, nombre, categoría y, si ya llegó mercadería, stock inicial.',
+                a: 'Inventario → «Nuevo artículo». Código, nombre, categoría y, si ya llegó mercadería, stock inicial.',
             },
             {
                 q: '¿Cómo sumo cantidad a uno que ya existe?',
@@ -80,7 +80,7 @@ exports.HELP_KNOWLEDGE_TOPICS = [
             },
             {
                 q: '¿Cuentas por pagar sube el inventario?',
-                a: 'No. La factura del proveedor es deuda. El stock solo cambia con una entrada en Bodega.',
+                a: 'No. La factura del proveedor es deuda. El stock solo cambia con una entrada en Inventario.',
             },
         ],
     },

@@ -76,18 +76,47 @@ function planificarDeduccionReceta(input) {
     for (const [id, a] of input.articulos) {
         articulosReceta.set(id, a);
     }
-    const r = (0, inventario_receta_1.calcularConsumoReceta)(input.receta, input.linea.cantidad, articulosReceta, input.recetas ?? new Map(), input.conversiones ?? []);
+    let elegidas;
+    let aplicadas = [];
+    if (input.sustituciones instanceof Map) {
+        elegidas = input.sustituciones;
+    }
+    else {
+        const auto = (0, inventario_receta_1.elegirSustitucionesPorStock)(input.receta, input.linea.cantidad, input.articulos, input.recetas ?? new Map(), input.conversiones ?? [], input.reservado ?? new Map());
+        elegidas = auto.elegidas;
+        aplicadas = auto.aplicadas;
+    }
+    const r = (0, inventario_receta_1.calcularConsumoReceta)(input.receta, input.linea.cantidad, articulosReceta, input.recetas ?? new Map(), input.conversiones ?? [], elegidas);
     if (!r.ok) {
         advertencias.push(...r.errores.map((e) => e.mensaje));
         return { evento: input.evento, movimientos: [], advertencias };
     }
-    const movimientos = r.movimientos.map((m) => ({
-        ...m,
-        id_pedido: input.id_pedido,
-        id_detalle_pedido: input.linea.id_detalle_pedido,
-        modulo_origen: 'cocina',
-    }));
-    return { evento: input.evento, movimientos, advertencias };
+    const nombre = (id) => input.articulos.get(id)?.nombre ?? `#${id}`;
+    const notaPorArticulo = new Map();
+    for (const a of aplicadas) {
+        if (a.id_sustituto != null) {
+            notaPorArticulo.set(a.id_sustituto, `Alterno de «${nombre(a.id_principal)}» (sin stock suficiente)`);
+        }
+        else {
+            const msg = `Sin stock de «${nombre(a.id_principal)}» ni alternos: quedó negativo`;
+            notaPorArticulo.set(a.id_principal, msg);
+            advertencias.push(msg);
+        }
+    }
+    const producto = input.linea.nombre_producto;
+    const movimientos = r.movimientos.map((m) => {
+        const nota = notaPorArticulo.get(m.id_articulo);
+        return {
+            ...m,
+            id_pedido: input.id_pedido,
+            id_detalle_pedido: input.linea.id_detalle_pedido,
+            modulo_origen: 'cocina',
+            observacion: nota
+                ? `${producto ? `${producto} · ` : ''}${nota}`
+                : producto ?? m.observacion,
+        };
+    });
+    return { evento: input.evento, movimientos, advertencias, sustituciones: aplicadas };
 }
 function articuloBajoMinimo(a) {
     return a.cantidad_actual <= a.cantidad_minima;

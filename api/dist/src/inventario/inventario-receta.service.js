@@ -13,6 +13,7 @@ exports.InventarioRecetaService = void 0;
 const common_1 = require("@nestjs/common");
 const inventario_costo_1 = require("@drewrest/shared-domain/inventario-costo");
 const inventario_receta_1 = require("@drewrest/shared-domain/inventario-receta");
+const inventario_unidades_1 = require("@drewrest/shared-domain/inventario-unidades");
 const prisma_service_1 = require("../prisma/prisma.service");
 const tenant_constants_1 = require("../tenant/tenant.constants");
 const deduccion_contexto_cache_1 = require("./deduccion-contexto-cache");
@@ -54,6 +55,7 @@ let InventarioRecetaService = class InventarioRecetaService {
                     idRestaurante: tenantId,
                     ...(lineas ? { idRecurso: { in: [...idsRec] } } : {}),
                 },
+                include: { presentaciones: { select: { nombre: true, factor: true } } },
             }),
         ]);
         const mapArt = new Map();
@@ -69,6 +71,7 @@ let InventarioRecetaService = class InventarioRecetaService {
                 id_articulo: r.idRecurso,
                 unidad_stock: r.unidad,
                 costo_unitario: Number(r.costo),
+                conversiones: (0, inventario_unidades_1.conversionesDePresentaciones)(r.unidad, r.presentaciones.map((p) => ({ nombre: p.nombre, factor: Number(p.factor) }))),
             });
         }
         return mapArt;
@@ -341,6 +344,16 @@ let InventarioRecetaService = class InventarioRecetaService {
         if (!producto?.activo) {
             throw new common_1.BadRequestException('Producto no disponible');
         }
+        const conversionesNegocio = await this.loadConversiones(this.prisma, tenantId);
+        const validarUnidad = (unidadLinea, unidadStock, nombre, propias = []) => {
+            const conv = (0, inventario_unidades_1.convertirCantidad)(1, unidadLinea.trim(), unidadStock, [
+                ...propias,
+                ...conversionesNegocio,
+            ]);
+            if (!conv.ok) {
+                throw new common_1.BadRequestException(`La unidad «${unidadLinea.trim()}» de la línea no se puede convertir a «${unidadStock}», que es la unidad de «${nombre}». Usa una unidad compatible o agrega la presentación al artículo en Inventario.`);
+            }
+        };
         for (const l of dto.lineas) {
             if (l.id_recurso == null &&
                 l.id_inventario == null &&
@@ -351,6 +364,7 @@ let InventarioRecetaService = class InventarioRecetaService {
             if (l.id_recurso != null) {
                 const rec = await this.prisma.recurso.findFirst({
                     where: { idRecurso: l.id_recurso, idRestaurante: tenantId },
+                    include: { presentaciones: { select: { nombre: true, factor: true } } },
                 });
                 if (!rec) {
                     throw new common_1.BadRequestException(`Recurso ${l.id_recurso} no encontrado`);
@@ -358,6 +372,7 @@ let InventarioRecetaService = class InventarioRecetaService {
                 if (!l.opcional && !(Number(rec.costo) > 0)) {
                     throw new common_1.BadRequestException(`El recurso «${rec.nombre}» no tiene precio/costo de compra. Registra una compra o define su costo antes de usarlo en la receta.`);
                 }
+                validarUnidad(l.unidad, rec.unidad, rec.nombre, (0, inventario_unidades_1.conversionesDePresentaciones)(rec.unidad, rec.presentaciones.map((p) => ({ nombre: p.nombre, factor: Number(p.factor) }))));
             }
             if (l.id_inventario != null) {
                 const art = await this.prisma.inventario.findFirst({
@@ -369,6 +384,31 @@ let InventarioRecetaService = class InventarioRecetaService {
                 if (!l.opcional &&
                     !(art.costoUnitario != null && Number(art.costoUnitario) > 0)) {
                     throw new common_1.BadRequestException(`El ingrediente «${art.ingrediente}» no tiene costo de compra definido.`);
+                }
+                if (l.id_recurso == null)
+                    validarUnidad(l.unidad, art.unidad, art.ingrediente);
+            }
+            if (l.sustituciones?.length) {
+                if (l.id_recurso == null) {
+                    throw new common_1.BadRequestException('Los ingredientes alternos solo aplican a líneas con un artículo de inventario.');
+                }
+                const vistos = new Set();
+                for (const s of l.sustituciones) {
+                    if (s.id_articulo === l.id_recurso) {
+                        throw new common_1.BadRequestException('Un ingrediente no puede ser alterno de sí mismo.');
+                    }
+                    if (vistos.has(s.id_articulo)) {
+                        throw new common_1.BadRequestException('Hay un ingrediente alterno repetido en la misma línea.');
+                    }
+                    vistos.add(s.id_articulo);
+                    const alt = await this.prisma.recurso.findFirst({
+                        where: { idRecurso: s.id_articulo, idRestaurante: tenantId },
+                        include: { presentaciones: { select: { nombre: true, factor: true } } },
+                    });
+                    if (!alt) {
+                        throw new common_1.BadRequestException(`Ingrediente alterno ${s.id_articulo} no encontrado`);
+                    }
+                    validarUnidad(l.unidad, alt.unidad, alt.nombre, (0, inventario_unidades_1.conversionesDePresentaciones)(alt.unidad, alt.presentaciones.map((p) => ({ nombre: p.nombre, factor: Number(p.factor) }))));
                 }
             }
             if (l.id_subreceta != null) {

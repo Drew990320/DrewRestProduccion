@@ -10,6 +10,7 @@ exports.RecursosModule = void 0;
 const common_1 = require("@nestjs/common");
 const tenant_module_1 = require("../tenant/tenant.module");
 const inventario_module_1 = require("../inventario/inventario.module");
+const pedidos_module_1 = require("../pedidos/pedidos.module");
 const recursos_controller_1 = require("./recursos.controller");
 const recursos_migracion_service_1 = require("./recursos-migracion.service");
 const recursos_service_1 = require("./recursos.service");
@@ -18,7 +19,11 @@ let RecursosModule = class RecursosModule {
 exports.RecursosModule = RecursosModule;
 exports.RecursosModule = RecursosModule = __decorate([
     (0, common_1.Module)({
-        imports: [tenant_module_1.TenantModule, (0, common_1.forwardRef)(() => inventario_module_1.InventarioModule)],
+        imports: [
+            tenant_module_1.TenantModule,
+            (0, common_1.forwardRef)(() => inventario_module_1.InventarioModule),
+            (0, common_1.forwardRef)(() => pedidos_module_1.PedidosModule),
+        ],
         controllers: [recursos_controller_1.RecursosController],
         providers: [recursos_service_1.RecursosService, recursos_migracion_service_1.RecursosMigracionService],
         exports: [recursos_service_1.RecursosService, recursos_migracion_service_1.RecursosMigracionService],

@@ -45,7 +45,7 @@ async function buildFacturaEscPos(ticket, charWidthOrOpts = escpos_utils_1.DEFAU
     const flags = flagsParaTicket(ticket);
     await (0, escpos_utils_1.applyEscPosTicketStart)(printer, opts);
     if (ticketLlevaLogoCliente(ticket, flags)) {
-        await (0, escpos_utils_1.printEncabezadoRestaurante)(printer, w);
+        await (0, escpos_utils_1.printEncabezadoRestaurante)(printer, w, ticket.tienda, opts.papelMm);
     }
     else {
         await printer.alignCenter();
@@ -59,6 +59,11 @@ async function buildFacturaEscPos(ticket, charWidthOrOpts = escpos_utils_1.DEFAU
     else if (ticket.copia_destinatario === 'cliente') {
         await printer.bold(true);
         await printer.println('*** COPIA CLIENTE ***');
+        await printer.bold(false);
+    }
+    if (ticket.es_registro_posterior) {
+        await printer.bold(true);
+        await printer.println('*** REGISTRO POSTERIOR ***');
         await printer.bold(false);
     }
     if (ticket.es_reimpresion) {
@@ -108,7 +113,7 @@ async function buildFacturaEscPos(ticket, charWidthOrOpts = escpos_utils_1.DEFAU
     if (ticket.id_factura != null) {
         await printer.println(`Factura #${ticket.id_factura}`);
     }
-    if (flags.comensales) {
+    if (flags.comensales && !ticket.tienda) {
         await printer.println(`Comensales: ${ticket.num_comensales}`);
     }
     if (flags.mesero && ticket.mesero?.trim()) {
@@ -131,16 +136,7 @@ async function buildFacturaEscPos(ticket, charWidthOrOpts = escpos_utils_1.DEFAU
                 }
             }
             else {
-                const precio = (0, escpos_utils_1.formatCopEscPos)(linea.subtotal_linea);
-                if (titulo.length + 1 + precio.length <= w) {
-                    await printer.println((0, escpos_utils_1.lineaConPrecio)(titulo, precio, w));
-                }
-                else {
-                    for (const tl of (0, escpos_utils_1.wrapEscPos)(titulo, w)) {
-                        await printer.println(tl);
-                    }
-                    await printer.println((0, escpos_utils_1.lineaConPrecio)('', precio, w));
-                }
+                await printer.println((0, escpos_utils_1.lineaConPrecio)(titulo, (0, escpos_utils_1.formatCopEscPos)(linea.subtotal_linea), w));
             }
             for (const p of linea.personalizaciones) {
                 for (const line of (0, escpos_utils_1.wrapEscPos)(`  · ${p}`, w)) {

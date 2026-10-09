@@ -8,6 +8,12 @@ exports.definicionUnidad = definicionUnidad;
 exports.mismaDimension = mismaDimension;
 exports.convertirCantidad = convertirCantidad;
 exports.redondearInventario = redondearInventario;
+exports.esUnidadBaseValida = esUnidadBaseValida;
+exports.esUnidadEmpaque = esUnidadEmpaque;
+exports.unidadCanonica = unidadCanonica;
+exports.conversionesDePresentaciones = conversionesDePresentaciones;
+exports.unidadesCompatibles = unidadesCompatibles;
+exports.desglosePresentacion = desglosePresentacion;
 const UNIDADES = {
     mg: { codigo: 'mg', dimension: 'masa', factor_base: 0.001 },
     g: { codigo: 'g', dimension: 'masa', factor_base: 1 },
@@ -117,4 +123,82 @@ function convertirCantidad(cantidad, desde, hacia, conversiones = []) {
 /** Redondeo estable para inventario (3 decimales). */
 function redondearInventario(n) {
     return Math.round(n * 1000) / 1000;
+}
+/**
+ * Unidad en la que se guarda el stock y descuentan las recetas: una medida real
+ * (masa, volumen o conteo). Los empaques van como presentaciones del artículo.
+ */
+function esUnidadBaseValida(unidad) {
+    const def = definicionUnidad(unidad);
+    return def != null && def.dimension !== 'empaque';
+}
+function esUnidadEmpaque(unidad) {
+    return definicionUnidad(unidad)?.dimension === 'empaque';
+}
+/** Forma canónica de una unidad conocida (gramos → g); si no se conoce, la deja limpia. */
+function unidadCanonica(unidad) {
+    return definicionUnidad(unidad)?.codigo ?? unidad.trim();
+}
+/** Las presentaciones de un artículo como reglas de conversión hacia su unidad base. */
+function conversionesDePresentaciones(unidadBase, presentaciones) {
+    return presentaciones
+        .filter((p) => p.factor > 0 && p.nombre.trim())
+        .map((p) => ({
+        unidad_origen: p.nombre,
+        unidad_destino: unidadBase,
+        factor: p.factor,
+    }));
+}
+/**
+ * Unidades que puede usar una receta o una entrada para este artículo:
+ * la base, las de su misma dimensión (g ↔ kg) y sus presentaciones.
+ */
+function unidadesCompatibles(unidadBase, presentaciones = []) {
+    const out = [unidadCanonica(unidadBase)];
+    const def = definicionUnidad(unidadBase);
+    if (def && def.dimension !== 'empaque') {
+        const vistos = new Set(out);
+        for (const u of Object.values(UNIDADES)) {
+            if (u.dimension === def.dimension && !vistos.has(u.codigo)) {
+                vistos.add(u.codigo);
+                out.push(u.codigo);
+            }
+        }
+    }
+    for (const p of presentaciones) {
+        if (p.factor > 0 && p.nombre.trim() && !out.includes(p.nombre.trim())) {
+            out.push(p.nombre.trim());
+        }
+    }
+    return out;
+}
+function pluralPresentacion(nombre, n) {
+    const base = nombre.trim().toLowerCase();
+    if (n === 1)
+        return base;
+    if (/[aeiouáéó]$/.test(base))
+        return `${base}s`;
+    if (/[^s]$/.test(base))
+        return `${base}es`;
+    return base;
+}
+/**
+ * Stock expresado en la presentación más grande que cabe:
+ * 34 u con «Paquete» = 10 → «3 paquetes + 4 u». Null si no aplica.
+ */
+function desglosePresentacion(stock, unidadBase, presentaciones) {
+    if (!(stock > 0))
+        return null;
+    const candidatas = presentaciones
+        .filter((p) => p.factor > 1 && stock >= p.factor)
+        .sort((a, b) => b.factor - a.factor);
+    const p = candidatas[0];
+    if (!p)
+        return null;
+    const enteras = Math.floor(redondearInventario(stock / p.factor));
+    const resto = redondearInventario(stock - enteras * p.factor);
+    const texto = `${enteras} ${pluralPresentacion(p.nombre, enteras)}`;
+    if (resto <= 0)
+        return texto;
+    return `${texto} + ${resto.toLocaleString('es-CO', { maximumFractionDigits: 3 })} ${unidadCanonica(unidadBase)}`;
 }

@@ -16,6 +16,7 @@ exports.ProductosService = void 0;
 const common_1 = require("@nestjs/common");
 const stock_producto_1 = require("@drewrest/shared-domain/stock-producto");
 const prisma_service_1 = require("../prisma/prisma.service");
+const stock_auditoria_1 = require("../common/stock-auditoria");
 const pedidos_gateway_1 = require("../pedidos/pedidos.gateway");
 const pedidos_service_1 = require("../pedidos/pedidos.service");
 const tenant_constants_1 = require("../tenant/tenant.constants");
@@ -288,7 +289,7 @@ let ProductosService = class ProductosService {
         this.gateway.emitConfigActualizada('menu', tenantId);
         return mapProducto(created);
     }
-    async actualizar(idProducto, dto, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
+    async actualizar(idProducto, dto, tenantId = tenant_constants_1.DEFAULT_TENANT_ID, actor) {
         const existing = await this.prisma.producto.findFirst({
             where: { idProducto, categoria: { idRestaurante: tenantId } },
             include: { categoria: true },
@@ -296,6 +297,11 @@ let ProductosService = class ProductosService {
         if (!existing) {
             throw new common_1.NotFoundException('Producto no encontrado');
         }
+        const stockNuevo = dto.stock_disponible != null ? Math.round(dto.stock_disponible) : null;
+        const cambiaStock = stockNuevo != null && stockNuevo !== existing.stockDisponible;
+        const nombreAdmin = cambiaStock
+            ? await (0, stock_auditoria_1.exigirPasswordAdmin)(this.prisma, actor, dto.password_admin, 'cambiar el stock')
+            : null;
         let cat = existing.categoria;
         if (dto.id_categoria != null) {
             const nueva = await this.prisma.categoria.findUnique({
@@ -425,15 +431,27 @@ let ProductosService = class ProductosService {
                     : dto.control_stock != null
                         ? { controlStock: dto.control_stock }
                         : {}),
-                ...(dto.stock_disponible != null
-                    ? { stockDisponible: Math.round(dto.stock_disponible) }
-                    : {}),
+                ...(cambiaStock ? { stockDisponible: stockNuevo } : {}),
                 ...(dto.ocultar_sin_stock != null
                     ? { ocultarSinStock: dto.ocultar_sin_stock }
                     : {}),
             },
             include: { categoria: { select: { nombre: true, esBebida: true, codigoMenu: true } } },
         });
+        if (cambiaStock && actor && nombreAdmin) {
+            await (0, stock_auditoria_1.registrarAuditoriaStock)(this.prisma, {
+                idRestaurante: tenantId,
+                accion: 'ajuste_stock',
+                origen: 'menu',
+                idReferencia: idProducto,
+                nombre: existing.nombre,
+                stockAnterior: existing.stockDisponible,
+                stockNuevo,
+                motivo: dto.motivo_ajuste_stock,
+                idUsuario: actor.idUsuario,
+                nombreUsuario: nombreAdmin,
+            });
+        }
         if (!esCombo && existing.esCombo) {
             await this.prisma.productoComboElegible.deleteMany({
                 where: { idProductoCombo: idProducto },

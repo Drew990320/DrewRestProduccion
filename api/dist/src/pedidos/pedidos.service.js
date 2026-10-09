@@ -76,6 +76,18 @@ const detalleInclude = {
 const facturasInclude = {
     orderBy: { emitidaEn: 'asc' },
 };
+const tiendaTicketSelect = {
+    select: { nombre: true, etiqueta: true, logoArchivo: true },
+};
+function tiendaTicketDePedido(p) {
+    const t = p.tienda;
+    if (!t)
+        return undefined;
+    return {
+        nombre: t.etiqueta?.trim() || t.nombre,
+        logo_archivo: t.logoArchivo ?? null,
+    };
+}
 function detalleAplicaImpoconsumo(d) {
     return d.producto.categoria.aplicaImpoconsumo && !d.producto.esCuotaPendienteReparto;
 }
@@ -737,6 +749,150 @@ let PedidosService = class PedidosService {
             impresion_cierre: impresion,
         };
     }
+    resolverFechaVentaRetroactiva(fecha, actor) {
+        const raw = fecha?.trim();
+        if (!raw)
+            return null;
+        if (actor.rol.nombre !== 'admin' && actor.rol.nombre !== 'superadmin') {
+            throw new common_1.ForbiddenException('Solo el administrador puede registrar ventas en otra fecha');
+        }
+        const ahora = luxon_1.DateTime.now().setZone('America/Bogota');
+        const dia = luxon_1.DateTime.fromISO(raw, { zone: 'America/Bogota' });
+        if (!dia.isValid) {
+            throw new common_1.BadRequestException('Fecha de venta inválida, usa YYYY-MM-DD');
+        }
+        if (dia.hasSame(ahora, 'day'))
+            return null;
+        if (dia > ahora) {
+            throw new common_1.BadRequestException('Solo se pueden registrar ventas en fechas pasadas');
+        }
+        return dia
+            .set({ hour: ahora.hour, minute: ahora.minute, second: ahora.second })
+            .toJSDate();
+    }
+    async aplicarFechaVentaRetroactivaEnTx(tx, idPedido, fecha, cerrado) {
+        const p = await tx.pedido.findUnique({
+            where: { idPedido },
+            select: { creadoEn: true },
+        });
+        await tx.pedido.update({
+            where: { idPedido },
+            data: {
+                ...(p && p.creadoEn > fecha ? { creadoEn: fecha } : {}),
+                ...(cerrado ? { cerradoEn: fecha } : {}),
+            },
+        });
+        await tx.cuentaCredito.updateMany({
+            where: { idPedido, creadoEn: { gt: fecha } },
+            data: { creadoEn: fecha },
+        });
+        await tx.movimientoCaja.updateMany({
+            where: {
+                idPedido,
+                idFactura: { not: null },
+                fecha: this.fechaCalendarioBogota(luxon_1.DateTime.now().setZone('America/Bogota')),
+            },
+            data: {
+                fecha: this.fechaCalendarioBogota(luxon_1.DateTime.fromJSDate(fecha).setZone('America/Bogota')),
+            },
+        });
+    }
+    async moverFacturasAFecha(dto, fechaOrigen) {
+        const ids = [...new Set(dto.id_facturas)].filter((id) => id > 0);
+        if (ids.length === 0) {
+            throw new common_1.BadRequestException('Selecciona al menos una factura');
+        }
+        const ahora = luxon_1.DateTime.now().setZone('America/Bogota');
+        const destino = luxon_1.DateTime.fromISO(dto.fecha_destino, {
+            zone: 'America/Bogota',
+        }).startOf('day');
+        if (!destino.isValid) {
+            throw new common_1.BadRequestException('Fecha destino inválida, usa YYYY-MM-DD');
+        }
+        if (destino > ahora.endOf('day')) {
+            throw new common_1.BadRequestException('No se pueden mover facturas a fechas futuras');
+        }
+        const { base } = this.parseFechaResumenBogota(fechaOrigen);
+        if (destino.hasSame(base, 'day')) {
+            throw new common_1.BadRequestException('Las facturas ya están en esa fecha');
+        }
+        const resumen = await this.resumenDiario(fechaOrigen, { incluirLineas: false });
+        const validas = new Set(resumen.pedidos_detalle.map((p) => p.id_factura));
+        if (ids.some((id) => !validas.has(id))) {
+            throw new common_1.BadRequestException('Hay facturas seleccionadas que no pertenecen a esta fecha');
+        }
+        const alDestino = (d) => {
+            const t = luxon_1.DateTime.fromJSDate(d).setZone('America/Bogota');
+            return destino
+                .set({ hour: t.hour, minute: t.minute, second: t.second, millisecond: t.millisecond })
+                .toJSDate();
+        };
+        const fechaDestinoDate = this.fechaCalendarioBogota(destino);
+        const fechaAsiento = new Date(`${destino.toFormat('yyyy-LL-dd')}T12:00:00.000Z`);
+        const movidas = await this.prisma.$transaction(async (tx) => {
+            const facturas = await tx.factura.findMany({
+                where: { idFactura: { in: ids } },
+                select: { idFactura: true, idPedido: true, emitidaEn: true },
+            });
+            for (const f of facturas) {
+                await tx.factura.update({
+                    where: { idFactura: f.idFactura },
+                    data: { emitidaEn: alDestino(f.emitidaEn) },
+                });
+            }
+            const creditos = await tx.cuentaCredito.findMany({
+                where: { idFactura: { in: ids } },
+                select: { idCredito: true, creadoEn: true },
+            });
+            for (const c of creditos) {
+                await tx.cuentaCredito.update({
+                    where: { idCredito: c.idCredito },
+                    data: { creadoEn: alDestino(c.creadoEn) },
+                });
+            }
+            await tx.movimientoCaja.updateMany({
+                where: { idFactura: { in: ids } },
+                data: { fecha: fechaDestinoDate },
+            });
+            await tx.asientoContable.updateMany({
+                where: {
+                    origenModulo: 'pedidos',
+                    origenTipo: 'factura',
+                    origenId: { in: ids },
+                },
+                data: { fecha: fechaAsiento },
+            });
+            const idPedidos = [...new Set(facturas.map((f) => f.idPedido))];
+            for (const idPedido of idPedidos) {
+                const todas = await tx.factura.findMany({
+                    where: { idPedido },
+                    select: { emitidaEn: true },
+                });
+                const p = await tx.pedido.findUnique({
+                    where: { idPedido },
+                    select: { creadoEn: true, cerradoEn: true },
+                });
+                if (!p)
+                    continue;
+                const primera = todas.reduce((min, f) => (f.emitidaEn < min ? f.emitidaEn : min), todas[0]?.emitidaEn ?? p.creadoEn);
+                const ultima = todas.reduce((max, f) => (f.emitidaEn > max ? f.emitidaEn : max), todas[0]?.emitidaEn ?? p.creadoEn);
+                const creadoMovido = alDestino(p.creadoEn);
+                const creadoEn = creadoMovido < primera ? creadoMovido : primera;
+                await tx.pedido.update({
+                    where: { idPedido },
+                    data: {
+                        creadoEn,
+                        ...(p.cerradoEn ? { cerradoEn: ultima } : {}),
+                    },
+                });
+            }
+            return facturas.length;
+        });
+        return {
+            facturas_movidas: movidas,
+            fecha_destino: destino.toFormat('yyyy-LL-dd'),
+        };
+    }
     async postearVentaContableEnTx(tx, input) {
         const evento = input.metodoPago === 'efectivo'
             ? 'venta_contado_efectivo'
@@ -750,7 +906,7 @@ let PedidosService = class PedidosService {
                 tenantId: input.tenantId,
                 evento,
                 monto: Number(input.total),
-                fecha: new Date(),
+                fecha: input.fecha ?? new Date(),
                 origen: { modulo: 'pedidos', tipo: 'factura', id: input.idFactura },
                 idDocumento: `factura:${input.idFactura}:${evento}`,
                 idUsuario: input.idUsuario,
@@ -1141,11 +1297,13 @@ let PedidosService = class PedidosService {
         let moduloRedondeo = false;
         let moduloEnvioCorreo = false;
         let moduloImpoconsumo = false;
+        let moduloRetail = false;
         const cachedRest = (0, config_restaurante_cache_1.getCachedConfigRestaurante)(tenantId);
         if (cachedRest) {
             moduloRedondeo = cachedRest.moduloRedondeoCobroActivo;
             moduloEnvioCorreo = cachedRest.moduloEnvioCorreoActivo;
             moduloImpoconsumo = cachedRest.moduloImpoconsumoActivo;
+            moduloRetail = cachedRest.moduloRetailActivo;
         }
         else {
             const cfg = await this.prisma.configRestaurante.findUnique({
@@ -1154,11 +1312,13 @@ let PedidosService = class PedidosService {
                     moduloRedondeoCobroActivo: true,
                     moduloEnvioCorreoActivo: true,
                     moduloImpoconsumoActivo: true,
+                    moduloRetailActivo: true,
                 },
             });
             moduloRedondeo = cfg?.moduloRedondeoCobroActivo ?? false;
             moduloEnvioCorreo = cfg?.moduloEnvioCorreoActivo ?? false;
             moduloImpoconsumo = cfg?.moduloImpoconsumoActivo ?? false;
+            moduloRetail = cfg?.moduloRetailActivo ?? false;
         }
         return {
             ...mapped,
@@ -1170,6 +1330,7 @@ let PedidosService = class PedidosService {
             modulo_redondeo_cobro_activo: moduloRedondeo,
             modulo_envio_correo_activo: moduloEnvioCorreo,
             modulo_impoconsumo_activo: moduloImpoconsumo,
+            modulo_retail_activo: moduloRetail,
         };
     }
     async tarifaImpoconsumo(tenantId) {
@@ -4236,6 +4397,7 @@ let PedidosService = class PedidosService {
                     orderBy: { idDetalle: 'asc' },
                 },
                 facturas: facturasInclude,
+                tienda: tiendaTicketSelect,
             },
         });
         if (!p) {
@@ -4277,6 +4439,7 @@ let PedidosService = class PedidosService {
                         orderBy: { idDetalle: 'asc' },
                     },
                     facturas: facturasInclude,
+                    tienda: tiendaTicketSelect,
                 },
             });
             if (!p) {
@@ -4556,8 +4719,10 @@ let PedidosService = class PedidosService {
         let idProductoVariante = null;
         let precioVenta;
         if (esRetail) {
-            if (actor.rol.nombre !== 'admin' && actor.rol.nombre !== 'superadmin') {
-                throw new common_1.ForbiddenException('Solo el administrador puede vender productos de tienda');
+            if (actor.rol.nombre !== 'admin' &&
+                actor.rol.nombre !== 'superadmin' &&
+                actor.rol.nombre !== 'mesero') {
+                throw new common_1.ForbiddenException('Solo el administrador o el mesero pueden vender productos de tienda');
             }
             const mesa = await this.prisma.mesa.findUnique({
                 where: { idMesa: pedido.idMesa },
@@ -6555,7 +6720,10 @@ let PedidosService = class PedidosService {
             id_pedido: completo.id_pedido,
             id_factura: factura.id_factura,
             mesa_numero: completo.mesa_numero,
-            mesa_etiqueta: (0, comanda_ticket_1.etiquetaMesaComanda)(completo.mesa_numero),
+            mesa_etiqueta: completo.tienda_ticket
+                ? 'Venta tienda'
+                : (0, comanda_ticket_1.etiquetaMesaComanda)(completo.mesa_numero),
+            tienda: completo.tienda_ticket,
             num_comensales: completo.num_comensales,
             mesero: meseroStr,
             modo_servicio: completo.modo_servicio,
@@ -6593,7 +6761,10 @@ let PedidosService = class PedidosService {
         return {
             id_pedido: completo.id_pedido,
             mesa_numero: completo.mesa_numero,
-            mesa_etiqueta: (0, comanda_ticket_1.etiquetaMesaComanda)(completo.mesa_numero),
+            mesa_etiqueta: completo.tienda_ticket
+                ? 'Venta tienda'
+                : (0, comanda_ticket_1.etiquetaMesaComanda)(completo.mesa_numero),
+            tienda: completo.tienda_ticket,
             num_comensales: completo.num_comensales,
             mesero: meseroStr,
             modo_servicio: completo.modo_servicio,
@@ -6624,7 +6795,10 @@ let PedidosService = class PedidosService {
         return {
             id_pedido: completo.id_pedido,
             mesa_numero: completo.mesa_numero,
-            mesa_etiqueta: (0, comanda_ticket_1.etiquetaMesaComanda)(completo.mesa_numero),
+            mesa_etiqueta: completo.tienda_ticket
+                ? 'Venta tienda'
+                : (0, comanda_ticket_1.etiquetaMesaComanda)(completo.mesa_numero),
+            tienda: completo.tienda_ticket,
             num_comensales: completo.num_comensales,
             mesero: meseroStr,
             modo_servicio: completo.modo_servicio,
@@ -7201,6 +7375,7 @@ let PedidosService = class PedidosService {
     async facturar(idPedido, dto, actor) {
         await this.exigirPermisoMesero(actor, 'cobrar');
         const idUsuario = actor.idUsuario;
+        const fechaVenta = this.resolverFechaVentaRetroactiva(dto.fecha_venta, actor);
         const pedido = await this.prisma.pedido.findUnique({
             where: { idPedido },
             include: {
@@ -7370,6 +7545,7 @@ let PedidosService = class PedidosService {
                         ...this.planFacturaDataFromDto(dto),
                         cobroMixtoGrupo: dto.cobro_mixto_grupo ?? null,
                         detalleExcesoCobro: detalleExcesoJson,
+                        ...(fechaVenta ? { emitidaEn: fechaVenta } : {}),
                     },
                 });
                 idFacturaCreada = factura.idFactura;
@@ -7415,6 +7591,7 @@ let PedidosService = class PedidosService {
                     metodoPago: dto.metodo_pago,
                     total,
                     idUsuario,
+                    fecha: fechaVenta,
                 });
                 await this.marcarPlatosRealesCobradosSiSaldoLiquidadoEnTx(tx, idPedido, factura.idFactura, {
                     sobreTotal: dto.plan_personas_sobre_total === true,
@@ -7448,6 +7625,9 @@ let PedidosService = class PedidosService {
                             origenAutoservicio: Boolean(pedido.origenAutoservicio),
                             idUsuario,
                         });
+                }
+                if (fechaVenta) {
+                    await this.aplicarFechaVentaRetroactivaEnTx(tx, idPedido, fechaVenta, !esParcial);
                 }
             }, prisma_lock_1.TX_COBRO);
         }
@@ -7489,6 +7669,8 @@ let PedidosService = class PedidosService {
                 if (tel)
                     ticketFactura.fiado_telefono = tel;
             }
+            if (fechaVenta)
+                ticketFactura.es_registro_posterior = true;
             impresionFactura = this.encolarImpresionYCajonTrasCobro({
                 idPedido,
                 ticket: ticketFactura,
@@ -7510,6 +7692,7 @@ let PedidosService = class PedidosService {
     async facturarMixto(idPedido, dto, actor) {
         await this.exigirPermisoMesero(actor, 'cobrar');
         const idUsuario = actor.idUsuario;
+        const fechaVenta = this.resolverFechaVentaRetroactiva(dto.fecha_venta, actor);
         const pedido = await this.prisma.pedido.findUnique({
             where: { idPedido },
             include: {
@@ -7714,6 +7897,7 @@ let PedidosService = class PedidosService {
                     ...this.planFacturaDataFromDto(dto),
                     cobroMixtoGrupo: grupo,
                     detalleExcesoCobro: detalleExcesoJson,
+                    ...(fechaVenta ? { emitidaEn: fechaVenta } : {}),
                 },
             });
             const pedidoDet = await tx.pedido.findUnique({
@@ -7770,6 +7954,7 @@ let PedidosService = class PedidosService {
                 metodoPago: metodo,
                 total: importesForzados.total,
                 idUsuario,
+                fecha: fechaVenta,
             });
             return factura.idFactura;
         };
@@ -7881,6 +8066,9 @@ let PedidosService = class PedidosService {
                             idUsuario,
                         });
                 }
+                if (fechaVenta) {
+                    await this.aplicarFechaVentaRetroactivaEnTx(tx, idPedido, fechaVenta, !esParcial);
+                }
             }, prisma_lock_1.TX_COBRO);
         }
         catch (e) {
@@ -7916,6 +8104,8 @@ let PedidosService = class PedidosService {
         let impresionFactura = { impreso: false, omitido: true };
         if (imprimir) {
             const ticketFactura = this.construirTicketFactura(completo, idFacturaImprimir, false, detalleExcesoCobro);
+            if (fechaVenta)
+                ticketFactura.es_registro_posterior = true;
             impresionFactura = this.encolarImpresionYCajonTrasCobro({
                 idPedido,
                 ticket: ticketFactura,
@@ -8949,6 +9139,7 @@ let PedidosService = class PedidosService {
             id_pedido: p.idPedido,
             id_mesa: p.idMesa,
             id_tienda: p.idTienda ?? null,
+            tienda_ticket: tiendaTicketDePedido(p),
             mesa_numero: p.mesa.numero,
             estado: p.estado,
             modo_servicio: p.modoServicio,

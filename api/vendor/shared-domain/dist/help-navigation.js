@@ -118,7 +118,7 @@ const SCREEN_DESTINATIONS = {
     inventario: {
         screenId: 'inventario',
         route: '/(app)/recursos',
-        title: 'Bodega',
+        title: 'Inventario',
         navTarget: 'nav.recursos',
     },
     compras: {

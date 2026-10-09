@@ -43,8 +43,8 @@ let ProductosController = class ProductosController {
     ingresoStock(id, dto, tenantId, req) {
         return this.productos.ingresoStockRapido(id, dto, tenantId, req.user?.idUsuario);
     }
-    actualizar(id, dto, tenantId) {
-        return this.productos.actualizar(id, dto, tenantId);
+    actualizar(id, dto, tenantId, req) {
+        return this.productos.actualizar(id, dto, tenantId, req.user);
     }
     eliminar(id, tenantId) {
         return this.productos.eliminarPermanente(id, tenantId);
@@ -97,8 +97,9 @@ __decorate([
     __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
     __param(1, (0, common_1.Body)()),
     __param(2, (0, current_tenant_decorator_1.CurrentTenantId)()),
+    __param(3, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Number, update_producto_dto_1.UpdateProductoDto, Number]),
+    __metadata("design:paramtypes", [Number, update_producto_dto_1.UpdateProductoDto, Number, Object]),
     __metadata("design:returntype", void 0)
 ], ProductosController.prototype, "actualizar", null);
 __decorate([

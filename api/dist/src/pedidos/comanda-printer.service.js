@@ -83,6 +83,7 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
     layoutOptsForDestino(destino) {
         return {
             charWidth: this.charWidthForDestino(destino),
+            papelMm: (0, impresora_papel_ancho_1.normalizarAnchoPapelMm)(destino.ancho_papel_mm ?? (0, impresora_papel_ancho_1.papelMmDesdeChars)(this.charWidthLegacy())),
             tamanoFuente: destino.tamano_fuente ?? 1,
             margenInicioLineas: destino.margen_inicio_lineas ?? 0,
             margenFinLineas: destino.margen_fin_lineas ?? 2,

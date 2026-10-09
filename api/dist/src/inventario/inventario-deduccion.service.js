@@ -8,6 +8,7 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
+var InventarioDeduccionService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.InventarioDeduccionService = void 0;
 const common_1 = require("@nestjs/common");
@@ -26,10 +27,11 @@ const recursos_service_1 = require("../recursos/recursos.service");
 const config_inventario_cache_1 = require("./config-inventario-cache");
 const deduccion_contexto_cache_1 = require("./deduccion-contexto-cache");
 const config_restaurante_cache_1 = require("../restaurante/config-restaurante-cache");
-let InventarioDeduccionService = class InventarioDeduccionService {
+let InventarioDeduccionService = InventarioDeduccionService_1 = class InventarioDeduccionService {
     prisma;
     recursosMigracion;
     recursosSvc;
+    logger = new common_1.Logger(InventarioDeduccionService_1.name);
     constructor(prisma, recursosMigracion, recursosSvc) {
         this.prisma = prisma;
         this.recursosMigracion = recursosMigracion;
@@ -236,6 +238,7 @@ let InventarioDeduccionService = class InventarioDeduccionService {
             cantidad_minima: this.qty(row.stockMin),
             costo_unitario: Number(row.costo),
             id_producto: row.idProducto ?? undefined,
+            conversiones: (0, inventario_unidades_1.conversionesDePresentaciones)(row.unidad, (row.presentaciones ?? []).map((p) => ({ nombre: p.nombre, factor: Number(p.factor) }))),
         };
     }
     async cargarContextoDeduccion(tx, tenantId, productIds) {
@@ -247,7 +250,10 @@ let InventarioDeduccionService = class InventarioDeduccionService {
         const [recursosRows, inventariosRows, conversionesRows, recetasRows] = await Promise.all([
             tx.recurso.findMany({
                 where: { idRestaurante: tenantId, estado: { not: 'baja' } },
-                include: { categoria: true },
+                include: {
+                    categoria: true,
+                    presentaciones: { select: { nombre: true, factor: true } },
+                },
             }),
             tx.inventario.findMany({ where: { idRestaurante: tenantId } }),
             tx.conversionUnidad.findMany({ where: { idRestaurante: tenantId } }),
@@ -307,6 +313,7 @@ let InventarioDeduccionService = class InventarioDeduccionService {
                         cantidad: Number(l.cantidad),
                         unidad: l.unidad,
                         opcional: l.opcional,
+                        sustituciones: this.parseSustituciones(l.sustituciones),
                     };
                 }),
             };
@@ -324,6 +331,7 @@ let InventarioDeduccionService = class InventarioDeduccionService {
                 costo_unitario: a.costo_unitario ?? 0,
                 id_producto: a.id_producto,
                 cantidad_minima: a.cantidad_minima,
+                conversiones: a.conversiones ? [...a.conversiones] : undefined,
             });
         }
         const comercialPorProductoIds = new Map();
@@ -346,6 +354,9 @@ let InventarioDeduccionService = class InventarioDeduccionService {
                         cantidad: l.cantidad,
                         unidad: l.unidad,
                         opcional: Boolean(l.opcional),
+                        sustituciones: l.sustituciones?.length
+                            ? l.sustituciones.map((s) => ({ ...s }))
+                            : undefined,
                     })),
                 },
             ])),
@@ -383,6 +394,8 @@ let InventarioDeduccionService = class InventarioDeduccionService {
             for (const l of clone.lineas) {
                 if (l.id_articulo != null)
                     articuloIds.add(l.id_articulo);
+                for (const s of l.sustituciones ?? [])
+                    articuloIds.add(s.id_articulo);
             }
         }
         for (const [pid, idArt] of cached.comercialPorProductoIds) {
@@ -400,7 +413,10 @@ let InventarioDeduccionService = class InventarioDeduccionService {
             const rows = ids.length > 0
                 ? await tx.recurso.findMany({
                     where: { idRestaurante: tenantId, idRecurso: { in: ids } },
-                    include: { categoria: true },
+                    include: {
+                        categoria: true,
+                        presentaciones: { select: { nombre: true, factor: true } },
+                    },
                 })
                 : [];
             for (const r of rows) {
@@ -435,6 +451,7 @@ let InventarioDeduccionService = class InventarioDeduccionService {
                 cantidad_minima: meta.cantidad_minima,
                 costo_unitario: meta.costo_unitario,
                 id_producto: meta.id_producto,
+                conversiones: meta.conversiones,
             });
         }
         const comercialPorProducto = new Map();
@@ -454,7 +471,63 @@ let InventarioDeduccionService = class InventarioDeduccionService {
             usaRecursos: cached.usaRecursos,
         };
     }
-    planificarParaLinea(linea, evento, politica, ctx, idPedido) {
+    parseSustituciones(raw) {
+        if (!Array.isArray(raw))
+            return undefined;
+        const out = raw
+            .filter((s) => typeof s?.id_articulo === 'number')
+            .map((s) => ({
+            id_articulo: s.id_articulo,
+            factor: typeof s.factor === 'number' && s.factor > 0 ? s.factor : undefined,
+        }));
+        return out.length ? out : undefined;
+    }
+    async sustitucionesUsadas(tx, idDetallePedido, receta, ctx) {
+        const elegidas = new Map();
+        const lineasConAlternos = [];
+        const recorrer = (r, visitadas) => {
+            for (const l of r.lineas) {
+                if (l.id_subreceta) {
+                    const sub = ctx.recetas.get(l.id_subreceta);
+                    if (sub && !visitadas.has(l.id_subreceta)) {
+                        recorrer(sub, new Set([...visitadas, l.id_subreceta]));
+                    }
+                }
+                else if (l.sustituciones?.length) {
+                    lineasConAlternos.push(l);
+                }
+            }
+        };
+        recorrer(receta, new Set([receta.id_receta]));
+        if (!lineasConAlternos.length || idDetallePedido <= 0)
+            return elegidas;
+        const consumidos = new Set();
+        if (ctx.usaRecursos) {
+            const rows = await tx.movimientoRecurso.findMany({
+                where: { idDetallePedido, idDocumento: { startsWith: 'ded:' } },
+                select: { idRecurso: true },
+            });
+            for (const r of rows)
+                consumidos.add(r.idRecurso);
+        }
+        else {
+            const rows = await tx.movInventario.findMany({
+                where: { idDetallePedido, idDocumento: { startsWith: 'ded:' } },
+                select: { idInventario: true },
+            });
+            for (const r of rows)
+                consumidos.add(r.idInventario);
+        }
+        for (const l of lineasConAlternos) {
+            if (l.id_articulo != null && consumidos.has(l.id_articulo))
+                continue;
+            const alt = l.sustituciones.find((s) => consumidos.has(s.id_articulo));
+            if (alt)
+                elegidas.set(l.id_linea, alt.id_articulo);
+        }
+        return elegidas;
+    }
+    planificarParaLinea(linea, evento, politica, ctx, idPedido, opts) {
         const receta = ctx.recetaPorProducto.get(linea.id_producto);
         if (receta) {
             const plan = (0, inventario_motor_1.planificarDeduccionReceta)({
@@ -471,7 +544,15 @@ let InventarioDeduccionService = class InventarioDeduccionService {
                 evento,
                 politica,
                 id_pedido: idPedido,
+                sustituciones: opts?.sustituciones,
+                reservado: opts?.reservado,
             });
+            if (plan.advertencias.length) {
+                const etiqueta = `Receta de «${linea.nombre_producto ?? linea.id_producto}» (pedido ${idPedido ?? '—'}, detalle ${linea.id_detalle_pedido})`;
+                this.logger.warn(plan.movimientos.length
+                    ? `${etiqueta}: ${plan.advertencias.join('; ')}`
+                    : `${etiqueta} no descontó inventario: ${plan.advertencias.join('; ')}`);
+            }
             return plan.movimientos;
         }
         const comercial = ctx.comercialPorProducto.get(linea.id_producto);
@@ -585,8 +666,9 @@ let InventarioDeduccionService = class InventarioDeduccionService {
         const politica = this.politicaDesdeRow(configRow);
         const productIds = input.lineas.map((l) => l.id_producto);
         const ctx = await this.cargarContextoDeduccion(tx, input.tenantId, productIds);
+        const reservado = new Map();
         for (const linea of input.lineas) {
-            const movs = this.planificarParaLinea(linea, input.evento, politica, ctx, input.idPedido);
+            const movs = this.planificarParaLinea(linea, input.evento, politica, ctx, input.idPedido, { reservado });
             if (!movs.length)
                 continue;
             await this.persistirMovimientos(tx, movs, {
@@ -653,7 +735,12 @@ let InventarioDeduccionService = class InventarioDeduccionService {
             }
             return;
         }
-        const movs = this.planificarParaLinea(lineaDelta, eventoComercial, politica, ctx, input.idPedido);
+        const recetaAdj = ctx.recetaPorProducto.get(input.linea.id_producto);
+        const movs = this.planificarParaLinea(lineaDelta, eventoComercial, politica, ctx, input.idPedido, recetaAdj
+            ? {
+                sustituciones: await this.sustitucionesUsadas(tx, input.linea.id_detalle_pedido, recetaAdj, ctx),
+            }
+            : undefined);
         if (movs.length) {
             await this.persistirMovimientos(tx, movs, {
                 evento: eventoComercial,
@@ -688,8 +775,12 @@ let InventarioDeduccionService = class InventarioDeduccionService {
             politica.evento_receta,
             politica.evento_consumible ?? politica.evento_comercial,
         ];
+        const recetaRev = ctx.recetaPorProducto.get(input.linea.id_producto);
+        const usadas = recetaRev
+            ? await this.sustitucionesUsadas(tx, input.linea.id_detalle_pedido, recetaRev, ctx)
+            : undefined;
         for (const evento of [...new Set(eventos)]) {
-            const movs = this.planificarParaLinea(input.linea, evento, politica, ctx, input.idPedido);
+            const movs = this.planificarParaLinea(input.linea, evento, politica, ctx, input.idPedido, usadas ? { sustituciones: usadas } : undefined);
             if (!movs.length)
                 continue;
             await this.persistirMovimientos(tx, movs, {
@@ -743,7 +834,7 @@ let InventarioDeduccionService = class InventarioDeduccionService {
     }
 };
 exports.InventarioDeduccionService = InventarioDeduccionService;
-exports.InventarioDeduccionService = InventarioDeduccionService = __decorate([
+exports.InventarioDeduccionService = InventarioDeduccionService = InventarioDeduccionService_1 = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [prisma_service_1.PrismaService,
         recursos_migracion_service_1.RecursosMigracionService,

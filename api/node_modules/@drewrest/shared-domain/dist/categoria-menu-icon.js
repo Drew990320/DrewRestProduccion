@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.CATEGORIA_MENU_ICON_IDS = exports.CATEGORIA_MENU_ICONOS = exports.CATEGORIA_MENU_ICON_CATEGORIAS = void 0;
+exports.CATEGORIA_MENU_ICON_IDS = exports.CATEGORIA_MENU_ICONOS = exports.CATEGORIA_TIENDA_ICON_CATEGORIAS = exports.CATEGORIA_MENU_ICON_CATEGORIAS = void 0;
+exports.seccionesCatalogoIconos = seccionesCatalogoIconos;
 exports.esIconoCategoriaMenuValido = esIconoCategoriaMenuValido;
 exports.inferirIconoCategoriaDesdeNombre = inferirIconoCategoriaDesdeNombre;
 exports.normalizarIconoMenuGuardado = normalizarIconoMenuGuardado;
@@ -12,10 +13,16 @@ exports.resolverIconoCategoriaMenu = resolverIconoCategoriaMenu;
 const categoria_menu_icon_catalog_1 = require("./categoria-menu-icon-catalog");
 var categoria_menu_icon_catalog_2 = require("./categoria-menu-icon-catalog");
 Object.defineProperty(exports, "CATEGORIA_MENU_ICON_CATEGORIAS", { enumerable: true, get: function () { return categoria_menu_icon_catalog_2.CATEGORIA_MENU_ICON_CATEGORIAS; } });
+Object.defineProperty(exports, "CATEGORIA_TIENDA_ICON_CATEGORIAS", { enumerable: true, get: function () { return categoria_menu_icon_catalog_2.CATEGORIA_TIENDA_ICON_CATEGORIAS; } });
+function seccionesCatalogoIconos(catalogo) {
+    return catalogo === 'tienda'
+        ? [...categoria_menu_icon_catalog_1.CATEGORIA_TIENDA_ICON_CATEGORIAS, ...categoria_menu_icon_catalog_1.CATEGORIA_MENU_ICON_CATEGORIAS]
+        : [...categoria_menu_icon_catalog_1.CATEGORIA_MENU_ICON_CATEGORIAS];
+}
 function flattenCategoriaIconCatalog() {
     const seen = new Set();
     const out = [];
-    for (const cat of categoria_menu_icon_catalog_1.CATEGORIA_MENU_ICON_CATEGORIAS) {
+    for (const cat of [...categoria_menu_icon_catalog_1.CATEGORIA_MENU_ICON_CATEGORIAS, ...categoria_menu_icon_catalog_1.CATEGORIA_TIENDA_ICON_CATEGORIAS]) {
         for (const icon of cat.iconos) {
             if (seen.has(icon.id))
                 continue;
@@ -48,8 +55,48 @@ function esIconoCategoriaMenuValido(icono) {
     return typeof icono === 'string' && ICON_SET.has(icono);
 }
 /** Sugiere icono según el nombre (cuando el admin no eligió uno). */
+const RUBROS_TIENDA = [
+    [['ropa', 'camis', 'pantal', 'vestido', 'prenda', 'moda'], 'tshirt-crew-outline'],
+    [['zapat', 'calzado', 'tenis', 'sandalia'], 'shoe-sneaker'],
+    [['bolso', 'cartera', 'morral', 'maleta'], 'purse-outline'],
+    [['joyer', 'bisuter', 'accesorio'], 'necklace'],
+    [['reloj'], 'watch-variant'],
+    [['celular', 'telefon', 'smartphone'], 'cellphone'],
+    [['tecnolog', 'electr', 'computador', 'portatil', 'portátil'], 'laptop'],
+    [['audifono', 'audífono', 'parlante', 'sonido'], 'headphones'],
+    [['cable', 'cargador'], 'cable-data'],
+    [['aseo', 'limpieza', 'detergente'], 'spray-bottle'],
+    [['belleza', 'maquillaje', 'cosmet'], 'lipstick'],
+    [['cuidado personal', 'higiene'], 'lotion-outline'],
+    [['perfum', 'fragancia'], 'flower-outline'],
+    [['farmacia', 'droguer', 'medicament'], 'pill'],
+    [['mascota', 'gato'], 'paw'],
+    [['juguete', 'juego'], 'toy-brick-outline'],
+    [['bebé', 'bebe', 'pañal', 'panal'], 'baby-bottle-outline'],
+    [['papeler', 'útiles', 'utiles', 'escolar', 'oficina'], 'pencil-outline'],
+    [['libro', 'revista'], 'book-open-variant'],
+    [['ferreter', 'herramient', 'construc'], 'hammer'],
+    [['pintura'], 'format-paint'],
+    [['deporte', 'gimnasio', 'fitness'], 'dumbbell'],
+    [['hogar', 'decoraci'], 'home-outline'],
+    [['mueble'], 'sofa-outline'],
+    [['electrodom'], 'fridge-outline'],
+    [['regalo', 'souvenir'], 'gift-outline'],
+    [['fiesta', 'piñata', 'pinata', 'cotillón', 'cotillon'], 'party-popper'],
+    [['flores', 'floristería', 'floristeria', 'vivero'], 'flower-tulip-outline'],
+    [['repuesto', 'taller', 'moto', 'vehícul', 'vehicul'], 'car-wrench'],
+    [['recarga', 'minutos'], 'cellphone-arrow-down'],
+    [['cigarr', 'tabaco'], 'smoking'],
+    [['congelad'], 'snowflake'],
+    [['abarrote', 'mercado', 'víveres', 'viveres', 'granos'], 'basket'],
+    [['miscel', 'variedades'], 'store-outline'],
+];
 function inferirIconoCategoriaDesdeNombre(nombre) {
     const n = nombre.toLowerCase();
+    for (const [claves, icono] of RUBROS_TIENDA) {
+        if (claves.some((c) => n.includes(c)))
+            return icono;
+    }
     if (n.includes('sin alcohol'))
         return 'bottle-soda-outline';
     if (n.includes('con alcohol'))

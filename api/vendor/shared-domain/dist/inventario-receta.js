@@ -2,13 +2,14 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.consolidarMovimientos = consolidarMovimientos;
 exports.calcularConsumoReceta = calcularConsumoReceta;
+exports.elegirSustitucionesPorStock = elegirSustitucionesPorStock;
 exports.calcularCostoReceta = calcularCostoReceta;
 const inventario_unidades_1 = require("./inventario-unidades");
 function resolverArticuloLinea(linea, sustitucionElegida) {
-    if (linea.id_articulo != null)
-        return linea.id_articulo;
     if (sustitucionElegida != null)
         return sustitucionElegida;
+    if (linea.id_articulo != null)
+        return linea.id_articulo;
     const alt = linea.sustituciones?.[0];
     return alt?.id_articulo ?? null;
 }
@@ -68,7 +69,7 @@ function expandirLinea(linea, porciones, articulos, recetas, conversiones, susti
     const sust = linea.sustituciones?.find((s) => s.id_articulo === idArt);
     if (sust?.factor != null)
         cantidadLinea *= sust.factor;
-    const conv = (0, inventario_unidades_1.convertirCantidad)(cantidadLinea, linea.unidad, art.unidad_stock, conversiones);
+    const conv = (0, inventario_unidades_1.convertirCantidad)(cantidadLinea, linea.unidad, art.unidad_stock, art.conversiones?.length ? [...art.conversiones, ...conversiones] : conversiones);
     if (!conv.ok) {
         errores.push({
             codigo: 'conversion_fallida',
@@ -133,6 +134,73 @@ function consolidarMovimientos(movimientos) {
 }
 function calcularConsumoReceta(receta, porciones, articulos, recetas = new Map(), conversiones = [], sustitucionesPorLinea = new Map()) {
     return calcularConsumoRecetaInterno(receta, porciones, articulos, recetas, conversiones, sustitucionesPorLinea, new Set([receta.id_receta]));
+}
+const EPS_STOCK = 1e-6;
+function cantidadEnStock(cantidad, unidad, art, conversiones) {
+    const conv = (0, inventario_unidades_1.convertirCantidad)(cantidad, unidad, art.unidad_stock, art.conversiones?.length ? [...art.conversiones, ...conversiones] : conversiones);
+    return conv.ok ? (0, inventario_unidades_1.redondearInventario)(conv.cantidad) : null;
+}
+/**
+ * Decide, por línea, si se descuenta el principal o un alterno según el stock vivo.
+ * Orden: principal si alcanza → primer alterno que alcance → principal igual (queda negativo).
+ * `reservado` acumula lo ya comprometido (otras líneas del mismo pedido) y se actualiza.
+ */
+function elegirSustitucionesPorStock(receta, porciones, articulos, recetas = new Map(), conversiones = [], reservado = new Map()) {
+    const elegidas = new Map();
+    const aplicadas = [];
+    const disponible = (id) => (articulos.get(id)?.cantidad_actual ?? 0) - (reservado.get(id) ?? 0);
+    const reservar = (id, n) => reservado.set(id, (0, inventario_unidades_1.redondearInventario)((reservado.get(id) ?? 0) + n));
+    const recorrer = (r, porc, visitadas) => {
+        for (const linea of r.lineas) {
+            if (linea.id_subreceta) {
+                if (visitadas.has(linea.id_subreceta))
+                    continue;
+                const sub = recetas.get(linea.id_subreceta);
+                if (sub) {
+                    recorrer(sub, porc * linea.cantidad, new Set([...visitadas, linea.id_subreceta]));
+                }
+                continue;
+            }
+            const idP = linea.id_articulo;
+            const cantidadLinea = linea.cantidad * porc;
+            const principal = idP != null ? articulos.get(idP) : undefined;
+            const reqP = principal
+                ? cantidadEnStock(cantidadLinea, linea.unidad, principal, conversiones)
+                : null;
+            if (idP == null)
+                continue;
+            const dispP = principal ? disponible(idP) : 0;
+            if (principal && reqP != null && reqP <= dispP + EPS_STOCK) {
+                reservar(idP, reqP);
+                continue;
+            }
+            let usado = null;
+            for (const s of linea.sustituciones ?? []) {
+                const art = articulos.get(s.id_articulo);
+                if (!art || art.activo === false)
+                    continue;
+                const req = cantidadEnStock(cantidadLinea * (s.factor ?? 1), linea.unidad, art, conversiones);
+                if (req != null && req <= disponible(s.id_articulo) + EPS_STOCK) {
+                    usado = s.id_articulo;
+                    reservar(s.id_articulo, req);
+                    break;
+                }
+            }
+            if (usado != null)
+                elegidas.set(linea.id_linea, usado);
+            else if (reqP != null)
+                reservar(idP, reqP);
+            aplicadas.push({
+                id_linea: linea.id_linea,
+                id_principal: idP,
+                id_sustituto: usado,
+                requerido_principal: reqP ?? 0,
+                disponible_principal: dispP,
+            });
+        }
+    };
+    recorrer(receta, porciones, new Set([receta.id_receta]));
+    return { elegidas, aplicadas };
 }
 function calcularCostoReceta(receta, articulos, recetas = new Map(), conversiones = []) {
     const r = calcularConsumoReceta(receta, 1, articulos, recetas, conversiones);

@@ -60,6 +60,7 @@ Object.defineProperty(exports, "DREWTECH_TELEFONO", { enumerable: true, get: fun
 Object.defineProperty(exports, "DREWTECH_TELEFONO_LABEL", { enumerable: true, get: function () { return drewtech_soporte_1.DREWTECH_TELEFONO_LABEL; } });
 const restaurant_branding_1 = require("../common/restaurant-branding");
 const visual_assets_util_1 = require("../visual/visual-assets.util");
+const tienda_logo_upload_util_1 = require("../tienda/tienda-logo-upload.util");
 const impresora_papel_ancho_1 = require("../impresoras-pos/impresora-papel-ancho");
 exports.DEFAULT_ESC_POS_WIDTH = 32;
 function resolveEscPosTicketOpts(charWidthOrOpts = exports.DEFAULT_ESC_POS_WIDTH) {
@@ -69,13 +70,15 @@ function resolveEscPosTicketOpts(charWidthOrOpts = exports.DEFAULT_ESC_POS_WIDTH
             tamanoFuente: 1,
             margenInicioLineas: 0,
             margenFinLineas: 0,
+            papelMm: (0, impresora_papel_ancho_1.papelMmDesdeChars)(charWidthOrOpts),
         };
     }
     const tamano = (0, impresora_papel_ancho_1.normalizarTamanoFuente)(charWidthOrOpts.tamanoFuente, 1);
     let charWidth = Math.round(Number(charWidthOrOpts.charWidth) || exports.DEFAULT_ESC_POS_WIDTH);
+    const papelMm = charWidthOrOpts.papelMm ?? (0, impresora_papel_ancho_1.papelMmDesdeChars)(charWidth);
     if (tamano <= 0) {
         const factor = (0, impresora_papel_ancho_1.factorColumnasPorTamanoFuente)(tamano);
-        charWidth = Math.min(56, Math.max(24, Math.round(charWidth * factor)));
+        charWidth = Math.min(56, Math.max(24, Math.floor(charWidth * factor + 1e-9)));
     }
     if (tamano >= 3) {
         charWidth = Math.max(16, Math.floor(charWidth / 2));
@@ -83,18 +86,49 @@ function resolveEscPosTicketOpts(charWidthOrOpts = exports.DEFAULT_ESC_POS_WIDTH
     return {
         charWidth,
         tamanoFuente: tamano,
+        papelMm,
         margenInicioLineas: Math.min(20, Math.max(0, Math.round(Number(charWidthOrOpts.margenInicioLineas) || 0))),
         margenFinLineas: Math.min(20, Math.max(0, Math.round(Number(charWidthOrOpts.margenFinLineas) || 0))),
     };
 }
+const FONT_B_STICKY = Symbol('escposFontBSticky');
+function fijarFontBPersistente(printer) {
+    const setFontB = printer.setTypeFontB;
+    if (typeof setFontB !== 'function')
+        return;
+    const marcado = printer;
+    if (marcado[FONT_B_STICKY])
+        return;
+    marcado[FONT_B_STICKY] = true;
+    const metodos = [
+        'setTextNormal',
+        'setTextDoubleHeight',
+        'setTextDoubleWidth',
+        'setTextQuadArea',
+        'setTextSize',
+    ];
+    for (const nombre of metodos) {
+        const original = printer[nombre];
+        if (typeof original !== 'function')
+            continue;
+        printer[nombre] = (...args) => {
+            const r = original.apply(printer, args);
+            if (r && typeof r.then === 'function') {
+                return r.then(() => setFontB.call(printer));
+            }
+            return setFontB.call(printer);
+        };
+    }
+}
 async function applyEscPosFontSize(printer, tamanoFuente) {
     const t = (0, impresora_papel_ancho_1.normalizarTamanoFuente)(tamanoFuente, 1);
     if (t <= 0) {
-        if (typeof printer.setTypeFontB === 'function') {
-            await printer.setTypeFontB();
-        }
+        fijarFontBPersistente(printer);
         if (typeof printer.setTextNormal === 'function') {
             await printer.setTextNormal();
+        }
+        else if (typeof printer.setTypeFontB === 'function') {
+            await printer.setTypeFontB();
         }
         return;
     }
@@ -331,7 +365,12 @@ function wrapEscPos(text, width) {
         else {
             if (cur)
                 lines.push(cur);
-            cur = word.length > width ? word.slice(0, width) : word;
+            let resto = word;
+            while (resto.length > width) {
+                lines.push(resto.slice(0, width));
+                resto = resto.slice(width);
+            }
+            cur = resto;
         }
     }
     if (cur)
@@ -344,18 +383,25 @@ function lineaConPrecio(etiqueta, precio, width) {
     if (!etiqueta.trim()) {
         return p.padStart(w);
     }
-    const maxLeft = w - p.length - 1;
-    if (maxLeft < 1) {
-        return p.padStart(w);
+    if (etiqueta.length + 1 + p.length <= w) {
+        return etiqueta + ' '.repeat(w - etiqueta.length - p.length) + p;
     }
-    const left = etiqueta.length <= maxLeft ? etiqueta : etiqueta.slice(0, maxLeft);
-    const gap = w - left.length - p.length;
-    return left + ' '.repeat(Math.max(1, gap)) + p;
+    const sangria = etiqueta.match(/^\s*/)?.[0] ?? '';
+    const lineas = wrapEscPos(etiqueta, w - sangria.length).map((l) => sangria + l);
+    const ultima = lineas[lineas.length - 1];
+    if (ultima.length + 1 + p.length <= w) {
+        lineas[lineas.length - 1] =
+            ultima + ' '.repeat(w - ultima.length - p.length) + p;
+    }
+    else {
+        lineas.push(p.padStart(w));
+    }
+    return lineas.join('\n');
 }
 function createEscPosPrinter(charWidth) {
     const { ThermalPrinter, PrinterTypes, CharacterSet, BreakLine, } = require('node-thermal-printer');
     const dummyIface = path.join(os.tmpdir(), `pos-escpos-dummy-${process.pid}.bin`);
-    return new ThermalPrinter({
+    const printer = new ThermalPrinter({
         type: PrinterTypes.EPSON,
         interface: dummyIface,
         characterSet: CharacterSet.WPC1252,
@@ -364,32 +410,177 @@ function createEscPosPrinter(charWidth) {
         width: charWidth,
         breakLine: BreakLine.NONE,
     });
+    const printlnOriginal = printer.println.bind(printer);
+    printer.println = (text) => printlnOriginal(String(text ?? '')
+        .split('\n')
+        .flatMap((seg) => seg.length > charWidth ? wrapEscPos(seg, charWidth) : [seg])
+        .join('\n'));
+    return printer;
 }
-async function printEncabezadoRestaurante(printer, charWidth = exports.DEFAULT_ESC_POS_WIDTH) {
+function grisSobreBlanco(img, i) {
+    const a = img.data[i + 3] / 255;
+    const g = 0.2126 * img.data[i] + 0.7152 * img.data[i + 1] + 0.0722 * img.data[i + 2];
+    return g * a + 255 * (1 - a);
+}
+function proporcionMediosTonos(img) {
+    let medios = 0;
+    const total = img.width * img.height;
+    for (let i = 0; i < total; i++) {
+        const g = grisSobreBlanco(img, i << 2);
+        if (g > 60 && g < 195)
+            medios++;
+    }
+    return total ? medios / total : 0;
+}
+function tramarParaTermicaSiEsFoto(img) {
+    if (proporcionMediosTonos(img) < 0.25)
+        return;
+    const { width: w, height: h } = img;
+    const gris = new Float32Array(w * h);
+    for (let p = 0; p < w * h; p++)
+        gris[p] = grisSobreBlanco(img, p << 2);
+    for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+            const p = y * w + x;
+            const nuevo = gris[p] < 128 ? 0 : 255;
+            const err = gris[p] - nuevo;
+            gris[p] = nuevo;
+            if (x + 1 < w)
+                gris[p + 1] += (err * 7) / 16;
+            if (y + 1 < h) {
+                if (x > 0)
+                    gris[p + w - 1] += (err * 3) / 16;
+                gris[p + w] += (err * 5) / 16;
+                if (x + 1 < w)
+                    gris[p + w + 1] += err / 16;
+            }
+        }
+    }
+    for (let p = 0; p < w * h; p++) {
+        const i = p << 2;
+        const v = gris[p] < 128 ? 0 : 255;
+        img.data[i] = v;
+        img.data[i + 1] = v;
+        img.data[i + 2] = v;
+        img.data[i + 3] = 255;
+    }
+}
+async function imprimirImagenCentrada(printer, pngBuf, anchoPapelPx) {
+    let salida = pngBuf;
+    try {
+        const { PNG } = require('pngjs');
+        const src = PNG.sync.read(pngBuf);
+        if (src.width < anchoPapelPx) {
+            const dst = new PNG({ width: anchoPapelPx, height: src.height });
+            dst.data.fill(255);
+            const x0 = Math.floor((anchoPapelPx - src.width) / 16) * 8;
+            for (let y = 0; y < src.height; y++) {
+                src.data.copy(dst.data, (y * anchoPapelPx + x0) << 2, (y * src.width) << 2, ((y + 1) * src.width) << 2);
+            }
+            salida = PNG.sync.write(dst);
+        }
+    }
+    catch {
+    }
+    await printer.alignLeft();
+    await printer.printImageBuffer(salida);
     await printer.alignCenter();
-    const logoPath = resolveTicketLogoPath();
-    const logoMaxW = (0, impresora_papel_ancho_1.logoAnchoPxParaPapelMm)((0, impresora_papel_ancho_1.papelMmDesdeChars)(charWidth));
-    let logoOk = false;
+}
+function pngTramadoParaTermica(buf) {
+    try {
+        const { PNG } = require('pngjs');
+        const img = PNG.sync.read(buf);
+        tramarParaTermicaSiEsFoto(img);
+        return PNG.sync.write(img);
+    }
+    catch {
+        return buf;
+    }
+}
+const LOGOS_LADO_A_LADO_GAP_PX = 32;
+const LOGOS_LADO_A_LADO_FRACCION_ANCHO = 0.85;
+async function combinarLogosLadoALado(pathIzq, pathDer, anchoTotal, maxH) {
+    const anchoSeguro = Math.floor((anchoTotal * LOGOS_LADO_A_LADO_FRACCION_ANCHO) / 8) * 8;
+    const mitad = Math.floor((anchoSeguro - LOGOS_LADO_A_LADO_GAP_PX) / 2);
+    const [bufIzq, bufDer] = await Promise.all([
+        cargarLogoTicketRedimensionado(pathIzq, mitad, maxH),
+        cargarLogoTicketRedimensionado(pathDer, mitad, maxH),
+    ]);
+    if (!bufIzq || !bufDer)
+        return null;
+    try {
+        const { PNG } = require('pngjs');
+        const izq = PNG.sync.read(bufIzq);
+        const der = PNG.sync.read(bufDer);
+        tramarParaTermicaSiEsFoto(izq);
+        tramarParaTermicaSiEsFoto(der);
+        const contenido = izq.width + LOGOS_LADO_A_LADO_GAP_PX + der.width;
+        const ancho = anchoSeguro;
+        const alto = Math.max(izq.height, der.height);
+        const dst = new PNG({ width: ancho, height: alto });
+        dst.data.fill(255);
+        const margen = Math.floor((ancho - contenido) / 2);
+        const pegar = (src, x0) => {
+            const y0 = Math.floor((alto - src.height) / 2);
+            for (let y = 0; y < src.height; y++) {
+                for (let x = 0; x < src.width; x++) {
+                    const si = (y * src.width + x) << 2;
+                    const di = ((y0 + y) * ancho + x0 + x) << 2;
+                    const a = src.data[si + 3] / 255;
+                    for (let k = 0; k < 3; k++) {
+                        dst.data[di + k] = Math.round(src.data[si + k] * a + 255 * (1 - a));
+                    }
+                    dst.data[di + 3] = 255;
+                }
+            }
+        };
+        pegar(izq, margen);
+        pegar(der, margen + izq.width + LOGOS_LADO_A_LADO_GAP_PX);
+        return PNG.sync.write(dst);
+    }
+    catch {
+        return null;
+    }
+}
+async function printLogoONombre(printer, logoPath, nombre, maxW, maxH) {
     if (logoPath) {
         try {
-            const maxH = await maxAltoLogoTicketPx();
-            const logoBuf = await cargarLogoTicketRedimensionado(logoPath, logoMaxW, maxH);
+            const logoBuf = await cargarLogoTicketRedimensionado(logoPath, maxW, maxH);
             if (logoBuf) {
-                await printer.printImageBuffer(logoBuf);
+                await imprimirImagenCentrada(printer, pngTramadoParaTermica(logoBuf), maxW);
             }
             else if (logoPath.toLowerCase().endsWith('.png')) {
                 await printer.printImage(logoPath);
             }
             await printer.newLine();
-            logoOk = true;
+            return;
         }
         catch {
         }
     }
-    if (!logoOk) {
-        await printer.bold(true);
-        await printer.println((0, restaurant_branding_1.restaurantName)().toUpperCase());
-        await printer.bold(false);
+    await printer.bold(true);
+    await printer.println(nombre.toUpperCase());
+    await printer.bold(false);
+}
+async function printEncabezadoRestaurante(printer, charWidth = exports.DEFAULT_ESC_POS_WIDTH, tienda, papelMm = (0, impresora_papel_ancho_1.papelMmDesdeChars)(charWidth)) {
+    await printer.alignCenter();
+    const logoMaxW = (0, impresora_papel_ancho_1.logoAnchoPxParaPapelMm)(papelMm);
+    const maxH = await maxAltoLogoTicketPx();
+    const logoRestaurante = resolveTicketLogoPath();
+    const logoTienda = tienda ? (0, tienda_logo_upload_util_1.resolveTiendaLogoPath)(tienda.logo_archivo) : null;
+    const combinado = logoRestaurante && logoTienda
+        ? await combinarLogosLadoALado(logoRestaurante, logoTienda, logoMaxW, maxH)
+        : null;
+    if (combinado) {
+        await imprimirImagenCentrada(printer, combinado, logoMaxW);
+        await printer.newLine();
+    }
+    else {
+        const maxHPorLogo = tienda ? Math.round(maxH * 0.7) : maxH;
+        await printLogoONombre(printer, logoRestaurante, (0, restaurant_branding_1.restaurantName)(), logoMaxW, maxHPorLogo);
+        if (tienda) {
+            await printLogoONombre(printer, logoTienda, tienda.nombre, logoMaxW, maxHPorLogo);
+        }
     }
     if (ticketNit()) {
         for (const line of wrapEscPos(`NIT: ${ticketNit()}`, charWidth)) {

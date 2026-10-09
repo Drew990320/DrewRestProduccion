@@ -11,12 +11,16 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
+var RecursosService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.RecursosService = void 0;
+exports.nivelStock = nivelStock;
 const common_1 = require("@nestjs/common");
+const pedidos_gateway_1 = require("../pedidos/pedidos.gateway");
 const recurso_comportamiento_1 = require("@drewrest/shared-domain/recurso-comportamiento");
 const recurso_movimientos_1 = require("@drewrest/shared-domain/recurso-movimientos");
 const inventario_unidades_1 = require("@drewrest/shared-domain/inventario-unidades");
+const stock_auditoria_1 = require("../common/stock-auditoria");
 const inventario_costo_1 = require("@drewrest/shared-domain/inventario-costo");
 const prisma_service_1 = require("../prisma/prisma.service");
 const tenant_constants_1 = require("../tenant/tenant.constants");
@@ -28,14 +32,128 @@ const RECETAS_VACIAS = {
     productos_actualizados: 0,
     ids_producto: [],
 };
-let RecursosService = class RecursosService {
+const PRESENTACIONES_INCLUDE = { orderBy: { factor: 'asc' } };
+const RANGO_NIVEL = { ok: 0, bajo: 1, agotado: 2, negativo: 3 };
+function nivelStock(stock, stockMin) {
+    if (stock < 0)
+        return 'negativo';
+    if (stock <= 0)
+        return 'agotado';
+    if (stockMin > 0 && stock <= stockMin)
+        return 'bajo';
+    return 'ok';
+}
+const ALERTA_STOCK_DELAY_MS = 600;
+let RecursosService = RecursosService_1 = class RecursosService {
     prisma;
     migracion;
     recetasCosto;
-    constructor(prisma, migracion, recetasCosto) {
+    gateway;
+    validarUnidadRecurso(unidad) {
+        const u = unidad.trim();
+        if (!u)
+            throw new common_1.BadRequestException('Indica la unidad del artículo (u, kg, g, l, ml…)');
+        if (/^[\d.,\s]+$/.test(u)) {
+            throw new common_1.BadRequestException(`«${u}» no es una unidad de medida. Usa u, kg, g, l o ml. La cantidad va en stock.`);
+        }
+        if ((0, inventario_unidades_1.esUnidadEmpaque)(u)) {
+            throw new common_1.BadRequestException(`«${u}» es un empaque. Registra el artículo en u, g, kg, ml o l y agrega «${u}» como presentación (ej. 1 ${u} = 10 u).`);
+        }
+    }
+    mapPresentacion(p) {
+        return {
+            id_presentacion: p.idPresentacion,
+            nombre: p.nombre,
+            factor: Number(p.factor),
+            codigo_barras: p.codigoBarras,
+            costo_ultimo: p.costoUltimo != null ? Number(p.costoUltimo) : null,
+            predeterminada: p.predeterminada,
+        };
+    }
+    validarNombrePresentacion(nombre, unidadBase) {
+        const n = nombre.trim();
+        if ((0, inventario_unidades_1.normalizarUnidad)(n) === (0, inventario_unidades_1.normalizarUnidad)(unidadBase)) {
+            throw new common_1.BadRequestException(`«${n}» ya es la unidad base del artículo`);
+        }
+        if ((0, inventario_unidades_1.unidadesCompatibles)(unidadBase).some((u) => (0, inventario_unidades_1.normalizarUnidad)(u) === (0, inventario_unidades_1.normalizarUnidad)(n))) {
+            throw new common_1.BadRequestException(`«${n}» ya se convierte sola desde ${unidadBase}; no hace falta como presentación`);
+        }
+    }
+    constructor(prisma, migracion, recetasCosto, gateway) {
         this.prisma = prisma;
         this.migracion = migracion;
         this.recetasCosto = recetasCosto;
+        this.gateway = gateway;
+    }
+    logger = new common_1.Logger(RecursosService_1.name);
+    alertasPendientes = new Set();
+    programarAlertaStock(tenantId, idRecurso) {
+        const key = `${tenantId}:${idRecurso}`;
+        if (this.alertasPendientes.has(key))
+            return;
+        this.alertasPendientes.add(key);
+        setTimeout(() => {
+            this.alertasPendientes.delete(key);
+            void this.emitirAlertaStock(tenantId, idRecurso).catch((e) => this.logger.warn(`Alerta de stock ${key}: ${e.message}`));
+        }, ALERTA_STOCK_DELAY_MS);
+    }
+    async emitirAlertaStock(tenantId, idRecurso) {
+        if (!this.gateway)
+            return;
+        const r = await this.prisma.recurso.findFirst({
+            where: { idRecurso, idRestaurante: tenantId },
+            include: { presentaciones: PRESENTACIONES_INCLUDE },
+        });
+        if (!r || r.estado === 'baja')
+            return;
+        const stock = this.qty(r.stock);
+        const stockMin = this.qty(r.stockMin);
+        const nivel = nivelStock(stock, stockMin);
+        if (nivel === 'ok')
+            return;
+        this.gateway.emitInventarioAlerta({
+            id_recurso: r.idRecurso,
+            nombre: r.nombre,
+            nivel,
+            stock,
+            stock_min: stockMin,
+            unidad: r.unidad,
+            stock_desglose: (0, inventario_unidades_1.desglosePresentacion)(stock, r.unidad, r.presentaciones.map((p) => this.mapPresentacion(p))),
+            at: new Date().toISOString(),
+        }, tenantId);
+    }
+    async alertasStock(tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
+        const rows = await this.prisma.recurso.findMany({
+            where: { idRestaurante: tenantId, estado: { not: 'baja' } },
+            include: { categoria: true, presentaciones: PRESENTACIONES_INCLUDE },
+            orderBy: { nombre: 'asc' },
+        });
+        const items = rows
+            .filter((r) => {
+            const f = (0, recurso_comportamiento_1.flagsDesdeCategoriaRow)(r.categoria);
+            return f.controla_stock && !f.es_activo_fijo;
+        })
+            .map((r) => {
+            const stock = this.qty(r.stock);
+            const stockMin = this.qty(r.stockMin);
+            return {
+                id_recurso: r.idRecurso,
+                nombre: r.nombre,
+                nivel: nivelStock(stock, stockMin),
+                stock,
+                stock_min: stockMin,
+                unidad: r.unidad,
+                stock_desglose: (0, inventario_unidades_1.desglosePresentacion)(stock, r.unidad, r.presentaciones.map((p) => this.mapPresentacion(p))),
+            };
+        })
+            .filter((x) => x.nivel !== 'ok')
+            .sort((a, b) => RANGO_NIVEL[b.nivel] - RANGO_NIVEL[a.nivel]);
+        return {
+            total: items.length,
+            bajos: items.filter((x) => x.nivel === 'bajo').length,
+            agotados: items.filter((x) => x.nivel !== 'bajo').length,
+            items,
+        };
     }
     qty(v) {
         return (0, inventario_unidades_1.redondearInventario)(Number(v));
@@ -66,6 +184,7 @@ let RecursosService = class RecursosService {
     mapRecurso(r) {
         const stock = this.qty(r.stock);
         const stockMin = this.qty(r.stockMin);
+        const presentaciones = (r.presentaciones ?? []).map((p) => this.mapPresentacion(p));
         return {
             id_recurso: r.idRecurso,
             codigo: r.codigo,
@@ -73,7 +192,15 @@ let RecursosService = class RecursosService {
             descripcion: r.descripcion,
             id_categoria: r.idCategoria,
             unidad: r.unidad,
+            unidad_es_empaque: (0, inventario_unidades_1.esUnidadEmpaque)(r.unidad),
+            presentaciones,
+            stock_desglose: (0, inventario_unidades_1.desglosePresentacion)(stock, r.unidad, presentaciones),
             costo: Number(r.costo),
+            costo_referencia: r.costoReferencia != null && Number(r.costoReferencia) > 0
+                ? Number(r.costoReferencia)
+                : Number(r.costo) > 0
+                    ? Number(r.costo)
+                    : null,
             precio: r.precio != null ? Number(r.precio) : null,
             stock,
             stock_min: stockMin,
@@ -257,6 +384,7 @@ let RecursosService = class RecursosService {
                 categoria: true,
                 ubicacion: true,
                 responsable: { select: { idUsuario: true, nombre: true, apellido: true } },
+                presentaciones: PRESENTACIONES_INCLUDE,
             },
             orderBy: { nombre: 'asc' },
         });
@@ -273,6 +401,7 @@ let RecursosService = class RecursosService {
                 categoria: true,
                 ubicacion: true,
                 responsable: { select: { idUsuario: true, nombre: true, apellido: true } },
+                presentaciones: PRESENTACIONES_INCLUDE,
             },
         });
         if (!r)
@@ -292,6 +421,18 @@ let RecursosService = class RecursosService {
             idResponsable: dto.id_responsable,
             idUbicacion: dto.id_ubicacion,
         });
+        this.validarUnidadRecurso(dto.unidad);
+        const unidadBase = (0, inventario_unidades_1.unidadCanonica)(dto.unidad);
+        const presentacionesNuevas = dto.presentaciones ?? [];
+        const nombresPres = new Set();
+        for (const p of presentacionesNuevas) {
+            this.validarNombrePresentacion(p.nombre, unidadBase);
+            const key = (0, inventario_unidades_1.normalizarUnidad)(p.nombre);
+            if (nombresPres.has(key)) {
+                throw new common_1.BadRequestException(`La presentación «${p.nombre.trim()}» está repetida`);
+            }
+            nombresPres.add(key);
+        }
         const estado = dto.estado && (0, recurso_comportamiento_1.esEstadoRecurso)(dto.estado) ? dto.estado : 'activo';
         const stockInicial = dto.stock_inicial ?? 0;
         const mapped = await this.prisma.$transaction(async (tx) => {
@@ -304,8 +445,9 @@ let RecursosService = class RecursosService {
                         nombre: dto.nombre.trim(),
                         descripcion: dto.descripcion?.trim() || null,
                         idCategoria: dto.id_categoria,
-                        unidad: dto.unidad.trim(),
+                        unidad: unidadBase,
                         costo: dto.costo ?? 0,
+                        costoReferencia: dto.costo != null && dto.costo > 0 ? dto.costo : null,
                         precio: dto.precio ?? null,
                         stock: 0,
                         stockMin: dto.stock_min ?? 0,
@@ -330,11 +472,24 @@ let RecursosService = class RecursosService {
                         responsable: {
                             select: { idUsuario: true, nombre: true, apellido: true },
                         },
+                        presentaciones: PRESENTACIONES_INCLUDE,
                     },
                 });
             }
             catch {
                 throw new common_1.BadRequestException('Código de recurso ya existe');
+            }
+            if (presentacionesNuevas.length) {
+                const hayPredeterminada = presentacionesNuevas.some((p) => p.predeterminada);
+                await tx.presentacionRecurso.createMany({
+                    data: presentacionesNuevas.map((p, i) => ({
+                        idRecurso: rec.idRecurso,
+                        nombre: p.nombre.trim(),
+                        factor: p.factor,
+                        codigoBarras: p.codigo_barras?.trim() || null,
+                        predeterminada: hayPredeterminada ? Boolean(p.predeterminada) : i === 0,
+                    })),
+                });
             }
             if (stockInicial > 0 && flags.controla_stock) {
                 await this.aplicarMovimientoTx(tx, rec.idRecurso, tenantId, {
@@ -346,6 +501,8 @@ let RecursosService = class RecursosService {
                     id_documento: `stock-inicial:${rec.idRecurso}`,
                     id_usuario: idUsuario,
                 });
+            }
+            if (presentacionesNuevas.length || (stockInicial > 0 && flags.controla_stock)) {
                 rec = await tx.recurso.findUniqueOrThrow({
                     where: { idRecurso: rec.idRecurso },
                     include: {
@@ -354,6 +511,7 @@ let RecursosService = class RecursosService {
                         responsable: {
                             select: { idUsuario: true, nombre: true, apellido: true },
                         },
+                        presentaciones: PRESENTACIONES_INCLUDE,
                     },
                 });
             }
@@ -369,7 +527,7 @@ let RecursosService = class RecursosService {
         }
         return { ...mapped, recetas_recalculadas: RECETAS_VACIAS };
     }
-    async actualizarRecurso(id, dto, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
+    async actualizarRecurso(id, dto, tenantId = tenant_constants_1.DEFAULT_TENANT_ID, actor) {
         const existing = await this.prisma.recurso.findFirst({
             where: { idRecurso: id, idRestaurante: tenantId },
             include: { categoria: true },
@@ -397,6 +555,15 @@ let RecursosService = class RecursosService {
         if (dto.estado != null && !(0, recurso_comportamiento_1.esEstadoRecurso)(dto.estado)) {
             throw new common_1.BadRequestException('Estado no válido');
         }
+        const cambiaUnidad = dto.unidad !== undefined &&
+            (0, inventario_unidades_1.normalizarUnidad)(dto.unidad) !== (0, inventario_unidades_1.normalizarUnidad)(existing.unidad);
+        if (cambiaUnidad) {
+            this.validarUnidadRecurso(dto.unidad);
+            const movimientos = await this.prisma.movimientoRecurso.count({ where: { idRecurso: id } });
+            if (movimientos > 0 || Number(existing.stock) !== 0) {
+                throw new common_1.BadRequestException('Este artículo ya tiene movimientos: cambiar la unidad descuadraría el kardex. Usa «Convertir unidad» para recalcular stock, costo e historial.');
+            }
+        }
         try {
             const r = await this.prisma.recurso.update({
                 where: { idRecurso: id },
@@ -407,8 +574,9 @@ let RecursosService = class RecursosService {
                         ? undefined
                         : dto.descripcion?.trim() || null,
                     idCategoria: dto.id_categoria,
-                    unidad: dto.unidad?.trim(),
+                    unidad: cambiaUnidad ? (0, inventario_unidades_1.unidadCanonica)(dto.unidad) : undefined,
                     costo: dto.costo,
+                    costoReferencia: dto.costo !== undefined ? dto.costo : undefined,
                     precio: dto.precio === undefined ? undefined : dto.precio,
                     stockMin: dto.stock_min,
                     stockMax: dto.stock_max === undefined ? undefined : dto.stock_max,
@@ -446,6 +614,7 @@ let RecursosService = class RecursosService {
                     responsable: {
                         select: { idUsuario: true, nombre: true, apellido: true },
                     },
+                    presentaciones: PRESENTACIONES_INCLUDE,
                 },
             });
             if (r.idProducto != null) {
@@ -456,6 +625,26 @@ let RecursosService = class RecursosService {
             if (dto.costo !== undefined &&
                 Number(dto.costo) !== Number(existing.costo)) {
                 recetas_recalculadas = await this.recetasCosto.recalcularPorRecurso(id, tenantId);
+                if (actor) {
+                    const u = await this.prisma.usuario.findUnique({
+                        where: { idUsuario: actor.idUsuario },
+                        select: { nombre: true, apellido: true },
+                    });
+                    const fmt = (n) => `$${Math.round(n).toLocaleString('es-CO')}`;
+                    const detalle = `Costo ${fmt(Number(existing.costo))} → ${fmt(Number(dto.costo))} por ${r.unidad}`;
+                    await (0, stock_auditoria_1.registrarAuditoriaStock)(this.prisma, {
+                        idRestaurante: tenantId,
+                        accion: 'cambio_costo',
+                        origen: 'inventario',
+                        idReferencia: id,
+                        nombre: r.nombre,
+                        motivo: dto.motivo_costo?.trim()
+                            ? `${detalle} · ${dto.motivo_costo.trim()}`
+                            : detalle,
+                        idUsuario: actor.idUsuario,
+                        nombreUsuario: u ? `${u.nombre} ${u.apellido ?? ''}`.trim() : 'Administrador',
+                    });
+                }
             }
             return { ...this.mapRecurso(r), recetas_recalculadas };
         }
@@ -537,6 +726,13 @@ let RecursosService = class RecursosService {
             if (rec.idProducto != null) {
                 await (0, recurso_stock_producto_1.syncStockProductoDesdeRecursoTx)(tx, rec.idProducto, tenantId);
             }
+            const min = this.qty(rec.stockMin);
+            if (nuevo < actual &&
+                !flags.es_activo_fijo &&
+                input.tipo !== 'baja' &&
+                RANGO_NIVEL[nivelStock(nuevo, min)] > RANGO_NIVEL[nivelStock(actual, min)]) {
+                this.programarAlertaStock(tenantId, idRecurso);
+            }
         }
         else if (input.tipo === 'compra' && costoPromedio != null) {
             await tx.recurso.update({
@@ -591,12 +787,56 @@ let RecursosService = class RecursosService {
         if (!Number.isFinite(dto.cantidad) || dto.cantidad === 0) {
             throw new common_1.BadRequestException('Cantidad no válida');
         }
+        let cantidad = dto.cantidad;
+        let costoUnitario = dto.costo_unitario;
+        let observacion = dto.observacion;
+        let presentacion = null;
+        if (dto.id_presentacion != null) {
+            const p = await this.prisma.presentacionRecurso.findFirst({
+                where: {
+                    idPresentacion: dto.id_presentacion,
+                    idRecurso: id,
+                    recurso: { idRestaurante: tenantId },
+                },
+                include: { recurso: { select: { unidad: true, costoReferencia: true } } },
+            });
+            if (!p)
+                throw new common_1.BadRequestException('Presentación no encontrada para este artículo');
+            const factor = Number(p.factor);
+            presentacion = {
+                idPresentacion: p.idPresentacion,
+                nombre: p.nombre,
+                factor,
+                predeterminada: p.predeterminada,
+                sinReferencia: !(Number(p.recurso.costoReferencia ?? 0) > 0),
+            };
+            cantidad = (0, inventario_unidades_1.redondearInventario)(dto.cantidad * factor);
+            if (dto.costo_unitario != null)
+                costoUnitario = dto.costo_unitario / factor;
+            const detalle = `${dto.cantidad} × ${p.nombre} (${factor} ${p.recurso.unidad} c/u)`;
+            observacion = observacion?.trim() ? `${detalle} · ${observacion.trim()}` : detalle;
+        }
+        const fijarPrecio = tipo === 'compra' && costoUnitario != null && costoUnitario > 0 && dto.fijar_precio !== false;
         await this.prisma.$transaction(async (tx) => {
+            if (presentacion && fijarPrecio && dto.costo_unitario != null) {
+                await tx.presentacionRecurso.update({
+                    where: { idPresentacion: presentacion.idPresentacion },
+                    data: { costoUltimo: dto.costo_unitario },
+                });
+            }
+            const fijarReferencia = fijarPrecio &&
+                (!presentacion || presentacion.predeterminada || presentacion.sinReferencia);
+            if (fijarReferencia) {
+                await tx.recurso.update({
+                    where: { idRecurso: id },
+                    data: { costoReferencia: costoUnitario },
+                });
+            }
             await this.aplicarMovimientoTx(tx, id, tenantId, {
                 tipo,
-                cantidad: dto.cantidad,
-                costo_unitario: dto.costo_unitario,
-                observacion: dto.observacion,
+                cantidad,
+                costo_unitario: costoUnitario,
+                observacion,
                 id_ubicacion_origen: dto.id_ubicacion_origen,
                 id_ubicacion_destino: dto.id_ubicacion_destino,
                 id_usuario: idUsuario,
@@ -608,6 +848,236 @@ let RecursosService = class RecursosService {
             recetas_recalculadas = await this.recetasCosto.recalcularPorRecurso(id, tenantId);
         }
         const recurso = await this.obtenerRecurso(id, tenantId);
+        return { ...recurso, recetas_recalculadas };
+    }
+    async recursosParaCompra(ids, tenantId) {
+        const rows = await this.prisma.recurso.findMany({
+            where: { idRecurso: { in: ids }, idRestaurante: tenantId },
+            select: {
+                idRecurso: true,
+                nombre: true,
+                presentaciones: { select: { idPresentacion: true } },
+            },
+        });
+        return new Map(rows.map((r) => [
+            r.idRecurso,
+            { nombre: r.nombre, presentaciones: r.presentaciones.map((p) => p.idPresentacion) },
+        ]));
+    }
+    async lineasRecetaConUnidad(idRecurso, unidad) {
+        const lineas = await this.prisma.recetaLinea.findMany({
+            where: { idRecurso },
+            select: {
+                idLinea: true,
+                unidad: true,
+                receta: { select: { producto: { select: { nombre: true } } } },
+            },
+        });
+        const key = (0, inventario_unidades_1.normalizarUnidad)(unidad);
+        return lineas.filter((l) => (0, inventario_unidades_1.normalizarUnidad)(l.unidad) === key);
+    }
+    async crearPresentacion(idRecurso, dto, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
+        const rec = await this.prisma.recurso.findFirst({
+            where: { idRecurso, idRestaurante: tenantId },
+            include: { presentaciones: true },
+        });
+        if (!rec)
+            throw new common_1.NotFoundException('Recurso no encontrado');
+        const nombre = dto.nombre.trim();
+        this.validarNombrePresentacion(nombre, rec.unidad);
+        if (rec.presentaciones.some((p) => (0, inventario_unidades_1.normalizarUnidad)(p.nombre) === (0, inventario_unidades_1.normalizarUnidad)(nombre))) {
+            throw new common_1.BadRequestException(`Ya existe la presentación «${nombre}»`);
+        }
+        const predeterminada = Boolean(dto.predeterminada) || rec.presentaciones.length === 0;
+        await this.prisma.$transaction(async (tx) => {
+            if (predeterminada) {
+                await tx.presentacionRecurso.updateMany({
+                    where: { idRecurso },
+                    data: { predeterminada: false },
+                });
+            }
+            await tx.presentacionRecurso.create({
+                data: {
+                    idRecurso,
+                    nombre,
+                    factor: dto.factor,
+                    codigoBarras: dto.codigo_barras?.trim() || null,
+                    costoUltimo: dto.costo_ultimo != null && dto.costo_ultimo > 0 ? dto.costo_ultimo : null,
+                    predeterminada,
+                },
+            });
+        });
+        (0, deduccion_contexto_cache_1.invalidateDeduccionEstructuraCache)(tenantId);
+        return this.obtenerRecurso(idRecurso, tenantId);
+    }
+    async actualizarPresentacion(idRecurso, idPresentacion, dto, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
+        const rec = await this.prisma.recurso.findFirst({
+            where: { idRecurso, idRestaurante: tenantId },
+            include: { presentaciones: true },
+        });
+        if (!rec)
+            throw new common_1.NotFoundException('Recurso no encontrado');
+        const actual = rec.presentaciones.find((p) => p.idPresentacion === idPresentacion);
+        if (!actual)
+            throw new common_1.NotFoundException('Presentación no encontrada');
+        const nombre = dto.nombre?.trim();
+        const renombra = nombre != null && (0, inventario_unidades_1.normalizarUnidad)(nombre) !== (0, inventario_unidades_1.normalizarUnidad)(actual.nombre);
+        if (renombra) {
+            this.validarNombrePresentacion(nombre, rec.unidad);
+            if (rec.presentaciones.some((p) => p.idPresentacion !== idPresentacion &&
+                (0, inventario_unidades_1.normalizarUnidad)(p.nombre) === (0, inventario_unidades_1.normalizarUnidad)(nombre))) {
+                throw new common_1.BadRequestException(`Ya existe la presentación «${nombre}»`);
+            }
+        }
+        const lineasARenombrar = renombra
+            ? await this.lineasRecetaConUnidad(idRecurso, actual.nombre)
+            : [];
+        const cambiaFactor = dto.factor != null && dto.factor !== Number(actual.factor);
+        await this.prisma.$transaction(async (tx) => {
+            if (dto.predeterminada) {
+                await tx.presentacionRecurso.updateMany({
+                    where: { idRecurso },
+                    data: { predeterminada: false },
+                });
+            }
+            await tx.presentacionRecurso.update({
+                where: { idPresentacion },
+                data: {
+                    nombre: renombra ? nombre : undefined,
+                    factor: dto.factor,
+                    codigoBarras: dto.codigo_barras === undefined ? undefined : dto.codigo_barras.trim() || null,
+                    costoUltimo: dto.costo_ultimo === undefined
+                        ? undefined
+                        : dto.costo_ultimo != null && dto.costo_ultimo > 0
+                            ? dto.costo_ultimo
+                            : null,
+                    predeterminada: dto.predeterminada ? true : undefined,
+                },
+            });
+            if (lineasARenombrar.length) {
+                await tx.recetaLinea.updateMany({
+                    where: { idLinea: { in: lineasARenombrar.map((l) => l.idLinea) } },
+                    data: { unidad: nombre },
+                });
+            }
+        });
+        (0, deduccion_contexto_cache_1.invalidateDeduccionEstructuraCache)(tenantId);
+        if (cambiaFactor) {
+            const usadas = await this.lineasRecetaConUnidad(idRecurso, renombra ? nombre : actual.nombre);
+            if (usadas.length)
+                await this.recetasCosto.recalcularPorRecurso(idRecurso, tenantId);
+        }
+        return this.obtenerRecurso(idRecurso, tenantId);
+    }
+    async eliminarPresentacion(idRecurso, idPresentacion, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
+        const p = await this.prisma.presentacionRecurso.findFirst({
+            where: { idPresentacion, idRecurso, recurso: { idRestaurante: tenantId } },
+        });
+        if (!p)
+            throw new common_1.NotFoundException('Presentación no encontrada');
+        const usadas = await this.lineasRecetaConUnidad(idRecurso, p.nombre);
+        if (usadas.length) {
+            const productos = [
+                ...new Set(usadas.map((l) => l.receta.producto?.nombre).filter(Boolean)),
+            ].join(', ');
+            throw new common_1.BadRequestException(`La receta de ${productos || 'algunos productos'} usa «${p.nombre}». Cambia esa línea a otra unidad antes de quitarla.`);
+        }
+        await this.prisma.$transaction(async (tx) => {
+            await tx.presentacionRecurso.delete({ where: { idPresentacion } });
+            if (p.predeterminada) {
+                const siguiente = await tx.presentacionRecurso.findFirst({
+                    where: { idRecurso },
+                    orderBy: { factor: 'asc' },
+                });
+                if (siguiente) {
+                    await tx.presentacionRecurso.update({
+                        where: { idPresentacion: siguiente.idPresentacion },
+                        data: { predeterminada: true },
+                    });
+                }
+            }
+        });
+        (0, deduccion_contexto_cache_1.invalidateDeduccionEstructuraCache)(tenantId);
+        return this.obtenerRecurso(idRecurso, tenantId);
+    }
+    async convertirUnidad(idRecurso, dto, tenantId = tenant_constants_1.DEFAULT_TENANT_ID, actor) {
+        const nombreAdmin = await (0, stock_auditoria_1.exigirPasswordAdmin)(this.prisma, actor, dto.password_admin, 'convertir la unidad del artículo');
+        const rec = await this.prisma.recurso.findFirst({
+            where: { idRecurso, idRestaurante: tenantId },
+            include: { presentaciones: true },
+        });
+        if (!rec)
+            throw new common_1.NotFoundException('Recurso no encontrado');
+        this.validarUnidadRecurso(dto.unidad_base);
+        const nuevaUnidad = (0, inventario_unidades_1.unidadCanonica)(dto.unidad_base);
+        if ((0, inventario_unidades_1.normalizarUnidad)(nuevaUnidad) === (0, inventario_unidades_1.normalizarUnidad)(rec.unidad)) {
+            throw new common_1.BadRequestException('La unidad nueva es igual a la actual');
+        }
+        const f = dto.factor;
+        const nombrePres = dto.nombre_presentacion?.trim() ||
+            rec.unidad.trim().charAt(0).toUpperCase() + rec.unidad.trim().slice(1);
+        this.validarNombrePresentacion(nombrePres, nuevaUnidad);
+        const lineasUnidadVieja = await this.lineasRecetaConUnidad(idRecurso, rec.unidad);
+        const stockAntes = this.qty(rec.stock);
+        const stockNuevo = (0, inventario_unidades_1.redondearInventario)(stockAntes * f);
+        await this.prisma.$transaction(async (tx) => {
+            await tx.recurso.update({
+                where: { idRecurso },
+                data: {
+                    unidad: nuevaUnidad,
+                    stock: stockNuevo,
+                    stockMin: (0, inventario_unidades_1.redondearInventario)(this.qty(rec.stockMin) * f),
+                    stockMax: rec.stockMax != null ? (0, inventario_unidades_1.redondearInventario)(this.qty(rec.stockMax) * f) : null,
+                    costo: Number(rec.costo) / f,
+                    costoReferencia: rec.costoReferencia != null ? Number(rec.costoReferencia) / f : null,
+                },
+            });
+            await tx.movimientoRecurso.updateMany({
+                where: { idRecurso },
+                data: { cantidad: { multiply: f }, costoUnitario: { divide: f } },
+            });
+            for (const p of rec.presentaciones) {
+                await tx.presentacionRecurso.update({
+                    where: { idPresentacion: p.idPresentacion },
+                    data: { factor: Number(p.factor) * f },
+                });
+            }
+            const yaExiste = rec.presentaciones.some((p) => (0, inventario_unidades_1.normalizarUnidad)(p.nombre) === (0, inventario_unidades_1.normalizarUnidad)(nombrePres));
+            if (!yaExiste) {
+                await tx.presentacionRecurso.updateMany({
+                    where: { idRecurso },
+                    data: { predeterminada: false },
+                });
+                await tx.presentacionRecurso.create({
+                    data: { idRecurso, nombre: nombrePres, factor: f, predeterminada: true },
+                });
+            }
+            if (lineasUnidadVieja.length &&
+                (0, inventario_unidades_1.normalizarUnidad)(nombrePres) !== (0, inventario_unidades_1.normalizarUnidad)(rec.unidad)) {
+                await tx.recetaLinea.updateMany({
+                    where: { idLinea: { in: lineasUnidadVieja.map((l) => l.idLinea) } },
+                    data: { unidad: nombrePres },
+                });
+            }
+            if (rec.idProducto != null) {
+                await (0, recurso_stock_producto_1.syncStockProductoDesdeRecursoTx)(tx, rec.idProducto, tenantId);
+            }
+            await (0, stock_auditoria_1.registrarAuditoriaStock)(tx, {
+                idRestaurante: tenantId,
+                accion: 'cambio_unidad',
+                origen: 'inventario',
+                idReferencia: idRecurso,
+                nombre: rec.nombre,
+                stockAnterior: stockAntes,
+                stockNuevo,
+                motivo: `Unidad ${rec.unidad} → ${nuevaUnidad} (1 ${rec.unidad} = ${f} ${nuevaUnidad})`,
+                idUsuario: actor.idUsuario,
+                nombreUsuario: nombreAdmin,
+            });
+        });
+        (0, deduccion_contexto_cache_1.invalidateDeduccionEstructuraCache)(tenantId);
+        const recetas_recalculadas = await this.recetasCosto.recalcularPorRecurso(idRecurso, tenantId);
+        const recurso = await this.obtenerRecurso(idRecurso, tenantId);
         return { ...recurso, recetas_recalculadas };
     }
     async aplicarMovimientoDeduccionTx(tx, input) {
@@ -623,6 +1093,25 @@ let RecursosService = class RecursosService {
             id_pedido: input.id_pedido,
             id_detalle_pedido: input.id_detalle_pedido,
         });
+    }
+    async listarAuditoriaStock(tenantId = tenant_constants_1.DEFAULT_TENANT_ID, limite = 100) {
+        const rows = await this.prisma.auditoriaStock.findMany({
+            where: { idRestaurante: tenantId },
+            orderBy: { creadoEn: 'desc' },
+            take: Math.min(Math.max(1, limite || 100), 500),
+        });
+        return rows.map((r) => ({
+            id: r.idAuditoria,
+            accion: r.accion,
+            origen: r.origen,
+            id_referencia: r.idReferencia,
+            nombre: r.nombre,
+            stock_anterior: r.stockAnterior != null ? Number(r.stockAnterior) : null,
+            stock_nuevo: r.stockNuevo != null ? Number(r.stockNuevo) : null,
+            motivo: r.motivo,
+            usuario: r.nombreUsuario,
+            creado_en: r.creadoEn.toISOString(),
+        }));
     }
     async listarMovimientos(tenantId = tenant_constants_1.DEFAULT_TENANT_ID, filtros) {
         await this.migracion.migrarSiNecesario(tenantId);
@@ -784,11 +1273,14 @@ let RecursosService = class RecursosService {
     }
 };
 exports.RecursosService = RecursosService;
-exports.RecursosService = RecursosService = __decorate([
+exports.RecursosService = RecursosService = RecursosService_1 = __decorate([
     (0, common_1.Injectable)(),
     __param(2, (0, common_1.Inject)((0, common_1.forwardRef)(() => inventario_receta_service_1.InventarioRecetaService))),
+    __param(3, (0, common_1.Optional)()),
+    __param(3, (0, common_1.Inject)((0, common_1.forwardRef)(() => pedidos_gateway_1.PedidosGateway))),
     __metadata("design:paramtypes", [prisma_service_1.PrismaService,
         recursos_migracion_service_1.RecursosMigracionService,
-        inventario_receta_service_1.InventarioRecetaService])
+        inventario_receta_service_1.InventarioRecetaService,
+        pedidos_gateway_1.PedidosGateway])
 ], RecursosService);
 //# sourceMappingURL=recursos.service.js.map

@@ -14,6 +14,7 @@ const class_validator_1 = require("class-validator");
 const class_transformer_1 = require("class-transformer");
 const detalle_cobro_dto_1 = require("./detalle-cobro.dto");
 class FacturarMixtoDto {
+    fecha_venta;
     monto_transferencia;
     monto_recibido_efectivo;
     imprimir_factura;
@@ -30,6 +31,11 @@ class FacturarMixtoDto {
     sin_impoconsumo;
 }
 exports.FacturarMixtoDto = FacturarMixtoDto;
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.Matches)(/^\d{4}-\d{2}-\d{2}$/, { message: 'fecha_venta debe ser YYYY-MM-DD' }),
+    __metadata("design:type", String)
+], FacturarMixtoDto.prototype, "fecha_venta", void 0);
 __decorate([
     (0, class_validator_1.IsInt)(),
     (0, class_validator_1.Min)(1),

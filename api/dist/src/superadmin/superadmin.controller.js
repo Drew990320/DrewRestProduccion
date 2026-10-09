@@ -68,8 +68,8 @@ let SuperadminController = class SuperadminController {
     purgarLugares(dto, tenantId) {
         return this.superadmin.purgarLugares(tenantId ?? 1, dto.confirmar);
     }
-    purgarInventario(dto, tenantId) {
-        return this.superadmin.purgarInventario(tenantId ?? 1, dto.confirmar);
+    purgarInventario(dto, tenantId, req) {
+        return this.superadmin.purgarInventario(tenantId ?? 1, dto.confirmar, req.user, dto.password_admin);
     }
 };
 exports.SuperadminController = SuperadminController;
@@ -175,8 +175,9 @@ __decorate([
     (0, common_1.Post)('purgar/inventario'),
     __param(0, (0, common_1.Body)()),
     __param(1, (0, current_tenant_decorator_1.CurrentTenantId)()),
+    __param(2, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [purgar_dto_1.PurgarSuperadminDto, Object]),
+    __metadata("design:paramtypes", [purgar_dto_1.PurgarSuperadminDto, Object, Object]),
     __metadata("design:returntype", void 0)
 ], SuperadminController.prototype, "purgarInventario", null);
 exports.SuperadminController = SuperadminController = __decorate([

@@ -9,8 +9,112 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.CrearMantenimientoRecursoDto = exports.CrearMovimientoRecursoDto = exports.ActualizarRecursoDto = exports.CrearRecursoDto = exports.ActualizarUbicacionRecursoDto = exports.CrearUbicacionRecursoDto = exports.ActualizarCategoriaRecursoDto = exports.CrearCategoriaRecursoDto = void 0;
+exports.CrearMantenimientoRecursoDto = exports.CompraRecursosDto = exports.CompraLineaRecursoDto = exports.CrearMovimientoRecursoDto = exports.ActualizarRecursoDto = exports.CrearRecursoDto = exports.ActualizarUbicacionRecursoDto = exports.CrearUbicacionRecursoDto = exports.ActualizarCategoriaRecursoDto = exports.CrearCategoriaRecursoDto = exports.ConvertirUnidadRecursoDto = exports.ActualizarPresentacionRecursoDto = exports.PresentacionRecursoDto = void 0;
+const class_transformer_1 = require("class-transformer");
 const class_validator_1 = require("class-validator");
+class PresentacionRecursoDto {
+    nombre;
+    factor;
+    codigo_barras;
+    predeterminada;
+    costo_ultimo;
+}
+exports.PresentacionRecursoDto = PresentacionRecursoDto;
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MinLength)(1),
+    (0, class_validator_1.MaxLength)(20),
+    __metadata("design:type", String)
+], PresentacionRecursoDto.prototype, "nombre", void 0);
+__decorate([
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.IsPositive)(),
+    __metadata("design:type", Number)
+], PresentacionRecursoDto.prototype, "factor", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(80),
+    __metadata("design:type", String)
+], PresentacionRecursoDto.prototype, "codigo_barras", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], PresentacionRecursoDto.prototype, "predeterminada", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.Min)(0),
+    __metadata("design:type", Object)
+], PresentacionRecursoDto.prototype, "costo_ultimo", void 0);
+class ActualizarPresentacionRecursoDto {
+    nombre;
+    factor;
+    codigo_barras;
+    predeterminada;
+    costo_ultimo;
+}
+exports.ActualizarPresentacionRecursoDto = ActualizarPresentacionRecursoDto;
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MinLength)(1),
+    (0, class_validator_1.MaxLength)(20),
+    __metadata("design:type", String)
+], ActualizarPresentacionRecursoDto.prototype, "nombre", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.IsPositive)(),
+    __metadata("design:type", Number)
+], ActualizarPresentacionRecursoDto.prototype, "factor", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(80),
+    __metadata("design:type", String)
+], ActualizarPresentacionRecursoDto.prototype, "codigo_barras", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], ActualizarPresentacionRecursoDto.prototype, "predeterminada", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.Min)(0),
+    __metadata("design:type", Object)
+], ActualizarPresentacionRecursoDto.prototype, "costo_ultimo", void 0);
+class ConvertirUnidadRecursoDto {
+    unidad_base;
+    factor;
+    nombre_presentacion;
+    password_admin;
+}
+exports.ConvertirUnidadRecursoDto = ConvertirUnidadRecursoDto;
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MinLength)(1),
+    (0, class_validator_1.MaxLength)(20),
+    __metadata("design:type", String)
+], ConvertirUnidadRecursoDto.prototype, "unidad_base", void 0);
+__decorate([
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.IsPositive)(),
+    __metadata("design:type", Number)
+], ConvertirUnidadRecursoDto.prototype, "factor", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(20),
+    __metadata("design:type", String)
+], ConvertirUnidadRecursoDto.prototype, "nombre_presentacion", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(200),
+    __metadata("design:type", String)
+], ConvertirUnidadRecursoDto.prototype, "password_admin", void 0);
 class CrearCategoriaRecursoDto {
     codigo;
     nombre;
@@ -281,6 +385,7 @@ class CrearRecursoDto {
     fecha_vencimiento;
     observaciones;
     id_producto;
+    presentaciones;
 }
 exports.CrearRecursoDto = CrearRecursoDto;
 __decorate([
@@ -392,6 +497,13 @@ __decorate([
     (0, class_validator_1.IsNumber)(),
     __metadata("design:type", Number)
 ], CrearRecursoDto.prototype, "id_producto", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsArray)(),
+    (0, class_validator_1.ValidateNested)({ each: true }),
+    (0, class_transformer_1.Type)(() => PresentacionRecursoDto),
+    __metadata("design:type", Array)
+], CrearRecursoDto.prototype, "presentaciones", void 0);
 class ActualizarRecursoDto {
     codigo;
     nombre;
@@ -399,6 +511,7 @@ class ActualizarRecursoDto {
     id_categoria;
     unidad;
     costo;
+    motivo_costo;
     precio;
     stock_min;
     stock_max;
@@ -449,6 +562,12 @@ __decorate([
     (0, class_validator_1.Min)(0),
     __metadata("design:type", Number)
 ], ActualizarRecursoDto.prototype, "costo", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(160),
+    __metadata("design:type", String)
+], ActualizarRecursoDto.prototype, "motivo_costo", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsNumber)(),
@@ -529,6 +648,9 @@ class CrearMovimientoRecursoDto {
     observacion;
     id_ubicacion_origen;
     id_ubicacion_destino;
+    id_presentacion;
+    salio_de_caja;
+    fijar_precio;
 }
 exports.CrearMovimientoRecursoDto = CrearMovimientoRecursoDto;
 __decorate([
@@ -561,6 +683,78 @@ __decorate([
     (0, class_validator_1.IsNumber)(),
     __metadata("design:type", Number)
 ], CrearMovimientoRecursoDto.prototype, "id_ubicacion_destino", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsInt)(),
+    __metadata("design:type", Number)
+], CrearMovimientoRecursoDto.prototype, "id_presentacion", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], CrearMovimientoRecursoDto.prototype, "salio_de_caja", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], CrearMovimientoRecursoDto.prototype, "fijar_precio", void 0);
+class CompraLineaRecursoDto {
+    id_recurso;
+    cantidad;
+    id_presentacion;
+    costo_unitario;
+    fijar_precio;
+}
+exports.CompraLineaRecursoDto = CompraLineaRecursoDto;
+__decorate([
+    (0, class_validator_1.IsInt)(),
+    __metadata("design:type", Number)
+], CompraLineaRecursoDto.prototype, "id_recurso", void 0);
+__decorate([
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.IsPositive)(),
+    __metadata("design:type", Number)
+], CompraLineaRecursoDto.prototype, "cantidad", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsInt)(),
+    __metadata("design:type", Number)
+], CompraLineaRecursoDto.prototype, "id_presentacion", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.Min)(0),
+    __metadata("design:type", Number)
+], CompraLineaRecursoDto.prototype, "costo_unitario", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], CompraLineaRecursoDto.prototype, "fijar_precio", void 0);
+class CompraRecursosDto {
+    lineas;
+    salio_de_caja;
+    observacion;
+}
+exports.CompraRecursosDto = CompraRecursosDto;
+__decorate([
+    (0, class_validator_1.IsArray)(),
+    (0, class_validator_1.ArrayMinSize)(1),
+    (0, class_validator_1.ValidateNested)({ each: true }),
+    (0, class_transformer_1.Type)(() => CompraLineaRecursoDto),
+    __metadata("design:type", Array)
+], CompraRecursosDto.prototype, "lineas", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], CompraRecursosDto.prototype, "salio_de_caja", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(160),
+    __metadata("design:type", String)
+], CompraRecursosDto.prototype, "observacion", void 0);
 class CrearMantenimientoRecursoDto {
     descripcion;
     costo;

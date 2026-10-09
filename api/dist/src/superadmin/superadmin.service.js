@@ -51,6 +51,7 @@ const email_mesero_1 = require("@drewrest/shared-domain/email-mesero");
 const mesa_label_1 = require("@drewrest/shared-domain/mesa-label");
 const mesa_admin_validacion_1 = require("@drewrest/shared-domain/mesa-admin-validacion");
 const prisma_service_1 = require("../prisma/prisma.service");
+const stock_auditoria_1 = require("../common/stock-auditoria");
 const pedidos_gateway_1 = require("../pedidos/pedidos.gateway");
 const auth_user_cache_1 = require("../auth/auth-user-cache");
 const restaurante_acceso_cache_1 = require("../tenant/restaurante-acceso-cache");
@@ -915,10 +916,11 @@ let SuperadminService = class SuperadminService {
         this.gateway.emitConfigActualizada('mesas', tenantId);
         return { ok: true, lugares_desactivados: result.count };
     }
-    async purgarInventario(tenantId, confirmar) {
+    async purgarInventario(tenantId, confirmar, actor, passwordAdmin) {
         if (confirmar.trim().toUpperCase() !== 'PURGAR_INVENTARIO') {
             throw new common_1.BadRequestException('Escribe confirmar: "PURGAR_INVENTARIO"');
         }
+        const nombreAdmin = await (0, stock_auditoria_1.exigirPasswordAdmin)(this.prisma, actor, passwordAdmin, 'purgar el inventario');
         const result = await this.prisma.$transaction(async (tx) => {
             const inventarios = await tx.inventario.findMany({
                 where: { idRestaurante: tenantId },
@@ -1008,6 +1010,15 @@ let SuperadminService = class SuperadminService {
         (0, config_inventario_cache_1.invalidateConfigInventarioCache)(tenantId);
         this.gateway.emitConfigActualizada('inventario', tenantId);
         this.gateway.emitConfigActualizada('menu', tenantId);
+        await (0, stock_auditoria_1.registrarAuditoriaStock)(this.prisma, {
+            idRestaurante: tenantId,
+            accion: 'purga_inventario',
+            origen: 'inventario',
+            nombre: 'Purga completa de inventario',
+            motivo: `${result.recursos_eliminados} artículos, ${result.inventarios_eliminados} inventarios, ${result.recetas_eliminadas} recetas, ${result.movimientos_recurso + result.movimientos_inventario} movimientos`,
+            idUsuario: actor.idUsuario,
+            nombreUsuario: nombreAdmin,
+        });
         return { ok: true, ...result };
     }
 };

@@ -188,6 +188,8 @@ class PatchProductoTiendaDto {
     control_stock;
     stock_disponible;
     id_tienda;
+    password_admin;
+    motivo_ajuste_stock;
 }
 __decorate([
     (0, class_validator_1.IsOptional)(),
@@ -238,6 +240,27 @@ __decorate([
     (0, class_validator_1.Min)(1),
     __metadata("design:type", Number)
 ], PatchProductoTiendaDto.prototype, "id_tienda", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(200),
+    __metadata("design:type", String)
+], PatchProductoTiendaDto.prototype, "password_admin", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(255),
+    __metadata("design:type", String)
+], PatchProductoTiendaDto.prototype, "motivo_ajuste_stock", void 0);
+class EliminarVarianteDto {
+    password_admin;
+}
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(200),
+    __metadata("design:type", String)
+], EliminarVarianteDto.prototype, "password_admin", void 0);
 class UpsertVarianteDto {
     id_variante;
     nombre;
@@ -247,6 +270,8 @@ class UpsertVarianteDto {
     activo;
     orden;
     id_tienda;
+    password_admin;
+    motivo_ajuste_stock;
 }
 __decorate([
     (0, class_validator_1.IsOptional)(),
@@ -297,6 +322,18 @@ __decorate([
     (0, class_validator_1.Min)(1),
     __metadata("design:type", Number)
 ], UpsertVarianteDto.prototype, "id_tienda", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(200),
+    __metadata("design:type", String)
+], UpsertVarianteDto.prototype, "password_admin", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(255),
+    __metadata("design:type", String)
+], UpsertVarianteDto.prototype, "motivo_ajuste_stock", void 0);
 class AbrirVentaDto {
     id_tienda;
 }
@@ -354,14 +391,14 @@ let TiendaController = class TiendaController {
     crearProducto(dto, tenantId) {
         return this.tienda.crearProducto(dto, tenantId, dto.id_tienda);
     }
-    actualizarProducto(id, dto, tenantId) {
-        return this.tienda.actualizarProducto(id, dto, tenantId, dto.id_tienda);
+    actualizarProducto(id, dto, tenantId, req) {
+        return this.tienda.actualizarProducto(id, dto, tenantId, dto.id_tienda, req.user);
     }
-    upsertVariante(id, dto, tenantId) {
-        return this.tienda.upsertVariante(id, dto, tenantId, dto.id_tienda);
+    upsertVariante(id, dto, tenantId, req) {
+        return this.tienda.upsertVariante(id, dto, tenantId, dto.id_tienda, req.user);
     }
-    eliminarVariante(id, idVariante, tenantId, idTienda) {
-        return this.tienda.eliminarVariante(id, idVariante, tenantId, parseIdTiendaQuery(idTienda));
+    eliminarVariante(id, idVariante, tenantId, req, dto, idTienda) {
+        return this.tienda.eliminarVariante(id, idVariante, tenantId, parseIdTiendaQuery(idTienda), req.user, dto?.password_admin);
     }
     catalogo(tenantId, idTienda) {
         return this.tienda.catalogoVenta(tenantId, parseIdTiendaQuery(idTienda));
@@ -376,6 +413,7 @@ let TiendaController = class TiendaController {
 exports.TiendaController = TiendaController;
 __decorate([
     (0, common_1.Get)('tiendas'),
+    (0, roles_decorator_1.Roles)('admin', 'superadmin', 'mesero'),
     __param(0, (0, current_tenant_decorator_1.CurrentTenantId)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Number]),
@@ -465,8 +503,9 @@ __decorate([
     __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
     __param(1, (0, common_1.Body)()),
     __param(2, (0, current_tenant_decorator_1.CurrentTenantId)()),
+    __param(3, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Number, PatchProductoTiendaDto, Number]),
+    __metadata("design:paramtypes", [Number, PatchProductoTiendaDto, Number, Object]),
     __metadata("design:returntype", void 0)
 ], TiendaController.prototype, "actualizarProducto", null);
 __decorate([
@@ -474,8 +513,9 @@ __decorate([
     __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
     __param(1, (0, common_1.Body)()),
     __param(2, (0, current_tenant_decorator_1.CurrentTenantId)()),
+    __param(3, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Number, UpsertVarianteDto, Number]),
+    __metadata("design:paramtypes", [Number, UpsertVarianteDto, Number, Object]),
     __metadata("design:returntype", void 0)
 ], TiendaController.prototype, "upsertVariante", null);
 __decorate([
@@ -483,13 +523,16 @@ __decorate([
     __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
     __param(1, (0, common_1.Param)('idVariante', common_1.ParseIntPipe)),
     __param(2, (0, current_tenant_decorator_1.CurrentTenantId)()),
-    __param(3, (0, common_1.Query)('id_tienda')),
+    __param(3, (0, common_1.Req)()),
+    __param(4, (0, common_1.Body)()),
+    __param(5, (0, common_1.Query)('id_tienda')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Number, Number, Number, String]),
+    __metadata("design:paramtypes", [Number, Number, Number, Object, EliminarVarianteDto, String]),
     __metadata("design:returntype", void 0)
 ], TiendaController.prototype, "eliminarVariante", null);
 __decorate([
     (0, common_1.Get)('catalogo'),
+    (0, roles_decorator_1.Roles)('admin', 'superadmin', 'mesero'),
     __param(0, (0, current_tenant_decorator_1.CurrentTenantId)()),
     __param(1, (0, common_1.Query)('id_tienda')),
     __metadata("design:type", Function),
@@ -498,6 +541,7 @@ __decorate([
 ], TiendaController.prototype, "catalogo", null);
 __decorate([
     (0, common_1.Get)('venta/abiertas'),
+    (0, roles_decorator_1.Roles)('admin', 'superadmin', 'mesero'),
     __param(0, (0, current_tenant_decorator_1.CurrentTenantId)()),
     __param(1, (0, common_1.Query)('id_tienda')),
     __metadata("design:type", Function),
@@ -506,6 +550,7 @@ __decorate([
 ], TiendaController.prototype, "ventasAbiertas", null);
 __decorate([
     (0, common_1.Post)('venta/abrir'),
+    (0, roles_decorator_1.Roles)('admin', 'superadmin', 'mesero'),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Body)()),
     __param(2, (0, current_tenant_decorator_1.CurrentTenantId)()),

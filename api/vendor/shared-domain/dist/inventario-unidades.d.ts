@@ -38,4 +38,30 @@ export type ResultadoConversion = {
 export declare function convertirCantidad(cantidad: number, desde: string, hacia: string, conversiones?: readonly ConversionUnidad[]): ResultadoConversion;
 /** Redondeo estable para inventario (3 decimales). */
 export declare function redondearInventario(n: number): number;
+/**
+ * Unidad en la que se guarda el stock y descuentan las recetas: una medida real
+ * (masa, volumen o conteo). Los empaques van como presentaciones del artículo.
+ */
+export declare function esUnidadBaseValida(unidad: string): boolean;
+export declare function esUnidadEmpaque(unidad: string): boolean;
+/** Forma canónica de una unidad conocida (gramos → g); si no se conoce, la deja limpia. */
+export declare function unidadCanonica(unidad: string): string;
+/** Cómo se compra o se cuenta un artículo: «Paquete» = 10 (en la unidad base). */
+export type PresentacionArticulo = Readonly<{
+    nombre: string;
+    /** Cuántas unidades base trae una presentación. */
+    factor: number;
+}>;
+/** Las presentaciones de un artículo como reglas de conversión hacia su unidad base. */
+export declare function conversionesDePresentaciones(unidadBase: string, presentaciones: readonly PresentacionArticulo[]): ConversionUnidad[];
+/**
+ * Unidades que puede usar una receta o una entrada para este artículo:
+ * la base, las de su misma dimensión (g ↔ kg) y sus presentaciones.
+ */
+export declare function unidadesCompatibles(unidadBase: string, presentaciones?: readonly PresentacionArticulo[]): string[];
+/**
+ * Stock expresado en la presentación más grande que cabe:
+ * 34 u con «Paquete» = 10 → «3 paquetes + 4 u». Null si no aplica.
+ */
+export declare function desglosePresentacion(stock: number, unidadBase: string, presentaciones: readonly PresentacionArticulo[]): string | null;
 export {};

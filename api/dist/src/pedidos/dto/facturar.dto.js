@@ -15,6 +15,7 @@ const class_transformer_1 = require("class-transformer");
 const detalle_cobro_dto_1 = require("./detalle-cobro.dto");
 class FacturarDto {
     metodo_pago;
+    fecha_venta;
     nombre_cliente_fiado;
     telefono_cliente_fiado;
     notas_fiado;
@@ -40,6 +41,11 @@ __decorate([
     (0, class_validator_1.IsIn)(['efectivo', 'transferencia', 'tarjeta', 'fiado']),
     __metadata("design:type", String)
 ], FacturarDto.prototype, "metodo_pago", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.Matches)(/^\d{4}-\d{2}-\d{2}$/, { message: 'fecha_venta debe ser YYYY-MM-DD' }),
+    __metadata("design:type", String)
+], FacturarDto.prototype, "fecha_venta", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),

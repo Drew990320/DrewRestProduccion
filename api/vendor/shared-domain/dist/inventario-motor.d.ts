@@ -1,7 +1,7 @@
 import type { ClaseInventario, ComportamientoInventario } from './inventario-comportamiento';
 import { type EventoDeduccionInventario, type PoliticaDeduccionInventario } from './inventario-deduccion';
 import type { MovimientoInventarioPlan } from './inventario-movimientos';
-import { type ArticuloInventarioReceta, type Receta } from './inventario-receta';
+import { type ArticuloInventarioReceta, type Receta, type SustitucionAplicada } from './inventario-receta';
 import type { ConversionUnidad } from './inventario-unidades';
 export type ArticuloInventarioEstado = ArticuloInventarioReceta & Readonly<{
     nombre: string;
@@ -21,6 +21,8 @@ export type PlanDeduccionInventario = Readonly<{
     evento: EventoDeduccionInventario;
     movimientos: MovimientoInventarioPlan[];
     advertencias: string[];
+    /** Líneas donde el principal no alcanzaba (con o sin alterno). */
+    sustituciones?: SustitucionAplicada[];
 }>;
 export declare function aplicarMovimientos(articulos: ReadonlyMap<number, ArticuloInventarioEstado>, movimientos: readonly MovimientoInventarioPlan[]): {
     articulos: Map<number, ArticuloInventarioEstado>;
@@ -45,5 +47,12 @@ export declare function planificarDeduccionReceta(input: Readonly<{
     evento: EventoDeduccionInventario;
     politica?: PoliticaDeduccionInventario;
     id_pedido?: number;
+    /**
+     * `auto` (default): elige alterno según stock vivo.
+     * Map: alternos ya decididos (reversos: se devuelve lo que realmente se descontó).
+     */
+    sustituciones?: 'auto' | ReadonlyMap<string, number>;
+    /** Stock ya comprometido por otras líneas del mismo pedido; se actualiza. */
+    reservado?: Map<number, number>;
 }>): PlanDeduccionInventario;
 export declare function articuloBajoMinimo(a: ArticuloInventarioEstado): boolean;
