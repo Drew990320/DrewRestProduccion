@@ -27,6 +27,7 @@ function vigenciaDe(r) {
         fecha_inicio: ymdDeFecha(r.fechaInicio),
         fecha_fin: ymdDeFecha(r.fechaFin),
         dias_semana: (0, gastos_vigencia_1.normalizarDiasSemana)(r.diasSemana),
+        dia_mes: (0, gastos_vigencia_1.normalizarDiaMes)(r.diaMes),
     };
 }
 const ganancias_pdf_1 = require("./ganancias-pdf");
@@ -156,7 +157,7 @@ let GananciasService = GananciasService_1 = class GananciasService {
             modo_registro_fondo: r.modoRegistroFondo,
             periodicidad: (0, ganancias_periodo_1.parsePeriodicidadGasto)(r.periodicidad, 'mensual'),
             ...vigenciaDe(r),
-            descripcion_dias: (0, gastos_vigencia_1.describirDiasSemana)(r.diasSemana),
+            descripcion_dias: (0, gastos_vigencia_1.describirFrecuencia)(vigenciaDe(r)),
             acumulado_mes,
             acumulado_fondo,
             pagado_fondo,
@@ -202,6 +203,7 @@ let GananciasService = GananciasService_1 = class GananciasService {
             fechaInicio: inicio ? this.fechaOnlyFromYmd(inicio, 'fecha_inicio') : null,
             fechaFin: fin ? this.fechaOnlyFromYmd(fin, 'fecha_fin') : null,
             diasSemana: (0, gastos_vigencia_1.normalizarDiasSemana)(v.dias_semana),
+            diaMes: v.periodicidad === 'mensual' ? (0, gastos_vigencia_1.normalizarDiaMes)(v.dia_mes) : null,
         };
     }
     async acumuladosMes(tenantId, ymd) {
@@ -318,6 +320,7 @@ let GananciasService = GananciasService_1 = class GananciasService {
             await this.prisma.$executeRawUnsafe(`ALTER TABLE "gasto_fijo_ganancia" ADD COLUMN IF NOT EXISTS "fecha_inicio" DATE`);
             await this.prisma.$executeRawUnsafe(`ALTER TABLE "gasto_fijo_ganancia" ADD COLUMN IF NOT EXISTS "fecha_fin" DATE`);
             await this.prisma.$executeRawUnsafe(`ALTER TABLE "gasto_fijo_ganancia" ADD COLUMN IF NOT EXISTS "dias_semana" INTEGER NOT NULL DEFAULT 127`);
+            await this.prisma.$executeRawUnsafe(`ALTER TABLE "gasto_fijo_ganancia" ADD COLUMN IF NOT EXISTS "dia_mes" INTEGER`);
             await this.prisma.$executeRawUnsafe(`ALTER TABLE "gasto_extra_ganancia" ADD COLUMN IF NOT EXISTS "usa_fondo" BOOLEAN NOT NULL DEFAULT false`);
             await this.prisma.$executeRawUnsafe(`ALTER TABLE "gasto_extra_ganancia" ADD COLUMN IF NOT EXISTS "pagado_fondo" BOOLEAN NOT NULL DEFAULT true`);
             await this.prisma.$executeRawUnsafe(`ALTER TABLE "gasto_extra_ganancia" ADD COLUMN IF NOT EXISTS "periodicidad" VARCHAR(16) NOT NULL DEFAULT 'diario'`);
@@ -493,6 +496,8 @@ let GananciasService = GananciasService_1 = class GananciasService {
             fecha_inicio: dto.fecha_inicio ?? this.hoyYmd(),
             fecha_fin: dto.fecha_fin ?? null,
             dias_semana: dto.dias_semana,
+            dia_mes: dto.dia_mes,
+            periodicidad: montos.periodicidad,
         });
         const row = await this.prisma.gastoFijoGanancia.create({
             data: {
@@ -529,6 +534,8 @@ let GananciasService = GananciasService_1 = class GananciasService {
             fecha_inicio: dto.fecha_inicio !== undefined ? dto.fecha_inicio : actual.fecha_inicio,
             fecha_fin: dto.fecha_fin !== undefined ? dto.fecha_fin : actual.fecha_fin,
             dias_semana: dto.dias_semana ?? actual.dias_semana ?? undefined,
+            dia_mes: dto.dia_mes !== undefined ? dto.dia_mes : actual.dia_mes,
+            periodicidad: montos.periodicidad,
         });
         const row = await this.prisma.gastoFijoGanancia.update({
             where: { idGastoFijo: id },
@@ -631,6 +638,7 @@ let GananciasService = GananciasService_1 = class GananciasService {
             usa_fondo_diario: g.usaFondoDiario,
             periodicidad: g.periodicidad,
             modo_registro_fondo: g.modoRegistroFondo,
+            dia_mes: g.diaMes,
         }));
         const cuotasHoy = await this.prisma.cuotaFondoGastoFijo.findMany({
             where: { idRestaurante: tenantId, fecha: fechaOnly },
@@ -704,6 +712,7 @@ let GananciasService = GananciasService_1 = class GananciasService {
             usa_fondo_diario: gasto.usaFondoDiario,
             periodicidad: gasto.periodicidad,
             modo_registro_fondo: gasto.modoRegistroFondo,
+            dia_mes: gasto.diaMes,
         });
         if (!gasto.activo || !puede) {
             throw new common_1.BadRequestException('Este gasto no se registra por día');
@@ -776,6 +785,7 @@ let GananciasService = GananciasService_1 = class GananciasService {
             usa_fondo_diario: gasto.usaFondoDiario,
             periodicidad: gasto.periodicidad,
             modo_registro_fondo: gasto.modoRegistroFondo,
+            dia_mes: gasto.diaMes,
         });
         if (!puede) {
             throw new common_1.BadRequestException('Este gasto no se registra por día');
@@ -819,6 +829,7 @@ let GananciasService = GananciasService_1 = class GananciasService {
             usa_fondo_diario: g.usaFondoDiario,
             periodicidad: g.periodicidad,
             modo_registro_fondo: g.modoRegistroFondo,
+            dia_mes: g.diaMes,
         }));
         const cuotasRango = await this.prisma.cuotaFondoGastoFijo.findMany({
             where: {
@@ -1040,6 +1051,7 @@ let GananciasService = GananciasService_1 = class GananciasService {
                 usa_fondo_diario: g.usaFondoDiario,
                 periodicidad: g.periodicidad,
                 modo_registro_fondo: g.modoRegistroFondo,
+                dia_mes: g.diaMes,
             });
             const montoMensual = Math.round(Number(g.montoMensual));
             const diario = (0, ganancias_periodo_1.montoDiarioFijo)({
@@ -1089,7 +1101,7 @@ let GananciasService = GananciasService_1 = class GananciasService {
                 monto_base: per === 'diario' ? diario : montoMensual,
                 periodicidad: per,
                 ...vig,
-                descripcion_dias: (0, gastos_vigencia_1.describirDiasSemana)(vig.dias_semana),
+                descripcion_dias: (0, gastos_vigencia_1.describirFrecuencia)(vig),
                 gastado_mes: hastaHoy.reduce((s, d) => s + (d.estado === 'futuro' ? 0 : d.monto), 0),
                 pendientes: hastaHoy.filter((d) => d.estado === 'pendiente').length,
                 saltados: detalle.filter((d) => d.estado === 'omitida').length,

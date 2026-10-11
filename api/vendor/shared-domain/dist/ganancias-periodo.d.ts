@@ -92,11 +92,15 @@ export declare function debeAutoAplicarCuota(_input: {
     periodicidad?: PeriodicidadGasto;
 }): boolean;
 export declare function parseModoRegistroFondo(raw: string | null | undefined): ModoRegistroFondoGanancia;
-/** Fondo, o diario en modo “puede variar”: hay que registrar (o saltar) el día. */
+/**
+ * Fondo, diario en modo “puede variar” o pago de una vez al mes a confirmar:
+ * hay que registrar (o saltar) el día.
+ */
 export declare function gastoFijoUsaRegistroDiario(g: {
     usa_fondo_diario?: boolean;
     periodicidad?: PeriodicidadGasto | string | null;
     modo_registro_fondo?: ModoRegistroFondoGanancia | string | null;
+    dia_mes?: number | null;
 }): boolean;
 export declare function montoDiarioFijo(g: {
     monto_mensual: number;

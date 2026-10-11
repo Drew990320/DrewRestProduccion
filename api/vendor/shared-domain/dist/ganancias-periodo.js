@@ -146,12 +146,17 @@ function debeAutoAplicarCuota(_input) {
 function parseModoRegistroFondo(raw) {
     return raw === 'confirmar' ? 'confirmar' : 'automatico';
 }
-/** Fondo, o diario en modo “puede variar”: hay que registrar (o saltar) el día. */
+/**
+ * Fondo, diario en modo “puede variar” o pago de una vez al mes a confirmar:
+ * hay que registrar (o saltar) el día.
+ */
 function gastoFijoUsaRegistroDiario(g) {
     if (g.usa_fondo_diario)
         return true;
-    return (parsePeriodicidadGasto(g.periodicidad, 'mensual') === 'diario' &&
-        parseModoRegistroFondo(g.modo_registro_fondo) === 'confirmar');
+    if (parseModoRegistroFondo(g.modo_registro_fondo) !== 'confirmar')
+        return false;
+    return (parsePeriodicidadGasto(g.periodicidad, 'mensual') === 'diario' ||
+        (0, gastos_vigencia_1.normalizarDiaMes)(g.dia_mes) != null);
 }
 function montoDiarioFijo(g) {
     if (g.cuota_diaria != null) {
@@ -209,7 +214,7 @@ function armarGastosFijosPeriodo(gastos, cuotasAplicadas, fechaDesdeYmd, fechaHa
     const dias = ymdInclusiveList(fechaDesdeYmd, fechaHastaYmd);
     const porId = new Map();
     for (const g of gastos) {
-        if (g.usa_fondo_diario)
+        if (gastoFijoUsaRegistroDiario(g))
             continue;
         if (parsePeriodicidadGasto(g.periodicidad, 'mensual') === 'diario')
             continue;

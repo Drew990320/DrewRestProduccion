@@ -5,6 +5,8 @@
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.DIAS_SEMANA_NOMBRE = exports.DIAS_SEMANA_CORTO = exports.DIAS_SEMANA_LUN_VIE = exports.DIAS_SEMANA_LUN_SAB = exports.DIAS_SEMANA_TODOS = void 0;
+exports.normalizarDiaMes = normalizarDiaMes;
+exports.diaDePagoEnMes = diaDePagoEnMes;
 exports.sumarDiasYmd = sumarDiasYmd;
 exports.indiceDiaSemana = indiceDiaSemana;
 exports.normalizarDiasSemana = normalizarDiasSemana;
@@ -14,6 +16,7 @@ exports.gastoAplicaEnDia = gastoAplicaEnDia;
 exports.diasQueAplican = diasQueAplican;
 exports.diasAplicablesEnMes = diasAplicablesEnMes;
 exports.describirDiasSemana = describirDiasSemana;
+exports.describirFrecuencia = describirFrecuencia;
 exports.describirVigencia = describirVigencia;
 exports.rangoPeriodoAnterior = rangoPeriodoAnterior;
 exports.variacionPct = variacionPct;
@@ -33,6 +36,20 @@ exports.DIAS_SEMANA_NOMBRE = [
     'domingo',
 ];
 const DIAS_SEMANA_ABREV = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+function normalizarDiaMes(n) {
+    const v = Math.round(Number(n));
+    if (n == null || !Number.isFinite(v) || v < 1)
+        return null;
+    return Math.min(31, v);
+}
+/** Día real de pago en el mes de `ymd` (31 en febrero → 28/29). */
+function diaDePagoEnMes(diaMes, ymd) {
+    const p = parseYmd(ymd);
+    if (!p)
+        return diaMes;
+    const dim = new Date(Date.UTC(p.y, p.m, 0)).getUTCDate();
+    return Math.min(diaMes, dim);
+}
 function parseYmd(s) {
     const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s ?? '').trim());
     if (!m)
@@ -77,6 +94,10 @@ function gastoAplicaEnDia(g, ymd) {
         return false;
     if (g.fecha_fin && ymd > g.fecha_fin)
         return false;
+    const diaMes = normalizarDiaMes(g.dia_mes);
+    if (diaMes != null) {
+        return Number(ymd.slice(8, 10)) === diaDePagoEnMes(diaMes, ymd);
+    }
     return diaSemanaActivo(g.dias_semana, indiceDiaSemana(ymd));
 }
 function diasQueAplican(g, ymds) {
@@ -111,8 +132,17 @@ function describirDiasSemana(mask) {
         return `Todos menos ${inactivos[0]}`;
     return activos.join(', ');
 }
+/** «El 5 de cada mes» si es mensual de un solo día; si no, los días de la semana. */
+function describirFrecuencia(g) {
+    const diaMes = normalizarDiaMes(g.dia_mes);
+    if (diaMes == null)
+        return describirDiasSemana(g.dias_semana);
+    return diaMes > 28
+        ? `El ${diaMes} de cada mes (o el último día)`
+        : `El ${diaMes} de cada mes`;
+}
 function describirVigencia(g) {
-    const partes = [describirDiasSemana(g.dias_semana)];
+    const partes = [describirFrecuencia(g)];
     if (g.fecha_inicio && g.fecha_fin) {
         partes.push(`del ${g.fecha_inicio} al ${g.fecha_fin}`);
     }

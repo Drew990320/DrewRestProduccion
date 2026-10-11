@@ -25,6 +25,7 @@ class UpsertGastoFijoDto {
     fecha_inicio;
     fecha_fin;
     dias_semana;
+    dia_mes;
 }
 exports.UpsertGastoFijoDto = UpsertGastoFijoDto;
 __decorate([
@@ -90,6 +91,14 @@ __decorate([
     (0, class_validator_1.Max)(127),
     __metadata("design:type", Number)
 ], UpsertGastoFijoDto.prototype, "dias_semana", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsInt)(),
+    (0, class_validator_1.Min)(1),
+    (0, class_validator_1.Max)(31),
+    __metadata("design:type", Object)
+], UpsertGastoFijoDto.prototype, "dia_mes", void 0);
 class PatchGastoFijoDto {
     nombre;
     monto_mensual;
@@ -102,6 +111,7 @@ class PatchGastoFijoDto {
     fecha_inicio;
     fecha_fin;
     dias_semana;
+    dia_mes;
 }
 exports.PatchGastoFijoDto = PatchGastoFijoDto;
 __decorate([
@@ -169,6 +179,14 @@ __decorate([
     (0, class_validator_1.Max)(127),
     __metadata("design:type", Number)
 ], PatchGastoFijoDto.prototype, "dias_semana", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsInt)(),
+    (0, class_validator_1.Min)(1),
+    (0, class_validator_1.Max)(31),
+    __metadata("design:type", Object)
+], PatchGastoFijoDto.prototype, "dia_mes", void 0);
 class CuotaDiaFechaDto {
     fecha;
     fecha_desde;

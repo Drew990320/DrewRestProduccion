@@ -13,7 +13,12 @@ export type VigenciaGasto = Readonly<{
     fecha_inicio?: string | null;
     fecha_fin?: string | null;
     dias_semana?: number | null;
+    /** Gasto de una vez al mes: día de pago (1–31). Si el mes es más corto, cuenta el último día. */
+    dia_mes?: number | null;
 }>;
+export declare function normalizarDiaMes(n: number | null | undefined): number | null;
+/** Día real de pago en el mes de `ymd` (31 en febrero → 28/29). */
+export declare function diaDePagoEnMes(diaMes: number, ymd: string): number;
 export declare function sumarDiasYmd(ymd: string, dias: number): string;
 /** 0 = lunes … 6 = domingo. */
 export declare function indiceDiaSemana(ymd: string): number;
@@ -26,6 +31,8 @@ export declare function diasQueAplican(g: VigenciaGasto, ymds: readonly string[]
 export declare function diasAplicablesEnMes(g: VigenciaGasto, ymd: string): number;
 /** «Todos los días», «Lunes a sábado», «Lun, Mié, Vie», «Todos menos domingo». */
 export declare function describirDiasSemana(mask: number | null | undefined): string;
+/** «El 5 de cada mes» si es mensual de un solo día; si no, los días de la semana. */
+export declare function describirFrecuencia(g: VigenciaGasto): string;
 export declare function describirVigencia(g: VigenciaGasto): string;
 /** Periodo inmediatamente anterior, del mismo tipo (o misma duración si es personalizado). */
 export declare function rangoPeriodoAnterior(periodo: PeriodoResumen, fechaDesde: string, fechaHasta: string): RangoPeriodoResumen | null;
