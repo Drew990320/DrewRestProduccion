@@ -253,6 +253,10 @@
                                                 "types":  "./dist/ganancias-periodo.d.ts",
                                                 "default":  "./dist/ganancias-periodo.js"
                                             },
+                    "./gastos-vigencia":  {
+                                              "types":  "./dist/gastos-vigencia.d.ts",
+                                              "default":  "./dist/gastos-vigencia.js"
+                                          },
                     "./stock-producto":  {
                                              "types":  "./dist/stock-producto.d.ts",
                                              "default":  "./dist/stock-producto.js"

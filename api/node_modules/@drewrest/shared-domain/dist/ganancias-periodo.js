@@ -20,12 +20,14 @@ exports.montoDiarioFijo = montoDiarioFijo;
 exports.montoExtraEnPeriodo = montoExtraEnPeriodo;
 exports.extraAplicaEnPeriodo = extraAplicaEnPeriodo;
 exports.armarGastosFijosPeriodo = armarGastosFijosPeriodo;
+exports.cuotaMensualDelDia = cuotaMensualDelDia;
 exports.prorratearGastosFijos = prorratearGastosFijos;
 exports.armarResumenGanancias = armarResumenGanancias;
 exports.consolidarLineasCostoVenta = consolidarLineasCostoVenta;
 exports.ymdEnRango = ymdEnRango;
 exports.agruparVentasPorMetodoPago = agruparVentasPorMetodoPago;
 exports.ymdGanancias = ymd;
+const gastos_vigencia_1 = require("./gastos-vigencia");
 function costoEfectivoProducto(precioCosto, costoReceta) {
     if (precioCosto != null) {
         const manual = Number(precioCosto);
@@ -204,21 +206,20 @@ function extraAplicaEnPeriodo(input) {
  */
 function armarGastosFijosPeriodo(gastos, cuotasAplicadas, fechaDesdeYmd, fechaHastaYmd) {
     const mes = rangoMesCalendario(fechaHastaYmd);
-    const dias = eachYmdInclusive(fechaDesdeYmd, fechaHastaYmd);
-    const sinFondoMensual = gastos.filter((g) => !g.usa_fondo_diario &&
-        parsePeriodicidadGasto(g.periodicidad, 'mensual') !== 'diario');
-    const prorrateo = prorratearGastosFijos(sinFondoMensual.map((g) => ({
-        id: g.id,
-        nombre: g.nombre,
-        monto_mensual: g.monto_mensual,
-    })), fechaDesdeYmd, fechaHastaYmd);
+    const dias = ymdInclusiveList(fechaDesdeYmd, fechaHastaYmd);
     const porId = new Map();
-    for (const d of prorrateo.detalle) {
-        const g = sinFondoMensual.find((x) => x.id === d.id);
-        porId.set(d.id, {
-            ...d,
+    for (const g of gastos) {
+        if (g.usa_fondo_diario)
+            continue;
+        if (parsePeriodicidadGasto(g.periodicidad, 'mensual') === 'diario')
+            continue;
+        porId.set(g.id, {
+            id: g.id,
+            nombre: g.nombre,
+            monto_mensual: Math.round(Number(g.monto_mensual) || 0),
+            monto_periodo: montoMensualEnDias(g, dias),
             usa_fondo_diario: false,
-            cuota_diaria: g?.cuota_diaria ?? null,
+            cuota_diaria: g.cuota_diaria ?? null,
             acumulado_mes: 0,
             periodicidad: 'mensual',
         });
@@ -235,7 +236,7 @@ function armarGastosFijosPeriodo(gastos, cuotasAplicadas, fechaDesdeYmd, fechaHa
             id: g.id,
             nombre: g.nombre,
             monto_mensual: Math.round(Number(g.monto_mensual) || 0),
-            monto_periodo: daily * dias.length,
+            monto_periodo: daily * dias.filter((d) => (0, gastos_vigencia_1.gastoAplicaEnDia)(g, d)).length,
             usa_fondo_diario: false,
             cuota_diaria: daily,
             acumulado_mes: 0,
@@ -281,6 +282,24 @@ function armarGastosFijosPeriodo(gastos, cuotasAplicadas, fechaDesdeYmd, fechaHa
     });
     const total = detalle.reduce((s, d) => s + d.monto_periodo, 0);
     return { total, detalle };
+}
+/**
+ * Parte del mensual que corresponde a un día: el mes se reparte solo entre
+ * los días en que el gasto aplica (vigencia y días de la semana).
+ */
+function cuotaMensualDelDia(g, ymdDia) {
+    if (!(0, gastos_vigencia_1.gastoAplicaEnDia)(g, ymdDia))
+        return 0;
+    const n = (0, gastos_vigencia_1.diasAplicablesEnMes)(g, ymdDia);
+    if (n <= 0)
+        return 0;
+    return Math.max(0, Number(g.monto_mensual) || 0) / n;
+}
+function montoMensualEnDias(g, dias) {
+    let acumulado = 0;
+    for (const d of dias)
+        acumulado += cuotaMensualDelDia(g, d);
+    return Math.round(acumulado);
 }
 function prorratearGastosFijos(gastos, fechaDesdeYmd, fechaHastaYmd) {
     const dias = eachYmdInclusive(fechaDesdeYmd, fechaHastaYmd);

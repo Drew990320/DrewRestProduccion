@@ -12,6 +12,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.PatchProductoCostoDto = exports.PatchGastoExtraDto = exports.UpsertGastoExtraDto = exports.RegistrarPagoFondoDto = exports.CuotaDiaGastoDto = exports.CuotaPeriodoDto = exports.CuotaDiaFechaDto = exports.PatchGastoFijoDto = exports.UpsertGastoFijoDto = void 0;
 const class_transformer_1 = require("class-transformer");
 const class_validator_1 = require("class-validator");
+const YMD = /^\d{4}-\d{2}-\d{2}$/;
 class UpsertGastoFijoDto {
     nombre;
     monto_mensual;
@@ -21,6 +22,9 @@ class UpsertGastoFijoDto {
     cuota_diaria;
     modo_registro_fondo;
     periodicidad;
+    fecha_inicio;
+    fecha_fin;
+    dias_semana;
 }
 exports.UpsertGastoFijoDto = UpsertGastoFijoDto;
 __decorate([
@@ -68,6 +72,24 @@ __decorate([
     (0, class_validator_1.IsIn)(['mensual', 'diario']),
     __metadata("design:type", String)
 ], UpsertGastoFijoDto.prototype, "periodicidad", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.Matches)(YMD, { message: 'fecha_inicio debe ser YYYY-MM-DD' }),
+    __metadata("design:type", Object)
+], UpsertGastoFijoDto.prototype, "fecha_inicio", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.Matches)(YMD, { message: 'fecha_fin debe ser YYYY-MM-DD' }),
+    __metadata("design:type", Object)
+], UpsertGastoFijoDto.prototype, "fecha_fin", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsInt)(),
+    (0, class_validator_1.Min)(1),
+    (0, class_validator_1.Max)(127),
+    __metadata("design:type", Number)
+], UpsertGastoFijoDto.prototype, "dias_semana", void 0);
 class PatchGastoFijoDto {
     nombre;
     monto_mensual;
@@ -77,6 +99,9 @@ class PatchGastoFijoDto {
     cuota_diaria;
     modo_registro_fondo;
     periodicidad;
+    fecha_inicio;
+    fecha_fin;
+    dias_semana;
 }
 exports.PatchGastoFijoDto = PatchGastoFijoDto;
 __decorate([
@@ -126,6 +151,24 @@ __decorate([
     (0, class_validator_1.IsIn)(['mensual', 'diario']),
     __metadata("design:type", String)
 ], PatchGastoFijoDto.prototype, "periodicidad", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.Matches)(YMD, { message: 'fecha_inicio debe ser YYYY-MM-DD' }),
+    __metadata("design:type", Object)
+], PatchGastoFijoDto.prototype, "fecha_inicio", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.Matches)(YMD, { message: 'fecha_fin debe ser YYYY-MM-DD' }),
+    __metadata("design:type", Object)
+], PatchGastoFijoDto.prototype, "fecha_fin", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsInt)(),
+    (0, class_validator_1.Min)(1),
+    (0, class_validator_1.Max)(127),
+    __metadata("design:type", Number)
+], PatchGastoFijoDto.prototype, "dias_semana", void 0);
 class CuotaDiaFechaDto {
     fecha;
     fecha_desde;

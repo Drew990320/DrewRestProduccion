@@ -1,6 +1,7 @@
 /**
  * Cálculo de ganancias operativas por periodo (ventas − costo − gastos).
  */
+import { type VigenciaGasto } from './gastos-vigencia';
 export type OrigenCostoProducto = 'manual' | 'receta' | 'ninguno';
 export declare function costoEfectivoProducto(precioCosto: number | null | undefined, costoReceta: number | null | undefined): {
     costo: number;
@@ -35,7 +36,7 @@ export type GastoFijoConFondo = Readonly<{
     cuota_diaria: number | null;
     periodicidad?: PeriodicidadGasto;
     modo_registro_fondo?: ModoRegistroFondoGanancia;
-}>;
+}> & VigenciaGasto;
 export type CuotaFondoAplicadaLike = Readonly<{
     id_gasto_fijo: number;
     monto: number;
@@ -124,6 +125,13 @@ export declare function armarGastosFijosPeriodo(gastos: readonly GastoFijoConFon
     total: number;
     detalle: GastoFijoPeriodoDetalle[];
 };
+/**
+ * Parte del mensual que corresponde a un día: el mes se reparte solo entre
+ * los días en que el gasto aplica (vigencia y días de la semana).
+ */
+export declare function cuotaMensualDelDia(g: Readonly<{
+    monto_mensual: number;
+}> & VigenciaGasto, ymdDia: string): number;
 export declare function prorratearGastosFijos(gastos: readonly GastoFijoParaProrrateo[], fechaDesdeYmd: string, fechaHastaYmd: string): {
     total: number;
     detalle: GastoFijoProrrateado[];

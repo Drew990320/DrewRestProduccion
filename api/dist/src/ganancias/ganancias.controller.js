@@ -69,6 +69,18 @@ let GananciasController = class GananciasController {
     omitirCuota(dto, tenantId, req) {
         return this.ganancias.omitirCuotaDia(dto.id_gasto_fijo, dto.fecha, tenantId, req.user.idUsuario);
     }
+    limpiarCuota(dto, tenantId) {
+        return this.ganancias.limpiarCuotaDia(dto.id_gasto_fijo, dto.fecha, tenantId);
+    }
+    calendarioGastos(mes, tenantId) {
+        return this.ganancias.calendarioGastos(mes, tenantId);
+    }
+    calendarioResultado(mes, tenantId) {
+        return this.ganancias.calendarioResultado(mes, tenantId);
+    }
+    totalesGastos(periodo, fecha, fecha_desde, fecha_hasta, tenantId) {
+        return this.ganancias.totalesGastos({ periodo, fecha, fecha_desde, fecha_hasta }, tenantId);
+    }
     registrarPagoFondo(dto, tenantId) {
         return this.ganancias.registrarPagoFondo(dto, tenantId);
     }
@@ -207,6 +219,42 @@ __decorate([
     __metadata("design:paramtypes", [ganancias_dto_1.CuotaDiaGastoDto, Number, Object]),
     __metadata("design:returntype", void 0)
 ], GananciasController.prototype, "omitirCuota", null);
+__decorate([
+    (0, common_1.Post)('cuotas-dia/limpiar'),
+    (0, common_1.HttpCode)(200),
+    __param(0, (0, common_1.Body)()),
+    __param(1, (0, current_tenant_decorator_1.CurrentTenantId)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [ganancias_dto_1.CuotaDiaGastoDto, Number]),
+    __metadata("design:returntype", void 0)
+], GananciasController.prototype, "limpiarCuota", null);
+__decorate([
+    (0, common_1.Get)('gastos/calendario'),
+    __param(0, (0, common_1.Query)('mes')),
+    __param(1, (0, current_tenant_decorator_1.CurrentTenantId)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Number]),
+    __metadata("design:returntype", void 0)
+], GananciasController.prototype, "calendarioGastos", null);
+__decorate([
+    (0, common_1.Get)('calendario-resultado'),
+    __param(0, (0, common_1.Query)('mes')),
+    __param(1, (0, current_tenant_decorator_1.CurrentTenantId)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Number]),
+    __metadata("design:returntype", void 0)
+], GananciasController.prototype, "calendarioResultado", null);
+__decorate([
+    (0, common_1.Get)('gastos/totales'),
+    __param(0, (0, common_1.Query)('periodo')),
+    __param(1, (0, common_1.Query)('fecha')),
+    __param(2, (0, common_1.Query)('fecha_desde')),
+    __param(3, (0, common_1.Query)('fecha_hasta')),
+    __param(4, (0, current_tenant_decorator_1.CurrentTenantId)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object, Object, Object, Number]),
+    __metadata("design:returntype", void 0)
+], GananciasController.prototype, "totalesGastos", null);
 __decorate([
     (0, common_1.Post)('pagos-fondo'),
     __param(0, (0, common_1.Body)()),

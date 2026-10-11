@@ -48,6 +48,7 @@ export * from './inventario-comportamiento';
 export * from './inventario-unidades';
 export * from './inventario-costo';
 export * from './ganancias-periodo';
+export * from './gastos-vigencia';
 export * from './inventario-movimientos';
 export * from './inventario-deduccion';
 export * from './inventario-receta';

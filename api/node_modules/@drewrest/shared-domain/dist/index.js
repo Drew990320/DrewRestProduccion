@@ -64,6 +64,7 @@ __exportStar(require("./inventario-comportamiento"), exports);
 __exportStar(require("./inventario-unidades"), exports);
 __exportStar(require("./inventario-costo"), exports);
 __exportStar(require("./ganancias-periodo"), exports);
+__exportStar(require("./gastos-vigencia"), exports);
 __exportStar(require("./inventario-movimientos"), exports);
 __exportStar(require("./inventario-deduccion"), exports);
 __exportStar(require("./inventario-receta"), exports);
