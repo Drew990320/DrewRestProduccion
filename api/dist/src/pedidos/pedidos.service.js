@@ -3737,12 +3737,20 @@ let PedidosService = class PedidosService {
                 }
             }
         }
+        const ventasTiendaAbiertas = await this.prisma.pedido.count({
+            where: {
+                idRestaurante: tenantId,
+                estado: { in: ABIERTOS },
+                mesa: { idTienda: { not: null } },
+            },
+        });
         return {
             pedidos_mostrador: pedidosMostrador,
             pedidos_para_llevar: pedidosParaLlevar,
             platos_sin_pasar_cocina: platosSinPasarCocina,
             platos_para_recoger: platosParaRecoger,
             mazorcas_para_recoger: mazorcasParaRecoger,
+            ventas_tienda_abiertas: ventasTiendaAbiertas,
             mesa_ids: mesaIds,
             pedido_ids: pedidoIds,
         };
@@ -3863,9 +3871,11 @@ let PedidosService = class PedidosService {
             orderBy: { creadoEn: 'asc' },
             take: operative_limits_1.OPERATIVE_PEDIDOS_MAX,
         });
-        const pedidos = rows
-            .map((p) => (0, pedidos_vista_operativa_1.serializarPedidoVistaOperativa)(p))
-            .filter(pedidos_vista_operativa_1.pedidoTieneRecogidaPendiente);
+        const serializados = rows.map((p) => (0, pedidos_vista_operativa_1.serializarPedidoVistaOperativa)(p));
+        const pedidos = [
+            ...serializados.filter(pedidos_vista_operativa_1.pedidoTieneRecogidaPendiente),
+            ...serializados.filter((p) => !(0, pedidos_vista_operativa_1.pedidoTieneRecogidaPendiente)(p)),
+        ];
         const total = pedidos.reduce((acc, p) => acc + (0, pedidos_vista_operativa_1.platosPendientesRecogerPedido)(p), 0);
         return {
             pedidos,
@@ -3878,6 +3888,7 @@ let PedidosService = class PedidosService {
             return {
                 platos_para_recoger: 0,
                 pedidos: 0,
+                pedidos_abiertos: 0,
                 pedido_ids: [],
                 mesa_ids: [],
             };
@@ -3936,6 +3947,7 @@ let PedidosService = class PedidosService {
         return {
             platos_para_recoger: platosParaRecoger,
             pedidos: pedidoIds.length,
+            pedidos_abiertos: rows.length,
             pedido_ids: pedidoIds,
             mesa_ids: mesaIds,
         };
