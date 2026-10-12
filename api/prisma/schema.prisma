@@ -181,6 +181,8 @@ enum TipoEventoPedido {
   cobro_reabierto
   /// Anula una sola tanda (factura o grupo mixto), no todos los cobros del pedido.
   cobro_tanda_revertida
+  /// Admin aplicó, cambió o quitó el descuento manual del pedido.
+  descuento_manual_actualizado
 }
 
 enum TipoDelegacionMesero {
@@ -768,6 +770,9 @@ model Pedido {
   listoParaCobroAutoservicio   Boolean           @default(false) @map("listo_para_cobro_autoservicio")
   /// Etiquetas de promoción activas en el pedido (ids del catálogo en config_descuento).
   etiquetasPromocion           Json              @default("[]") @map("etiquetas_promocion")
+  /// Descuento manual (COP) autorizado por el admin; se consume al cobrar lo pendiente.
+  descuentoManualMonto         Decimal           @default(0) @map("descuento_manual_monto") @db.Decimal(10, 2)
+  descuentoManualMotivo        String?           @map("descuento_manual_motivo") @db.VarChar(160)
   mesa                       Mesa              @relation(fields: [idMesa], references: [idMesa])
   usuario                    Usuario           @relation(fields: [idUsuario], references: [idUsuario])
   restaurante                Restaurante       @relation(fields: [idRestaurante], references: [idRestaurante])
@@ -888,6 +893,8 @@ model Factura {
   descuentoSopas        Decimal    @default(0) @map("descuento_sopas") @db.Decimal(10, 2)
   descuentoMuleros      Decimal    @default(0) @map("descuento_muleros") @db.Decimal(10, 2)
   descuentoPromociones  Decimal    @default(0) @map("descuento_promociones") @db.Decimal(10, 2)
+  /// Parte de `descuentoPromociones` que corresponde al descuento manual del admin.
+  descuentoManual       Decimal    @default(0) @map("descuento_manual") @db.Decimal(10, 2)
   /// Diferencial por redondeo hacia arriba del cobro (precios de líneas intactos).
   montoRedondeo         Decimal    @default(0) @map("monto_redondeo") @db.Decimal(10, 2)
   /// Impuesto al consumo incluido en `total` (sobre categorías gravadas, tras descuentos).

@@ -25,6 +25,38 @@ export declare function resumenImpactoMovimientosCaja(movimientos: MovimientoCaj
     total_cuotas_gasto_fijo: number;
     neto_movimientos_caja: number;
 };
+export type ConceptoSalidaDinero = 'devolucion_efectivo' | 'pago_domicilio' | 'propina_mesero' | 'pago_turno_mesero' | 'salida_manual_efectivo' | 'devolucion_transferencia' | 'salida_manual_transferencia';
+export type FilaSalidaDinero = {
+    concepto: ConceptoSalidaDinero;
+    etiqueta: string;
+    cantidad: number;
+    monto: number;
+};
+export type PropinaPorMesero = {
+    mesero: string;
+    cantidad: number;
+    monto: number;
+};
+export type ResumenSalidasDinero = {
+    /** Sale de la caja física. */
+    efectivo: FilaSalidaDinero[];
+    /** Sale de la cuenta bancaria. */
+    transferencia: FilaSalidaDinero[];
+    total_efectivo: number;
+    total_transferencia: number;
+    total: number;
+    propinas_por_mesero: PropinaPorMesero[];
+};
+/**
+ * Dinero que salió, separado por origen (caja física vs. banco). El total en efectivo
+ * coincide con las salidas del cuadre de caja (fondos de gasto fijo no cuentan).
+ */
+export declare function resumenSalidasDinero(movimientos: (MovimientoCajaLike & {
+    mesero_pedido?: string | null;
+})[], pagosTurnoMeseros?: {
+    cantidad: number;
+    monto: number;
+}): ResumenSalidasDinero;
 export type CuadreCajaEfectivoInput = {
     monto_base_efectivo: number;
     ventas_efectivo: number;

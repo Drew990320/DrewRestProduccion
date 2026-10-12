@@ -61,6 +61,7 @@ const cobro_invariantes_1 = require("@drewrest/shared-domain/cobro-invariantes")
 const repartir_monto_cop_1 = require("@drewrest/shared-domain/repartir-monto-cop");
 const consolidar_fragmentos_precio_1 = require("@drewrest/shared-domain/consolidar-fragmentos-precio");
 const saldo_restante_1 = require("@drewrest/shared-domain/saldo-restante");
+const stock_auditoria_1 = require("../common/stock-auditoria");
 const cobro_parcial_1 = require("./cobro-parcial");
 const pedidos_vista_operativa_1 = require("./pedidos-vista-operativa");
 const mazorca_linea_pedido_1 = require("./mazorca-linea-pedido");
@@ -578,6 +579,10 @@ let PedidosService = class PedidosService {
     mapMovimientoCajaRow(r) {
         return {
             id_movimiento: r.idMovimientoCaja,
+            mesero_pedido: r.pedido?.usuario
+                ? `${r.pedido.usuario.nombre} ${r.pedido.usuario.apellido}`.trim()
+                : null,
+            fecha: r.fecha ? r.fecha.toISOString().slice(0, 10) : null,
             tipo: r.tipo,
             monto: Math.round(Number(r.monto)),
             motivo: r.motivo,
@@ -928,6 +933,13 @@ let PedidosService = class PedidosService {
             throw new common_1.BadRequestException('Indica el motivo del movimiento');
         }
         const fechaStr = base.toFormat('yyyy-LL-dd');
+        const hoyStr = luxon_1.DateTime.now().setZone('America/Bogota').toFormat('yyyy-LL-dd');
+        if (fechaStr > hoyStr) {
+            throw new common_1.BadRequestException('No se pueden registrar movimientos en fechas futuras');
+        }
+        if (fechaStr !== hoyStr) {
+            await (0, stock_auditoria_1.exigirPasswordAdmin)(this.prisma, actor, dto.password_admin, 'registrar movimientos de caja en otro día');
+        }
         const metodo = dto.metodo === 'transferencia' ? 'transferencia' : 'efectivo';
         const row = await this.prisma.$transaction(async (tx) => {
             const created = await tx.movimientoCaja.create({
@@ -1548,11 +1560,134 @@ let PedidosService = class PedidosService {
         const raw = Array.isArray(p.etiquetasPromocion) ? p.etiquetasPromocion : [];
         return raw.filter((x) => typeof x === 'string');
     }
-    descuentosDesdeConfig(lineas, config, pedido) {
+    descuentosDesdeConfig(lineas, config, pedido, opts = {}) {
+        const montoManual = opts.sinManual ? 0 : Number(pedido.descuentoManualMonto ?? 0);
         return (0, descuentos_pedido_1.calcularDescuentosPedido)(lineas, config, {
             etiquetas_promocion: this.etiquetasPromocionPedido(pedido),
             cliente_mulero: pedido.clienteMulero,
+            descuento_manual: montoManual > 0
+                ? { monto: montoManual, motivo: pedido.descuentoManualMotivo ?? null }
+                : null,
         });
+    }
+    esLineaPlanCobro(d) {
+        return (d.producto.esCuotaPendienteReparto === true ||
+            (0, saldo_restante_1.esNotaSaldoRestantePendiente)(d.notaCocina ?? null));
+    }
+    assertPlanSinDescuentoManual(pedido, dto) {
+        if (!pedido.descuentoManualMonto.gt(0))
+            return;
+        const enPlan = dto.plan_personas_sobre_total === true ||
+            dto.plan_combinado_sobre_seleccion === true ||
+            (dto.persona_plan_indice != null && (dto.total_personas_plan ?? 0) >= 2);
+        if (enPlan) {
+            throw new common_1.BadRequestException('Este pedido tiene un descuento manual. Para dividir la cuenta entre personas, quita el descuento o cobra sin dividir.');
+        }
+    }
+    async consumirDescuentoManualEnTx(tx, idPedido, aplicado) {
+        if (!aplicado.gt(0))
+            return;
+        const row = await tx.pedido.findUnique({
+            where: { idPedido },
+            select: { descuentoManualMonto: true },
+        });
+        if (!row)
+            return;
+        const restante = client_1.Prisma.Decimal.max(row.descuentoManualMonto.sub(aplicado), 0);
+        await tx.pedido.update({
+            where: { idPedido },
+            data: {
+                descuentoManualMonto: restante,
+                ...(restante.lte(0) ? { descuentoManualMotivo: null } : {}),
+            },
+        });
+    }
+    sumaDescuentoManualFacturas(facturas) {
+        return facturas.reduce((s, f) => s.add(f.descuentoManual), new client_1.Prisma.Decimal(0));
+    }
+    async aplicarDescuentoManual(idPedido, dto, actor) {
+        const autorizadoPor = await (0, stock_auditoria_1.exigirPasswordAdmin)(this.prisma, actor, dto.password_admin, 'aplicar descuentos manuales');
+        const pedido = await this.prisma.pedido.findUnique({
+            where: { idPedido },
+            include: {
+                detalles: { include: detalleInclude, orderBy: { idDetalle: 'asc' } },
+            },
+        });
+        if (!pedido) {
+            throw new common_1.NotFoundException('Pedido no encontrado');
+        }
+        if (!ABIERTOS.includes(pedido.estado)) {
+            throw new common_1.ConflictException('Solo se puede ajustar el total de un pedido abierto');
+        }
+        const pendientes = pedido.detalles.filter((d) => d.idFactura == null);
+        if (pendientes.some((d) => this.esLineaPlanCobro(d))) {
+            throw new common_1.BadRequestException('Hay una cuenta dividida por personas en curso. Termina ese cobro antes de aplicar un descuento manual.');
+        }
+        const solicitudes = pendientes.map((d) => ({
+            id_detalle: d.idDetalle,
+            cantidad: d.cantidad,
+        }));
+        const anterior = Math.round(Number(pedido.descuentoManualMonto));
+        const motivo = dto.motivo?.trim() || null;
+        const quitar = dto.modo === 'quitar';
+        let monto = 0;
+        let totalAntes = 0;
+        let totalDespues = 0;
+        if (!quitar) {
+            if (solicitudes.length === 0) {
+                throw new common_1.BadRequestException('No hay nada pendiente por cobrar en este pedido');
+            }
+            const valor = Number(dto.valor);
+            if (!Number.isFinite(valor) || valor < 0) {
+                throw new common_1.BadRequestException('Valor de descuento inválido');
+            }
+            if (dto.modo === 'porcentaje' && valor > 100) {
+                throw new common_1.BadRequestException('El porcentaje no puede superar 100');
+            }
+            const config = this.configCobroParaMetodo(await this.obtenerConfigCobro(pedido.idRestaurante), 'efectivo');
+            const ref = this.calcularImportesFactura(pedido, solicitudes, config, {
+                sinManual: true,
+            });
+            const base = Number(ref.subtotal.sub(ref.dS).sub(ref.dM).sub(ref.dP));
+            const totalCon = (m) => Number(this.calcularImportesFactura({ ...pedido, descuentoManualMonto: new client_1.Prisma.Decimal(m) }, solicitudes, config).total);
+            totalAntes = Number(ref.total);
+            monto = (0, descuentos_pedido_1.resolverMontoDescuentoManual)(dto.modo, valor, base, totalCon);
+            if (monto <= 0) {
+                throw new common_1.BadRequestException(dto.modo === 'total'
+                    ? 'El nuevo total debe ser menor al total actual'
+                    : 'El descuento debe ser mayor a 0');
+            }
+            totalDespues = totalCon(monto);
+        }
+        await this.prisma.$transaction(async (tx) => {
+            await (0, prisma_lock_1.lockPedidoEnTx)(tx, idPedido);
+            await tx.pedido.update({
+                where: { idPedido },
+                data: {
+                    descuentoManualMonto: new client_1.Prisma.Decimal(monto),
+                    descuentoManualMotivo: quitar ? null : motivo,
+                },
+            });
+            await tx.pedidoHistorial.create({
+                data: {
+                    idPedido,
+                    idUsuario: actor.idUsuario,
+                    tipo: 'descuento_manual_actualizado',
+                    detalleJson: {
+                        modo: dto.modo,
+                        valor: quitar ? null : Number(dto.valor),
+                        monto_anterior: anterior,
+                        monto_nuevo: monto,
+                        motivo,
+                        total_antes: quitar ? null : totalAntes,
+                        total_despues: quitar ? null : totalDespues,
+                        autorizado_por: autorizadoPor,
+                    },
+                },
+            });
+        });
+        this.emit(idPedido, pedido.idMesa, pedido.idUsuario, pedido.idRestaurante);
+        return this.obtenerPorIdTrasEscritura(idPedido);
     }
     mapFacturaSerial(f) {
         return {
@@ -1561,6 +1696,7 @@ let PedidosService = class PedidosService {
             descuento_sopas: Number(f.descuentoSopas),
             descuento_muleros: Number(f.descuentoMuleros),
             descuento_promociones: Number(f.descuentoPromociones),
+            descuento_manual: Number(f.descuentoManual ?? 0),
             monto_redondeo: Number(f.montoRedondeo ?? 0),
             monto_impoconsumo: Number(f.montoImpoconsumo ?? 0),
             total: Number(f.total),
@@ -2249,7 +2385,12 @@ let PedidosService = class PedidosService {
             },
             include: {
                 usuario: { select: { nombre: true, apellido: true } },
-                pedido: { include: { mesa: { select: { numero: true } } } },
+                pedido: {
+                    include: {
+                        mesa: { select: { numero: true } },
+                        usuario: { select: { nombre: true, apellido: true } },
+                    },
+                },
             },
             orderBy: { creadoEn: 'asc' },
         });
@@ -2691,6 +2832,9 @@ let PedidosService = class PedidosService {
                 data: {
                     estado: nuevoEstado,
                     cerradoEn: null,
+                    descuentoManualMonto: {
+                        increment: this.sumaDescuentoManualFacturas(pedido.facturas),
+                    },
                 },
             });
             await tx.mesa.update({
@@ -2799,6 +2943,9 @@ let PedidosService = class PedidosService {
                 data: {
                     estado: nuevoEstado,
                     cerradoEn: null,
+                    descuentoManualMonto: {
+                        increment: this.sumaDescuentoManualFacturas(pedido.facturas.filter((f) => idsFacturas.includes(f.idFactura))),
+                    },
                 },
             });
             await tx.mesa.update({
@@ -4545,7 +4692,9 @@ let PedidosService = class PedidosService {
         if (pendientesComida.length > 0) {
             const lineas = this.lineasParaDescuento(pendientesComida.filter((d) => !(0, saldo_restante_1.esNotaSaldoRestantePendiente)(d.notaCocina)));
             const descPlatos = lineas.length > 0
-                ? this.descuentosDesdeConfig(lineas, config, p)
+                ? this.descuentosDesdeConfig(lineas, config, p, {
+                    sinManual: saldoPendienteRow != null,
+                })
                 : {
                     descuento_sopas: 0,
                     descuento_muleros: 0,
@@ -6558,7 +6707,9 @@ let PedidosService = class PedidosService {
             es_plato_principal: d.producto.esPlatoPrincipal,
             participa_descuento_sopas: d.producto.categoria.participaDescuentoSopas,
         })), solicitudes);
-        const descuentos = this.descuentosDesdeConfig(lineas, config, pedido);
+        const descuentos = this.descuentosDesdeConfig(lineas, config, pedido, {
+            sinManual: detallesCobro.some((d) => this.esLineaPlanCobro(d)),
+        });
         const descTotal = new client_1.Prisma.Decimal(descuentos.descuento_sopas)
             .add(descuentos.descuento_muleros)
             .add(descuentos.descuento_promociones);
@@ -6774,6 +6925,7 @@ let PedidosService = class PedidosService {
             descuento_sopas,
             descuento_muleros,
             descuento_promociones,
+            promociones_desglose: this.desgloseConDescuentoManual(descuento_promociones, facturasTicket),
             monto_redondeo: monto_redondeo > 0 ? monto_redondeo : undefined,
             ...this.filaImpoconsumoTicket(monto_impoconsumo),
             total,
@@ -6791,6 +6943,15 @@ let PedidosService = class PedidosService {
                 : undefined,
             detalle_exceso_cobro: detalleExceso ?? undefined,
         };
+    }
+    desgloseConDescuentoManual(descuentoPromociones, facturas) {
+        const manual = facturas.reduce((s, f) => s + (f.descuento_manual ?? 0), 0);
+        if (manual <= 0)
+            return undefined;
+        return [
+            { etiqueta: 'promociones', monto: Math.max(0, descuentoPromociones - manual) },
+            { etiqueta: 'manual', monto: manual },
+        ];
     }
     construirTicketPedidoTotal(completo, esReimpresion = false) {
         const facturas = completo.facturas ?? [];
@@ -6815,6 +6976,7 @@ let PedidosService = class PedidosService {
             descuento_sopas: facturas.reduce((s, f) => s + f.descuento_sopas, 0),
             descuento_muleros: facturas.reduce((s, f) => s + f.descuento_muleros, 0),
             descuento_promociones: facturas.reduce((s, f) => s + (f.descuento_promociones ?? 0), 0),
+            promociones_desglose: this.desgloseConDescuentoManual(facturas.reduce((s, f) => s + (f.descuento_promociones ?? 0), 0), facturas),
             ...this.filaImpoconsumoTicket(facturas.reduce((s, f) => s + (f.monto_impoconsumo ?? 0), 0)),
             total: facturas.reduce((s, f) => s + f.total, 0),
             metodo_pago: resumenCobros.metodo_pago,
@@ -7437,6 +7599,7 @@ let PedidosService = class PedidosService {
         if (pedido.detalles.length === 0) {
             throw new common_1.BadRequestException('No hay ítems en el pedido');
         }
+        this.assertPlanSinDescuentoManual(pedido, dto);
         let solicitudes = this.prepararSolicitudesCobro(pedido, dto);
         let pedidoParaCobro = pedido;
         const [configBase, invCfg] = await Promise.all([
@@ -7578,6 +7741,7 @@ let PedidosService = class PedidosService {
                         descuentoSopas: dS,
                         descuentoMuleros: dM,
                         descuentoPromociones: dP,
+                        descuentoManual: importes.dManual,
                         montoRedondeo: montoRedondeoDec,
                         montoImpoconsumo: montoImpoconsumoDec,
                         total,
@@ -7591,6 +7755,7 @@ let PedidosService = class PedidosService {
                     },
                 });
                 idFacturaCreada = factura.idFactura;
+                await this.consumirDescuentoManualEnTx(tx, idPedido, importes.dManual);
                 if (esFiado) {
                     const cliente = await (0, cliente_credito_1.resolverClienteFiado)(tx, pedido.idRestaurante, {
                         idCliente: dto.id_cliente_fiado,
@@ -7761,6 +7926,7 @@ let PedidosService = class PedidosService {
         if (pedido.detalles.length === 0) {
             throw new common_1.BadRequestException('No hay ítems en el pedido');
         }
+        this.assertPlanSinDescuentoManual(pedido, dto);
         let solicitudes = this.prepararSolicitudesCobro(pedido, dto);
         if (solicitudes.length === 0) {
             throw new common_1.BadRequestException('No hay ítems pendientes de cobro');
@@ -7850,6 +8016,12 @@ let PedidosService = class PedidosService {
                 cantidad_pendiente: q,
             });
         }
+        const totalSinManualMixto = importesTotales.dManual.gt(0)
+            ? Number(this.calcularImportesFactura(pedidoParaCobro, solicitudes, configMetodo, {
+                sinManual: true,
+            }).total)
+            : 0;
+        const factorManualMixto = totalSinManualMixto > 0 ? Number(importesTotales.total) / totalSinManualMixto : 1;
         const netoDeCantidades = (cantidades) => {
             const base = Object.entries(cantidades)
                 .filter(([, q]) => q > 0)
@@ -7860,7 +8032,9 @@ let PedidosService = class PedidosService {
             if (base.length === 0)
                 return 0;
             const expandidas = (0, cobro_parcial_1.ordenarSolicitudesCobro)(detallesSerial, (0, cobro_parcial_1.expandirSolicitudesConEmpaques)(detallesSerial, base));
-            return Number(this.calcularImportesFactura(pedidoParaCobro, expandidas, configMetodo).total);
+            return Math.round(Number(this.calcularImportesFactura(pedidoParaCobro, expandidas, configMetodo, {
+                sinManual: true,
+            }).total) * factorManualMixto);
         };
         const expandirCantidades = (cantidades) => {
             const base = Object.entries(cantidades)
@@ -7921,6 +8095,11 @@ let PedidosService = class PedidosService {
         const proporcionales = cobroMixtoGrupo != null
             ? (0, cobro_invariantes_1.importesProporcionalesMixto)(fullImportes, reparto.efectivoFactura)
             : null;
+        const dManualMixto = Number(importesTotales.dManual);
+        const dPMixto = Number(importesTotales.dP);
+        const manualEfectivo = proporcionales != null && dPMixto > 0
+            ? Math.round((dManualMixto * proporcionales.primera.descuento_promociones) / dPMixto)
+            : dManualMixto;
         const enPlanSaldoMixto = dto.plan_personas_sobre_total === true ||
             dto.plan_combinado_sobre_seleccion === true;
         let esParcial = enPlanSaldoMixto
@@ -7928,7 +8107,7 @@ let PedidosService = class PedidosService {
             : (0, cobro_parcial_1.quedaPendienteTrasCobro)(detallesSerial, solicitudes);
         const idsFacturas = [];
         let cocinaAutoservicioTrasCobro = null;
-        const crearEnTx = async (tx, sol, metodo, grupo, importesForzados, montoRedondeoLeg = 0) => {
+        const crearEnTx = async (tx, sol, metodo, grupo, importesForzados, montoRedondeoLeg = 0, descuentoManualLeg = 0) => {
             const factura = await tx.factura.create({
                 data: {
                     idPedido,
@@ -7937,6 +8116,7 @@ let PedidosService = class PedidosService {
                     descuentoSopas: new client_1.Prisma.Decimal(importesForzados.descuento_sopas),
                     descuentoMuleros: new client_1.Prisma.Decimal(importesForzados.descuento_muleros),
                     descuentoPromociones: new client_1.Prisma.Decimal(importesForzados.descuento_promociones),
+                    descuentoManual: new client_1.Prisma.Decimal(descuentoManualLeg),
                     montoRedondeo: new client_1.Prisma.Decimal(montoRedondeoLeg),
                     montoImpoconsumo: new client_1.Prisma.Decimal(importesForzados.monto_impoconsumo),
                     total: new client_1.Prisma.Decimal(importesForzados.total),
@@ -8060,12 +8240,13 @@ let PedidosService = class PedidosService {
                 }
                 if (reparto.efectivoFactura > 0) {
                     const impEf = proporcionales != null ? proporcionales.primera : fullImportes;
-                    idsFacturas.push(await crearEnTx(tx, solEfTx, 'efectivo', cobroMixtoGrupo, impEf, montoRedondeoMixto));
+                    idsFacturas.push(await crearEnTx(tx, solEfTx, 'efectivo', cobroMixtoGrupo, impEf, montoRedondeoMixto, manualEfectivo));
                 }
                 if (reparto.transferenciaFactura > 0) {
                     const impTr = proporcionales != null ? proporcionales.segunda : fullImportes;
-                    idsFacturas.push(await crearEnTx(tx, solTrTx, 'transferencia', cobroMixtoGrupo, impTr, reparto.efectivoFactura > 0 ? 0 : montoRedondeoMixto));
+                    idsFacturas.push(await crearEnTx(tx, solTrTx, 'transferencia', cobroMixtoGrupo, impTr, reparto.efectivoFactura > 0 ? 0 : montoRedondeoMixto, reparto.efectivoFactura > 0 ? dManualMixto - manualEfectivo : dManualMixto));
                 }
+                await this.consumirDescuentoManualEnTx(tx, idPedido, new client_1.Prisma.Decimal(dManualMixto));
                 if (proporcionales != null) {
                     const sumaPatas = proporcionales.primera.total + proporcionales.segunda.total;
                     if (sumaPatas !== totalNeto) {
@@ -8174,7 +8355,7 @@ let PedidosService = class PedidosService {
                 : {}),
         };
     }
-    calcularImportesFactura(pedido, solicitudes, config) {
+    calcularImportesFactura(pedido, solicitudes, config, opts = {}) {
         const subtotalNum = (0, cobro_parcial_1.subtotalDesdeSolicitudes)(pedido.detalles.map((d) => ({
             id_detalle: d.idDetalle,
             precio_unitario: Number(d.precioUnitario),
@@ -8192,7 +8373,10 @@ let PedidosService = class PedidosService {
             es_plato_principal: d.producto.esPlatoPrincipal,
             participa_descuento_sopas: d.producto.categoria.participaDescuentoSopas,
         })), solicitudes);
-        const descuentos = this.descuentosDesdeConfig(lineas, config, pedido);
+        const descuentos = this.descuentosDesdeConfig(lineas, config, pedido, {
+            sinManual: opts.sinManual || detallesCobro.some((d) => this.esLineaPlanCobro(d)),
+        });
+        const dManual = new client_1.Prisma.Decimal((0, descuentos_pedido_1.montoDescuentoManualDesglose)(descuentos.promociones_desglose));
         const dS = new client_1.Prisma.Decimal(descuentos.descuento_sopas);
         const dM = new client_1.Prisma.Decimal(descuentos.descuento_muleros);
         const dP = new client_1.Prisma.Decimal(descuentos.descuento_promociones);
@@ -8207,7 +8391,7 @@ let PedidosService = class PedidosService {
         })), Number(descTotal), config.impoconsumo_porcentaje ?? 0);
         const impo = new client_1.Prisma.Decimal(monto_impoconsumo);
         const total = subtotal.sub(descTotal).add(impo);
-        return { subtotal, dS, dM, dP, impo, total };
+        return { subtotal, dS, dM, dP, dManual, impo, total };
     }
     impoconsumoIncluidoEnCuotaPlan(pedido, dto, config, montoCuota) {
         const cero = new client_1.Prisma.Decimal(0);
@@ -9206,6 +9390,8 @@ let PedidosService = class PedidosService {
             origen_autoservicio: Boolean(p.origenAutoservicio),
             listo_para_cobro_autoservicio: Boolean(p.listoParaCobroAutoservicio),
             etiquetas_promocion: this.etiquetasPromocionPedido(p),
+            descuento_manual_monto: Math.round(Number(p.descuentoManualMonto ?? 0)),
+            descuento_manual_motivo: p.descuentoManualMotivo ?? null,
             mesero: {
                 id: p.usuario.idUsuario,
                 nombre: p.usuario.nombre,

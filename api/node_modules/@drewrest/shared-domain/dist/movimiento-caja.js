@@ -4,6 +4,7 @@ exports.metodoMovimientoCaja = metodoMovimientoCaja;
 exports.impactoMovimientoCajaEfectivo = impactoMovimientoCajaEfectivo;
 exports.etiquetaTipoMovimientoCaja = etiquetaTipoMovimientoCaja;
 exports.resumenImpactoMovimientosCaja = resumenImpactoMovimientosCaja;
+exports.resumenSalidasDinero = resumenSalidasDinero;
 exports.calcularEfectivoEsperadoEnCaja = calcularEfectivoEsperadoEnCaja;
 /** Efectivo o transferencia; null/omitido = efectivo (entradas históricas). */
 function metodoMovimientoCaja(m) {
@@ -99,6 +100,90 @@ function resumenImpactoMovimientosCaja(movimientos) {
         total_pagos_mesero_exceso,
         total_cuotas_gasto_fijo,
         neto_movimientos_caja,
+    };
+}
+const ETIQUETA_SALIDA = {
+    devolucion_efectivo: 'Devoluciones en efectivo',
+    pago_domicilio: 'Pagos a domiciliario',
+    propina_mesero: 'Propinas a meseros',
+    pago_turno_mesero: 'Pagos a meseros (turno)',
+    salida_manual_efectivo: 'Salidas manuales',
+    devolucion_transferencia: 'Devoluciones por transferencia',
+    salida_manual_transferencia: 'Salidas manuales por transferencia',
+};
+const ORDEN_EFECTIVO = [
+    'devolucion_efectivo',
+    'pago_domicilio',
+    'propina_mesero',
+    'pago_turno_mesero',
+    'salida_manual_efectivo',
+];
+const ORDEN_TRANSFERENCIA = [
+    'devolucion_transferencia',
+    'salida_manual_transferencia',
+];
+function conceptoSalida(m) {
+    switch (m.tipo) {
+        case 'devolucion_exceso_transferencia':
+            return metodoMovimientoCaja(m) === 'transferencia'
+                ? 'devolucion_transferencia'
+                : 'devolucion_efectivo';
+        case 'pago_domicilio':
+            return 'pago_domicilio';
+        case 'pago_mesero':
+            return 'propina_mesero';
+        case 'salida_manual':
+            return metodoMovimientoCaja(m) === 'transferencia'
+                ? 'salida_manual_transferencia'
+                : 'salida_manual_efectivo';
+        default:
+            return null;
+    }
+}
+/**
+ * Dinero que salió, separado por origen (caja física vs. banco). El total en efectivo
+ * coincide con las salidas del cuadre de caja (fondos de gasto fijo no cuentan).
+ */
+function resumenSalidasDinero(movimientos, pagosTurnoMeseros = { cantidad: 0, monto: 0 }) {
+    const acc = new Map();
+    const propinas = new Map();
+    const sumar = (c, monto, cantidad = 1) => {
+        const prev = acc.get(c) ?? { cantidad: 0, monto: 0 };
+        acc.set(c, { cantidad: prev.cantidad + cantidad, monto: prev.monto + monto });
+    };
+    for (const m of movimientos) {
+        const monto = Math.round(Number(m.monto) || 0);
+        if (monto <= 0)
+            continue;
+        const c = conceptoSalida(m);
+        if (!c)
+            continue;
+        sumar(c, monto);
+        if (c === 'propina_mesero') {
+            const nombre = m.mesero_pedido?.trim() || 'Sin mesero';
+            const prev = propinas.get(nombre) ?? { cantidad: 0, monto: 0 };
+            propinas.set(nombre, { cantidad: prev.cantidad + 1, monto: prev.monto + monto });
+        }
+    }
+    const turno = Math.round(Number(pagosTurnoMeseros.monto) || 0);
+    if (turno > 0)
+        sumar('pago_turno_mesero', turno, pagosTurnoMeseros.cantidad);
+    const filas = (orden) => orden
+        .filter((c) => (acc.get(c)?.monto ?? 0) > 0)
+        .map((c) => ({ concepto: c, etiqueta: ETIQUETA_SALIDA[c], ...acc.get(c) }));
+    const efectivo = filas(ORDEN_EFECTIVO);
+    const transferencia = filas(ORDEN_TRANSFERENCIA);
+    const total_efectivo = efectivo.reduce((s, f) => s + f.monto, 0);
+    const total_transferencia = transferencia.reduce((s, f) => s + f.monto, 0);
+    return {
+        efectivo,
+        transferencia,
+        total_efectivo,
+        total_transferencia,
+        total: total_efectivo + total_transferencia,
+        propinas_por_mesero: [...propinas.entries()]
+            .map(([mesero, v]) => ({ mesero, ...v }))
+            .sort((a, b) => b.monto - a.monto),
     };
 }
 /**

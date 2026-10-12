@@ -26,6 +26,11 @@ export type ContextoDescuentosPedido = {
     etiquetas_promocion?: string[];
     /** Compatibilidad: equivale a incluir `cliente_especial` en etiquetas. */
     cliente_mulero?: boolean;
+    /** Descuento fijo autorizado por el admin sobre lo pendiente de cobro. */
+    descuento_manual?: {
+        monto: number;
+        motivo?: string | null;
+    } | null;
 };
 /** @deprecated Usar flag de categoría o `lineaMarcadaPromo` en promociones-pedido. */
 export declare function esLineaSopa(linea: LineaDescuento): boolean;
@@ -39,3 +44,16 @@ export declare function calcularDescuentosPedido(lineas: LineaDescuento[], confi
     descuento_promociones: number;
     promociones_desglose: DesglosePromocion[];
 };
+export declare const DESCUENTO_MANUAL_ID = "descuento_manual";
+/** Parte del descuento manual que cabe en la base (subtotal − otros descuentos). */
+export declare function aplicableDescuentoManual(monto: number, base: number): number;
+export declare function etiquetaDescuentoManual(motivo?: string | null): string;
+/** Monto del descuento manual incluido en un desglose de promociones. */
+export declare function montoDescuentoManualDesglose(desglose: readonly DesglosePromocion[] | null | undefined): number;
+export type ModoDescuentoManual = 'porcentaje' | 'monto' | 'total';
+/**
+ * Convierte la entrada del admin (% / monto / nuevo total) en el monto a descontar.
+ * `totalCon(m)` debe devolver el total a cobrar aplicando un descuento manual `m`
+ * (incluye impoconsumo), para resolver el modo «nuevo total».
+ */
+export declare function resolverMontoDescuentoManual(modo: ModoDescuentoManual, valor: number, base: number, totalCon: (monto: number) => number): number;

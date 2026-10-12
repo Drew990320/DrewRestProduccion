@@ -49,6 +49,7 @@ const cerrar_anulando_pendiente_dto_1 = require("./dto/cerrar-anulando-pendiente
 const cancelar_reabiertos_dto_1 = require("./dto/cancelar-reabiertos.dto");
 const reabrir_cobro_dto_1 = require("./dto/reabrir-cobro.dto");
 const revertir_tanda_cobro_dto_1 = require("./dto/revertir-tanda-cobro.dto");
+const descuento_manual_dto_1 = require("./dto/descuento-manual.dto");
 const enviar_factura_correo_dto_1 = require("./dto/enviar-factura-correo.dto");
 const patch_detalle_cocina_dto_1 = require("./dto/patch-detalle-cocina.dto");
 const patch_listo_para_recoger_dto_1 = require("./dto/patch-listo-para-recoger.dto");
@@ -200,6 +201,9 @@ let PedidosController = class PedidosController {
     }
     setEtiquetasPromocion(id, dto) {
         return this.pedidos.setEtiquetasPromocion(id, dto);
+    }
+    aplicarDescuentoManual(id, dto, req) {
+        return this.pedidos.aplicarDescuentoManual(id, dto, req.user);
     }
     actualizarComensales(id, dto, req) {
         return this.pedidos.actualizarComensalesPedido(id, dto, req.user);
@@ -699,6 +703,17 @@ __decorate([
     __metadata("design:paramtypes", [Number, patch_etiquetas_promocion_dto_1.PatchEtiquetasPromocionDto]),
     __metadata("design:returntype", void 0)
 ], PedidosController.prototype, "setEtiquetasPromocion", null);
+__decorate([
+    (0, common_1.Patch)(':id/descuento-manual'),
+    (0, common_1.UseGuards)(pedido_tenant_guard_1.PedidoTenantGuard, roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)('admin'),
+    __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
+    __param(1, (0, common_1.Body)()),
+    __param(2, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number, descuento_manual_dto_1.DescuentoManualDto, Object]),
+    __metadata("design:returntype", void 0)
+], PedidosController.prototype, "aplicarDescuentoManual", null);
 __decorate([
     (0, common_1.Patch)(':id/mazorcas'),
     (0, common_1.UseGuards)(pedido_tenant_guard_1.PedidoTenantGuard, roles_guard_1.RolesGuard),
