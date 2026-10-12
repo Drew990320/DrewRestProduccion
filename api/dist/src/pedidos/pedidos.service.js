@@ -25,6 +25,7 @@ const config_operativa_cache_1 = require("../common/config-operativa-cache");
 const prisma_lock_1 = require("../common/prisma-lock");
 const operative_limits_1 = require("../common/operative-limits");
 const tenant_constants_1 = require("../tenant/tenant.constants");
+const cliente_credito_1 = require("../creditos/cliente-credito");
 const tenant_scope_1 = require("../tenant/tenant-scope");
 const estado_pedido_transiciones_1 = require("./estado-pedido-transiciones");
 const timezone_1 = require("../common/timezone");
@@ -2287,6 +2288,31 @@ let PedidosService = class PedidosService {
             mesa_numero: c.pedido?.mesa?.numero ?? null,
             emitida_en: c.factura?.emitidaEn.toISOString() ?? c.creadoEn.toISOString(),
         }));
+        const pendientesRows = await this.prisma.cuentaCredito.findMany({
+            where: {
+                estado: 'abierto',
+                saldoPendiente: { gt: 0 },
+                pedido: { idRestaurante: tenantId },
+            },
+            include: {
+                pedido: { include: { mesa: { select: { numero: true } } } },
+                factura: { select: { emitidaEn: true } },
+            },
+            orderBy: [{ creadoEn: 'asc' }],
+        });
+        const fiados_pendientes = pendientesRows.map((c) => ({
+            id_credito: c.idCredito,
+            nombre_cliente: c.nombreCliente,
+            telefono: c.telefono,
+            monto_total: Math.round(Number(c.montoTotal)),
+            saldo_pendiente: Math.round(Number(c.saldoPendiente)),
+            estado: c.estado,
+            id_pedido: c.idPedido,
+            id_factura: c.idFactura,
+            mesa_numero: c.pedido?.mesa?.numero ?? null,
+            emitida_en: c.factura?.emitidaEn.toISOString() ?? c.creadoEn.toISOString(),
+        }));
+        const total_fiados_pendientes = fiados_pendientes.reduce((s, c) => s + c.saldo_pendiente, 0);
         return {
             fecha: ancla,
             periodo,
@@ -2310,6 +2336,8 @@ let PedidosService = class PedidosService {
             }))),
             fiados_dia,
             total_fiados_dia: totalesPorMetodo.fiado,
+            fiados_pendientes,
+            total_fiados_pendientes,
             total_pagos_meseros,
             pagos_meseros,
             movimientos_caja,
@@ -3091,6 +3119,7 @@ let PedidosService = class PedidosService {
             transferido_recibido: resumen.transferido_recibido,
             fiados_dia: resumen.fiados_dia,
             total_fiados_dia: resumen.total_fiados_dia,
+            fiados_pendientes: resumen.fiados_pendientes,
             total_pagos_meseros: resumen.total_pagos_meseros,
             total_entradas_manual: resumen.total_entradas_manual,
             total_entradas_manual_transferencia: resumen.total_entradas_manual_transferencia,
@@ -6438,6 +6467,7 @@ let PedidosService = class PedidosService {
             transferido_recibido: resumen.transferido_recibido,
             fiados_dia: resumen.fiados_dia,
             total_fiados_dia: resumen.total_fiados_dia,
+            fiados_pendientes: resumen.fiados_pendientes,
             total_pagos_meseros: resumen.total_pagos_meseros,
             total_entradas_manual: resumen.total_entradas_manual,
             total_entradas_manual_transferencia: resumen.total_entradas_manual_transferencia,
@@ -7457,12 +7487,12 @@ let PedidosService = class PedidosService {
         if (esFiado) {
             const nombreFiado = dto.nombre_cliente_fiado?.trim();
             if (!nombreFiado) {
-                throw new common_1.BadRequestException('Indica el nombre del cliente para registrar el fiado');
+                throw new common_1.BadRequestException('Indica el nombre del cliente para registrar el crédito');
             }
         }
         if (dto.aplicar_redondeo) {
             if (esFiado) {
-                throw new common_1.BadRequestException('El redondeo no aplica a fiados');
+                throw new common_1.BadRequestException('El redondeo no aplica a créditos');
             }
             const red = await this.resolverRedondeoParaCobro(pedido.idRestaurante, Number(total), true);
             total = red.total;
@@ -7562,12 +7592,19 @@ let PedidosService = class PedidosService {
                 });
                 idFacturaCreada = factura.idFactura;
                 if (esFiado) {
+                    const cliente = await (0, cliente_credito_1.resolverClienteFiado)(tx, pedido.idRestaurante, {
+                        idCliente: dto.id_cliente_fiado,
+                        nombre: dto.nombre_cliente_fiado,
+                        telefono: dto.telefono_cliente_fiado,
+                        monto: Math.round(Number(total)),
+                    });
                     await tx.cuentaCredito.create({
                         data: {
                             idPedido,
                             idFactura: factura.idFactura,
-                            nombreCliente: dto.nombre_cliente_fiado.trim(),
-                            telefono: dto.telefono_cliente_fiado?.trim() || null,
+                            idCliente: cliente.idCliente,
+                            nombreCliente: cliente.nombre,
+                            telefono: cliente.telefono,
                             montoTotal: total,
                             saldoPendiente: total,
                             notas: dto.notas_fiado?.trim() || null,

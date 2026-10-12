@@ -38,7 +38,7 @@ exports.HELP_MANIFEST_SCREENS = [
     { id: 'contabilidad', moduleId: 'cobro', title: 'Contabilidad', prioridad: 45, patron: '/contabilidad(?:/|$)', roles: ['admin'], signalOnEnter: 'contabilidad.en_pantalla', route: '/(app)/contabilidad', navTarget: 'nav.contabilidad' },
     { id: 'proveedores', moduleId: 'admin_operacion', title: 'Proveedores', prioridad: 45, patron: '/proveedores(?:/|$)', roles: ['admin'], signalOnEnter: 'proveedores.en_pantalla', route: '/(app)/proveedores' },
     { id: 'cuentas_por_pagar', moduleId: 'admin_operacion', title: 'Cuentas por pagar', prioridad: 45, patron: '/cuentas-por-pagar(?:/|$)', roles: ['admin'], signalOnEnter: 'cuentas_por_pagar.en_pantalla', route: '/(app)/cuentas-por-pagar' },
-    { id: 'creditos', moduleId: 'cobro', title: 'Créditos / fiados', prioridad: 40, patron: '/creditos(?:/|$)', roles: ['admin'], signalOnEnter: 'creditos.en_pantalla', route: '/(app)/creditos', viaMoreMenu: true, moreNavTarget: 'more.creditos' },
+    { id: 'creditos', moduleId: 'cobro', title: 'Créditos', prioridad: 40, patron: '/creditos(?:/|$)', roles: ['admin'], signalOnEnter: 'creditos.en_pantalla', route: '/(app)/creditos', viaMoreMenu: true, moreNavTarget: 'more.creditos' },
     { id: 'meseros_operativos', moduleId: 'admin_operacion', title: 'Beneficios del personal', prioridad: 40, patron: '/meseros-operativos(?:/|$)', roles: ['admin'], signalOnEnter: 'meseros_operativos.en_pantalla', route: '/(app)/meseros-operativos', viaMoreMenu: true, moreNavTarget: 'more.meseros_operativos' },
     { id: 'integracion_odoo', moduleId: 'admin_operacion', title: 'Integración Odoo', prioridad: 40, patron: '/integracion-odoo(?:/|$)', roles: ['admin'], signalOnEnter: 'integracion_odoo.en_pantalla', route: '/(app)/integracion-odoo' },
 ];
@@ -67,7 +67,7 @@ exports.HELP_MANIFEST_TARGETS = [
     { id: 'more.lugares_mesa', label: 'Lugares de mesas', kind: 'more', activateOnPress: true },
     { id: 'more.mesas_admin', label: 'Gestionar mesas', kind: 'more', activateOnPress: true },
     { id: 'more.descuentos', label: 'Descuentos y promociones', kind: 'more', activateOnPress: true },
-    { id: 'more.creditos', label: 'Créditos / fiados', kind: 'more', activateOnPress: true },
+    { id: 'more.creditos', label: 'Créditos', kind: 'more', activateOnPress: true },
     { id: 'more.personalizacion', label: 'Personalización visual', kind: 'more', activateOnPress: true },
     { id: 'more.configuracion', label: 'Configuración', kind: 'more', activateOnPress: true },
     { id: 'more.vista_previa', label: 'Vista previa tickets POS', kind: 'more', activateOnPress: true },

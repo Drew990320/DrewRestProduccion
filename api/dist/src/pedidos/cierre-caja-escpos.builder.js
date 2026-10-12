@@ -5,6 +5,7 @@ exports.buildBaseCajaEscPos = buildBaseCajaEscPos;
 exports.buildBaseCajaCierreEscPos = buildBaseCajaCierreEscPos;
 exports.buildMovimientoCajaEscPos = buildMovimientoCajaEscPos;
 exports.buildItemsMenuEscPos = buildItemsMenuEscPos;
+const luxon_1 = require("luxon");
 const escpos_utils_1 = require("./escpos-utils");
 async function buildCierreCajaEscPos(ticket, charWidth = escpos_utils_1.DEFAULT_ESC_POS_WIDTH) {
     const printer = (0, escpos_utils_1.createEscPosPrinter)(charWidth);
@@ -46,11 +47,22 @@ async function buildCierreCajaEscPos(ticket, charWidth = escpos_utils_1.DEFAULT_
     }
     await printer.println((0, escpos_utils_1.lineaConPrecio)('Tarjeta cred/deb', (0, escpos_utils_1.formatCopEscPos)(ticket.totales_por_metodo.tarjeta ?? 0), w));
     if ((ticket.totales_por_metodo.fiado ?? 0) > 0) {
-        await printer.println((0, escpos_utils_1.lineaConPrecio)('Fiado (por cobrar)', (0, escpos_utils_1.formatCopEscPos)(ticket.totales_por_metodo.fiado ?? 0), w));
+        await printer.println((0, escpos_utils_1.lineaConPrecio)('Credito (por cobrar)', (0, escpos_utils_1.formatCopEscPos)(ticket.totales_por_metodo.fiado ?? 0), w));
         for (const f of ticket.fiados_dia ?? []) {
             const mesa = f.mesa_numero != null ? ` · mesa ${f.mesa_numero}` : '';
             const saldo = f.saldo_pendiente > 0 ? f.saldo_pendiente : f.monto_total;
             await printer.println((0, escpos_utils_1.lineaConPrecio)(`  ${f.nombre_cliente}${mesa}`, (0, escpos_utils_1.formatCopEscPos)(saldo), w));
+        }
+    }
+    const delDia = new Set((ticket.fiados_dia ?? []).map((f) => f.id_credito));
+    const fiadosAnteriores = (ticket.fiados_pendientes ?? []).filter((f) => !delDia.has(f.id_credito));
+    if (fiadosAnteriores.length > 0) {
+        await printer.println((0, escpos_utils_1.lineaConPrecio)('Creditos de otros dias', (0, escpos_utils_1.formatCopEscPos)(fiadosAnteriores.reduce((s, f) => s + f.saldo_pendiente, 0)), w));
+        for (const f of fiadosAnteriores) {
+            const fecha = luxon_1.DateTime.fromISO(f.emitida_en)
+                .setZone('America/Bogota')
+                .toFormat('dd/LL');
+            await printer.println((0, escpos_utils_1.lineaConPrecio)(`  ${f.nombre_cliente} · ${fecha}`, (0, escpos_utils_1.formatCopEscPos)(f.saldo_pendiente), w));
         }
     }
     if ((ticket.total_pagos_meseros ?? 0) > 0) {

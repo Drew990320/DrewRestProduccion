@@ -431,7 +431,7 @@ exports.NAV_ICON_LABELS = {
     categorias: 'Categorías y disponibilidad',
     mesas_admin: 'Gestionar mesas',
     descuentos_promociones: 'Descuentos y promociones',
-    creditos: 'Créditos / fiados',
+    creditos: 'Créditos',
     inventario: 'Inventario interno',
     recursos: 'Inventario',
     contabilidad: 'Contabilidad',

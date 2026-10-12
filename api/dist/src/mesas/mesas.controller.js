@@ -22,6 +22,7 @@ const current_tenant_decorator_1 = require("../tenant/current-tenant.decorator")
 const create_mesa_dto_1 = require("./dto/create-mesa.dto");
 const create_mesas_lote_dto_1 = require("./dto/create-mesas-lote.dto");
 const update_mesa_dto_1 = require("./dto/update-mesa.dto");
+const guardar_plano_dto_1 = require("./dto/guardar-plano.dto");
 const reserva_mesa_dto_1 = require("./dto/reserva-mesa.dto");
 const mesas_service_1 = require("./mesas.service");
 let MesasController = class MesasController {
@@ -40,6 +41,9 @@ let MesasController = class MesasController {
     }
     crearLote(dto, tenantId) {
         return this.mesas.crearMesasLote(dto, tenantId);
+    }
+    guardarPlano(dto, tenantId) {
+        return this.mesas.guardarPlano(dto, tenantId);
     }
     actualizar(id, dto, tenantId) {
         return this.mesas.actualizarMesa(id, dto, tenantId);
@@ -98,6 +102,16 @@ __decorate([
     __metadata("design:paramtypes", [create_mesas_lote_dto_1.CreateMesasLoteDto, Number]),
     __metadata("design:returntype", void 0)
 ], MesasController.prototype, "crearLote", null);
+__decorate([
+    (0, common_1.Patch)('admin/plano'),
+    (0, common_1.UseGuards)(roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)('admin'),
+    __param(0, (0, common_1.Body)()),
+    __param(1, (0, current_tenant_decorator_1.CurrentTenantId)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [guardar_plano_dto_1.GuardarPlanoDto, Number]),
+    __metadata("design:returntype", void 0)
+], MesasController.prototype, "guardarPlano", null);
 __decorate([
     (0, common_1.Patch)('admin/:id'),
     (0, common_1.UseGuards)(roles_guard_1.RolesGuard),

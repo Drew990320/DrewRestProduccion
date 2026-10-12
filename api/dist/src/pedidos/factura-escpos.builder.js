@@ -197,7 +197,7 @@ async function buildFacturaEscPos(ticket, charWidthOrOpts = escpos_utils_1.DEFAU
             await printer.println(`Pago: ${(0, factura_ticket_1.labelMetodoPago)(ticket.metodo_pago)}`);
         }
         if (ticket.fiado_cliente) {
-            await printer.println(`Cliente fiado: ${ticket.fiado_cliente}`);
+            await printer.println(`Cliente credito: ${ticket.fiado_cliente}`);
             if (ticket.fiado_telefono) {
                 await printer.println(`Tel: ${ticket.fiado_telefono}`);
             }

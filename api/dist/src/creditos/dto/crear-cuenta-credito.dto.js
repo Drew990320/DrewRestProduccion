@@ -18,6 +18,7 @@ class CrearCuentaCreditoDto {
     telefono;
     notas;
     id_factura;
+    id_cliente;
 }
 exports.CrearCuentaCreditoDto = CrearCuentaCreditoDto;
 __decorate([
@@ -51,4 +52,10 @@ __decorate([
     (0, class_validator_1.Min)(1),
     __metadata("design:type", Number)
 ], CrearCuentaCreditoDto.prototype, "id_factura", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsInt)(),
+    (0, class_validator_1.Min)(1),
+    __metadata("design:type", Number)
+], CrearCuentaCreditoDto.prototype, "id_cliente", void 0);
 //# sourceMappingURL=crear-cuenta-credito.dto.js.map

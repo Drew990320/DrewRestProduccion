@@ -63,6 +63,13 @@ let MesasService = class MesasService {
             lugar_activo: lugar?.activo ?? null,
         };
     }
+    mapPlano(m) {
+        return {
+            plano_x: m.planoX,
+            plano_y: m.planoY,
+            plano_forma: m.planoForma,
+        };
+    }
     mapMesaPublic(m) {
         return {
             id_mesa: m.idMesa,
@@ -70,6 +77,7 @@ let MesasService = class MesasService {
             capacidad: m.capacidad,
             estado: m.estado,
             ...this.mapLugar(m.lugar),
+            ...this.mapPlano(m),
         };
     }
     mapMesaAdmin(m, pedidosActivos = 0, totalPedidos = 0) {
@@ -79,6 +87,7 @@ let MesasService = class MesasService {
             capacidad: m.capacidad,
             estado: m.estado,
             ...this.mapLugar(m.lugar),
+            ...this.mapPlano(m),
             pedidos_activos: pedidosActivos,
             total_pedidos: totalPedidos,
             disponible_lunes: m.disponibleLunes,
@@ -484,6 +493,31 @@ let MesasService = class MesasService {
         const { activos, total } = await this.contadoresPedidosMesa(idMesa);
         this.gateway.emitConfigActualizada('mesas', tenantId);
         return this.mapMesaAdmin(actualizada, activos, total);
+    }
+    async guardarPlano(dto, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
+        const ids = dto.mesas.map((m) => m.id_mesa);
+        const existentes = await this.prisma.mesa.findMany({
+            where: { idRestaurante: tenantId, idMesa: { in: ids } },
+            select: { idMesa: true },
+        });
+        const validos = new Set(existentes.map((m) => m.idMesa));
+        const faltantes = ids.filter((id) => !validos.has(id));
+        if (faltantes.length > 0) {
+            throw new common_1.NotFoundException(`Mesas no encontradas: ${faltantes.join(', ')}`);
+        }
+        await this.prisma.$transaction(dto.mesas.map((m) => {
+            const ubicada = m.plano_x != null && m.plano_y != null;
+            return this.prisma.mesa.update({
+                where: { idMesa: m.id_mesa },
+                data: {
+                    planoX: ubicada ? m.plano_x : null,
+                    planoY: ubicada ? m.plano_y : null,
+                    ...(m.plano_forma !== undefined ? { planoForma: m.plano_forma } : {}),
+                },
+            });
+        }));
+        this.gateway.emitConfigActualizada('mesas', tenantId);
+        return { ok: true, actualizadas: dto.mesas.length };
     }
     async eliminarMesa(idMesa, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
         const m = await this.prisma.mesa.findFirst({

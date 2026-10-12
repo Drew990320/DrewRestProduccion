@@ -11,7 +11,7 @@ function labelMetodoPago(mp) {
     if (mp === 'tarjeta')
         return 'Tarjeta crédito/débito';
     if (mp === 'fiado')
-        return 'Fiado / crédito';
+        return 'Crédito';
     if (mp === 'mixto')
         return 'Pago mixto';
     return mp;

@@ -19,6 +19,7 @@ class FacturarDto {
     nombre_cliente_fiado;
     telefono_cliente_fiado;
     notas_fiado;
+    id_cliente_fiado;
     imprimir_factura;
     factura_con_copia;
     id_detalles;
@@ -62,6 +63,12 @@ __decorate([
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], FacturarDto.prototype, "notas_fiado", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsInt)(),
+    (0, class_validator_1.Min)(1),
+    __metadata("design:type", Number)
+], FacturarDto.prototype, "id_cliente_fiado", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsBoolean)(),

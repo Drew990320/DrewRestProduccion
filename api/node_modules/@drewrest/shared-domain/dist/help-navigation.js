@@ -232,7 +232,7 @@ const SCREEN_DESTINATIONS = {
     creditos: {
         screenId: 'creditos',
         route: '/(app)/creditos',
-        title: 'Créditos / fiados',
+        title: 'Créditos',
         viaMoreMenu: true,
         moreNavTarget: 'more.creditos',
     },

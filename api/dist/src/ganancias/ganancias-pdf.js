@@ -131,7 +131,7 @@ function buildGananciasPdf(data) {
             if (vm.tarjeta > 0)
                 kv('  Tarjeta', cop(vm.tarjeta));
             if (vm.fiado > 0)
-                kv('  Fiado', cop(vm.fiado));
+                kv('  Crédito', cop(vm.fiado));
             if (vm.otros > 0)
                 kv('  Otros', cop(vm.otros));
         }

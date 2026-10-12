@@ -76,7 +76,7 @@ exports.TICKET_PREVIEW_CATALOG = [
     },
     {
         id: 'factura_fiado',
-        label: 'Cobro fiado',
+        label: 'Cobro a crédito',
         grupo: 'Cobro',
         descripcion: 'Cliente queda debiendo; datos de crédito.',
     },

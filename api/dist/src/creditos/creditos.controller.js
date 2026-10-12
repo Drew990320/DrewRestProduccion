@@ -23,6 +23,7 @@ const modulo_decorator_1 = require("../tenant/modulo.decorator");
 const creditos_service_1 = require("./creditos.service");
 const crear_cuenta_credito_dto_1 = require("./dto/crear-cuenta-credito.dto");
 const abono_cuenta_credito_dto_1 = require("./dto/abono-cuenta-credito.dto");
+const cliente_credito_dto_1 = require("./dto/cliente-credito.dto");
 let CreditosController = class CreditosController {
     creditos;
     constructor(creditos) {
@@ -34,8 +35,23 @@ let CreditosController = class CreditosController {
     crear(dto, req, tenantId) {
         return this.creditos.crear(dto, req.user.id, tenantId);
     }
-    abono(id, dto, tenantId) {
-        return this.creditos.registrarAbono(id, dto, tenantId);
+    abono(id, dto, req, tenantId) {
+        return this.creditos.registrarAbono(id, dto, tenantId, req.user.id);
+    }
+    listarClientes(q, tenantId) {
+        return this.creditos.listarClientes(q, tenantId);
+    }
+    detalleCliente(id, tenantId) {
+        return this.creditos.detalleCliente(id, tenantId);
+    }
+    crearCliente(dto, tenantId) {
+        return this.creditos.crearCliente(dto, tenantId);
+    }
+    actualizarCliente(id, dto, tenantId) {
+        return this.creditos.actualizarCliente(id, dto, tenantId);
+    }
+    abonarCliente(id, dto, req, tenantId) {
+        return this.creditos.abonarCliente(id, dto, tenantId, req.user.id);
     }
 };
 exports.CreditosController = CreditosController;
@@ -63,11 +79,60 @@ __decorate([
     (0, roles_decorator_1.Roles)('admin', 'mesero'),
     __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
     __param(1, (0, common_1.Body)()),
-    __param(2, (0, current_tenant_decorator_1.CurrentTenantId)()),
+    __param(2, (0, common_1.Req)()),
+    __param(3, (0, current_tenant_decorator_1.CurrentTenantId)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Number, abono_cuenta_credito_dto_1.AbonoCuentaCreditoDto, Number]),
+    __metadata("design:paramtypes", [Number, abono_cuenta_credito_dto_1.AbonoCuentaCreditoDto, Object, Number]),
     __metadata("design:returntype", void 0)
 ], CreditosController.prototype, "abono", null);
+__decorate([
+    (0, common_1.Get)('clientes'),
+    (0, roles_decorator_1.Roles)('admin', 'mesero'),
+    __param(0, (0, common_1.Query)('q')),
+    __param(1, (0, current_tenant_decorator_1.CurrentTenantId)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Number]),
+    __metadata("design:returntype", void 0)
+], CreditosController.prototype, "listarClientes", null);
+__decorate([
+    (0, common_1.Get)('clientes/:id'),
+    (0, roles_decorator_1.Roles)('admin', 'mesero'),
+    __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
+    __param(1, (0, current_tenant_decorator_1.CurrentTenantId)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number, Number]),
+    __metadata("design:returntype", void 0)
+], CreditosController.prototype, "detalleCliente", null);
+__decorate([
+    (0, common_1.Post)('clientes'),
+    (0, roles_decorator_1.Roles)('admin'),
+    __param(0, (0, common_1.Body)()),
+    __param(1, (0, current_tenant_decorator_1.CurrentTenantId)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [cliente_credito_dto_1.CrearClienteCreditoDto, Number]),
+    __metadata("design:returntype", void 0)
+], CreditosController.prototype, "crearCliente", null);
+__decorate([
+    (0, common_1.Patch)('clientes/:id'),
+    (0, roles_decorator_1.Roles)('admin'),
+    __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
+    __param(1, (0, common_1.Body)()),
+    __param(2, (0, current_tenant_decorator_1.CurrentTenantId)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number, cliente_credito_dto_1.ActualizarClienteCreditoDto, Number]),
+    __metadata("design:returntype", void 0)
+], CreditosController.prototype, "actualizarCliente", null);
+__decorate([
+    (0, common_1.Post)('clientes/:id/abono'),
+    (0, roles_decorator_1.Roles)('admin', 'mesero'),
+    __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
+    __param(1, (0, common_1.Body)()),
+    __param(2, (0, common_1.Req)()),
+    __param(3, (0, current_tenant_decorator_1.CurrentTenantId)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number, abono_cuenta_credito_dto_1.AbonoCuentaCreditoDto, Object, Number]),
+    __metadata("design:returntype", void 0)
+], CreditosController.prototype, "abonarCliente", null);
 exports.CreditosController = CreditosController = __decorate([
     (0, common_1.Controller)('creditos'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard, modulo_guard_1.ModuloGuard),

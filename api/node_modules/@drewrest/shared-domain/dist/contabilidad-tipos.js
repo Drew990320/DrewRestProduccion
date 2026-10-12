@@ -85,7 +85,7 @@ exports.SEED_REGLAS_EVENTO_CO = [
     { codigo: 'evt_venta_efectivo', nombre: 'Venta contado efectivo', evento: 'venta_contado_efectivo', debito: '1105', credito: '4135' },
     { codigo: 'evt_venta_tarjeta', nombre: 'Venta tarjeta', evento: 'venta_tarjeta', debito: '1110', credito: '4135' },
     { codigo: 'evt_venta_transferencia', nombre: 'Venta transferencia', evento: 'venta_transferencia', debito: '1110', credito: '4135' },
-    { codigo: 'evt_venta_fiado', nombre: 'Venta fiado', evento: 'venta_fiado', debito: '1305', credito: '4135' },
+    { codigo: 'evt_venta_fiado', nombre: 'Venta a crédito', evento: 'venta_fiado', debito: '1305', credito: '4135' },
     { codigo: 'evt_abono_cliente', nombre: 'Abono cliente', evento: 'abono_cliente', debito: '1105', credito: '1305' },
     { codigo: 'evt_pago_proveedor', nombre: 'Pago proveedor', evento: 'pago_proveedor', debito: '2205', credito: '1105' },
     { codigo: 'evt_cxp_credito', nombre: 'Compra a crédito', evento: 'cxp_compra_credito', debito: '1435', credito: '2205' },

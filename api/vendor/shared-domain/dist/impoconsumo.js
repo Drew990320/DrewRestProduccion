@@ -90,7 +90,7 @@ function etiquetaMetodoPagoImpoconsumo(m) {
         return 'Transferencia';
     if (m === 'tarjeta')
         return 'Tarjeta';
-    return 'Fiado';
+    return 'Crédito';
 }
 /** Texto de la fila en tickets y pantallas, p. ej. «Impoconsumo 8%». */
 function etiquetaImpoconsumo(porcentaje) {

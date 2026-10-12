@@ -239,7 +239,7 @@ exports.ACTION_ICON_LABELS = {
     pago_transferencia: 'Pago transferencia',
     pago_tarjeta: 'Pago tarjeta',
     pago_mixto: 'Pago mixto',
-    pago_fiado: 'Pago fiado',
+    pago_fiado: 'Pago a crédito',
     pago_redondeo: 'Redondear cobro',
     tienda_gestionar: 'Gestionar catálogo tienda',
     tienda_nueva_venta: 'Nueva venta tienda',
