@@ -20,6 +20,7 @@ const roles_decorator_1 = require("../auth/roles.decorator");
 const roles_guard_1 = require("../auth/roles.guard");
 const comanda_printer_service_1 = require("../pedidos/comanda-printer.service");
 const tenant_constants_1 = require("../tenant/tenant.constants");
+const ticket_preview_samples_1 = require("../pedidos/ticket-preview.samples");
 const impresora_pos_dto_1 = require("./dto/impresora-pos.dto");
 const impresoras_pos_service_1 = require("./impresoras-pos.service");
 const localhost_guard_1 = require("./localhost.guard");
@@ -43,6 +44,9 @@ let ImpresorasPosController = class ImpresorasPosController {
         const html = await this.impresoras.hojaCodigosMenuHtml(req.user.idRestaurante);
         res.setHeader('Cache-Control', 'private, max-age=60');
         res.send(html);
+    }
+    ejemplos() {
+        return ticket_preview_samples_1.TICKET_PREVIEW_CATALOG;
     }
     detectarLocal() {
         return this.impresoras.detectar();
@@ -96,6 +100,17 @@ let ImpresorasPosController = class ImpresorasPosController {
             margen_inicio_lineas: row.margen_inicio_lineas,
             margen_fin_lineas: row.margen_fin_lineas,
         });
+    }
+    async imprimirEjemplos(id, dto, req) {
+        const row = await this.impresoras.obtener(id, req.user.idRestaurante);
+        const tienda = dto.tipos.includes('venta_tienda')
+            ? await this.impresoras.tiendaParaEjemplo(req.user.idRestaurante)
+            : undefined;
+        return this.printer.imprimirEjemplosADestino(dto.tipos, row.destino, row.baud_rate, row.ancho_papel_mm, {
+            tamano_fuente: row.tamano_fuente,
+            margen_inicio_lineas: row.margen_inicio_lineas,
+            margen_fin_lineas: row.margen_fin_lineas,
+        }, { tienda });
     }
     async imprimirCodigosMenu(id, req) {
         const row = await this.impresoras.obtener(id, req.user.idRestaurante);
@@ -160,6 +175,14 @@ __decorate([
     __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", Promise)
 ], ImpresorasPosController.prototype, "codigosMenuHoja", null);
+__decorate([
+    (0, common_1.Get)('ejemplos'),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)('admin'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], ImpresorasPosController.prototype, "ejemplos", null);
 __decorate([
     (0, throttler_1.SkipThrottle)(),
     (0, common_1.Get)('local/detectar'),
@@ -269,6 +292,17 @@ __decorate([
     __metadata("design:paramtypes", [Number, Object]),
     __metadata("design:returntype", Promise)
 ], ImpresorasPosController.prototype, "prueba", null);
+__decorate([
+    (0, common_1.Post)(':id/ejemplos'),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)('admin'),
+    __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
+    __param(1, (0, common_1.Body)()),
+    __param(2, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number, impresora_pos_dto_1.ImprimirEjemplosDto, Object]),
+    __metadata("design:returntype", Promise)
+], ImpresorasPosController.prototype, "imprimirEjemplos", null);
 __decorate([
     (0, common_1.Post)(':id/imprimir-codigos-menu'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),

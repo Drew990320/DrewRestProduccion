@@ -52,6 +52,9 @@ const escpos_buffer_decode_1 = require("./escpos-buffer-decode");
 const ticket_preview_pdf_1 = require("./ticket-preview-pdf");
 const ticket_preview_html_builder_1 = require("./ticket-preview-html.builder");
 const ticket_preview_samples_1 = require("./ticket-preview.samples");
+const restaurant_branding_1 = require("../common/restaurant-branding");
+const comanda_printer_service_1 = require("./comanda-printer.service");
+const factura_consecutivo_1 = require("./factura-consecutivo");
 const pedidos_service_1 = require("./pedidos.service");
 const ticket_preview_util_1 = require("./ticket-preview.util");
 const escpos_utils_1 = require("./escpos-utils");
@@ -75,12 +78,71 @@ function parseIdDetalles(raw) {
 function parseReimpresion(raw) {
     return raw === '1' || raw === 'true';
 }
+function borradorBranding(dto) {
+    const b = {};
+    if (dto.nombre_comercial !== undefined) {
+        b.nombreComercial = dto.nombre_comercial.trim() || 'Restaurante';
+    }
+    if (dto.nit !== undefined)
+        b.nit = dto.nit.trim() || null;
+    if (dto.telefono !== undefined)
+        b.telefono = dto.telefono.trim() || null;
+    if (dto.direccion !== undefined)
+        b.direccion = dto.direccion.trim() || null;
+    if (dto.texto_gracias_ticket !== undefined)
+        b.textoGraciasTicket = dto.texto_gracias_ticket;
+    if (dto.texto_propina_ticket !== undefined)
+        b.textoPropinaTicket = dto.texto_propina_ticket;
+    if (dto.texto_aviso_no_dian !== undefined)
+        b.textoAvisoNoDian = dto.texto_aviso_no_dian;
+    if (dto.mostrar_credito_drewtech !== undefined) {
+        b.mostrarCreditoDrewTech = dto.mostrar_credito_drewtech;
+    }
+    const m = dto.bloques;
+    if (m) {
+        const pre = dto.tipo === 'precuenta';
+        const set = (factura, precuenta, v) => {
+            if (v === undefined)
+                return;
+            b[pre ? precuenta : factura] = v;
+        };
+        set('facturaMostrarLogo', 'precuentaMostrarLogo', m.logo);
+        set('facturaMostrarMesero', 'precuentaMostrarMesero', m.mesero);
+        set('facturaMostrarComensales', 'precuentaMostrarComensales', m.comensales);
+        set('facturaMostrarDetalleItems', 'precuentaMostrarDetalleItems', m.detalle_items);
+        set('facturaMostrarDescuentos', 'precuentaMostrarDescuentos', m.descuentos);
+        set('facturaMostrarMetodoPago', 'precuentaMostrarMetodoPago', m.metodo_pago);
+        set('facturaMostrarVuelto', 'precuentaMostrarVuelto', m.vuelto);
+        set('facturaMostrarPropina', 'precuentaMostrarPropina', m.propina);
+        set('facturaMostrarGracias', 'precuentaMostrarGracias', m.gracias);
+    }
+    return b;
+}
 let TicketPreviewService = class TicketPreviewService {
     config;
     pedidos;
-    constructor(config, pedidos) {
+    printer;
+    constructor(config, pedidos, printer) {
         this.config = config;
         this.pedidos = pedidos;
+        this.printer = printer;
+    }
+    async configPreview(dto) {
+        const esCaja = dto.tipo === 'movimiento_entrada' || dto.tipo === 'movimiento_salida';
+        const { opts, impresora } = await this.printer.layoutOptsParaRol(esCaja ? 'caja' : 'factura');
+        const numeroFactura = (0, factura_consecutivo_1.formatearNumeroFactura)(dto.factura_prefijo ?? '', dto.factura_siguiente_numero ?? 1);
+        const buffer = await (0, restaurant_branding_1.conBrandingBorrador)(borradorBranding(dto), () => (0, ticket_preview_samples_1.buildConfigPreviewEscPos)(dto.tipo, opts, numeroFactura));
+        const segmentos = (0, escpos_buffer_decode_1.decodeEscPosBuffer)(buffer, opts.charWidth);
+        const conLogo = segmentos.some((s) => s.kind === 'logo');
+        const logoPng = conLogo ? await this.previewLogoPng(opts.charWidth) : null;
+        return {
+            tipo: dto.tipo,
+            ancho_mm: opts.papelMm,
+            char_width: opts.charWidth,
+            impresora,
+            logo_data_url: this.logoDataUrlFromPng(logoPng),
+            segmentos,
+        };
     }
     isEnabled() {
         return (0, ticket_preview_util_1.ticketPreviewEnabled)(this.config);
@@ -118,6 +180,7 @@ let TicketPreviewService = class TicketPreviewService {
             logoDataUrl: this.logoDataUrlFromPng(logoPng),
             anchoMm: mm,
             logoMaxHeightPx: logoTicketMaxAltoPxCached(),
+            charWidth: chars,
         });
     }
     async bufferToPdf(buffer, subtitle, anchoMmOverride) {
@@ -227,7 +290,13 @@ let TicketPreviewService = class TicketPreviewService {
         this.assertEnabled();
         const ticket = await this.pedidos.ticketBaseCajaCierreParaVistaPrevia(fecha, tenantId);
         const buffer = await (0, cierre_caja_escpos_builder_1.buildBaseCajaCierreEscPos)(ticket, this.charWidth());
-        return this.bufferToHtml(buffer, `Arqueo cierre ${ticket.fecha} · datos reales`);
+        return this.bufferToHtml(buffer, `Base final ${ticket.fecha} · datos reales`);
+    }
+    async arqueoCajaHtml(fecha, tenantId) {
+        this.assertEnabled();
+        const ticket = await this.pedidos.ticketArqueoCajaParaVistaPrevia(fecha, tenantId);
+        const buffer = await (0, cierre_caja_escpos_builder_1.buildArqueoCajaEscPos)(ticket, this.charWidth());
+        return this.bufferToHtml(buffer, `Arqueo ${ticket.fecha} · datos reales`);
     }
     async escposForAgentSource(source, tenantId) {
         this.assertEnabled();
@@ -317,6 +386,12 @@ let TicketPreviewService = class TicketPreviewService {
             case 'base_caja_cierre': {
                 const ticket = await this.pedidos.ticketBaseCajaCierreParaVistaPrevia(source.fecha, tenantId);
                 buffer = await (0, cierre_caja_escpos_builder_1.buildBaseCajaCierreEscPos)(ticket, w);
+                label = source.label?.trim() || `Base final ${ticket.fecha}`;
+                break;
+            }
+            case 'arqueo_caja': {
+                const ticket = await this.pedidos.ticketArqueoCajaParaVistaPrevia(source.fecha, tenantId);
+                buffer = await (0, cierre_caja_escpos_builder_1.buildArqueoCajaEscPos)(ticket, w);
                 label = source.label?.trim() || `Arqueo ${ticket.fecha}`;
                 break;
             }
@@ -354,6 +429,7 @@ exports.TicketPreviewService = TicketPreviewService;
 exports.TicketPreviewService = TicketPreviewService = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [config_1.ConfigService,
-        pedidos_service_1.PedidosService])
+        pedidos_service_1.PedidosService,
+        comanda_printer_service_1.ComandaPrinterService])
 ], TicketPreviewService);
 //# sourceMappingURL=ticket-preview.service.js.map

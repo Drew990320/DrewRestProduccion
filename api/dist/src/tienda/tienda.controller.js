@@ -355,8 +355,8 @@ let TiendaController = class TiendaController {
     constructor(tienda) {
         this.tienda = tienda;
     }
-    listarTiendas(tenantId) {
-        return this.tienda.listarTiendas(tenantId);
+    listarTiendas(tenantId, req) {
+        return this.tienda.listarTiendas(tenantId, req.user.rol.nombre === 'mesero');
     }
     crearTienda(dto, tenantId) {
         return this.tienda.crearTienda(dto, tenantId);
@@ -415,8 +415,9 @@ __decorate([
     (0, common_1.Get)('tiendas'),
     (0, roles_decorator_1.Roles)('admin', 'superadmin', 'mesero'),
     __param(0, (0, current_tenant_decorator_1.CurrentTenantId)()),
+    __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Number]),
+    __metadata("design:paramtypes", [Number, Object]),
     __metadata("design:returntype", void 0)
 ], TiendaController.prototype, "listarTiendas", null);
 __decorate([

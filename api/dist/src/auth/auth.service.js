@@ -313,7 +313,7 @@ let AuthService = class AuthService {
         const user = await this.ensureUsuarioAutoservicio(tenantId);
         await (0, tenant_access_1.assertTenantAccessForUser)(this.prisma, user);
         const pedidos = this.moduleRef.get(pedidos_service_1.PedidosService, { strict: false });
-        await pedidos.limpiarPedidosAutoservicioAbandonados(user.idUsuario, tenantId);
+        await pedidos.limpiarPedidosAutoservicioAbandonados(user.idUsuario, tenantId, dto?.kiosko_id);
         return this.issueSession(user, { expiresIn: '45m' });
     }
     async ensureUsuarioAutoservicio(tenantId) {
@@ -374,11 +374,18 @@ let AuthService = class AuthService {
         if (!user?.activo) {
             throw new common_1.UnauthorizedException('Sesión inválida');
         }
-        if (user.rol.nombre === 'autoservicio') {
-            throw new common_1.UnauthorizedException('Sesión de autoservicio no renovable');
+        const esKiosko = user.rol.nombre === 'autoservicio';
+        if (esKiosko) {
+            const cfg = await this.prisma.configRestaurante.findUnique({
+                where: { idRestaurante: user.idRestaurante },
+                select: { moduloAutoservicioActivo: true },
+            });
+            if (!cfg?.moduloAutoservicioActivo) {
+                throw new common_1.UnauthorizedException('Autoservicio no está habilitado');
+            }
         }
         await (0, tenant_access_1.assertTenantAccessForUser)(this.prisma, user);
-        const session = await this.issueSession(user);
+        const session = await this.issueSession(user, esKiosko ? { expiresIn: '45m' } : undefined);
         return {
             access_token: session.access_token,
             expires_in: session.expires_in,

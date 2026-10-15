@@ -34,7 +34,7 @@ exports.PedidosModule = PedidosModule = __decorate([
             (0, common_1.forwardRef)(() => impresoras_pos_module_1.ImpresorasPosModule),
             (0, common_1.forwardRef)(() => menu_module_1.MenuModule),
         ],
-        controllers: [pedidos_controller_1.PedidosController, ticket_preview_controller_1.TicketPreviewController],
+        controllers: [pedidos_controller_1.PedidosController, ticket_preview_controller_1.TicketPreviewController, ticket_preview_controller_1.ConfigTicketPreviewController],
         providers: [
             pedidos_service_1.PedidosService,
             pedidos_gateway_1.PedidosGateway,

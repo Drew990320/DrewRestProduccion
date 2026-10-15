@@ -80,9 +80,6 @@ function resolveEscPosTicketOpts(charWidthOrOpts = exports.DEFAULT_ESC_POS_WIDTH
         const factor = (0, impresora_papel_ancho_1.factorColumnasPorTamanoFuente)(tamano);
         charWidth = Math.min(56, Math.max(24, Math.floor(charWidth * factor + 1e-9)));
     }
-    if (tamano >= 3) {
-        charWidth = Math.max(16, Math.floor(charWidth / 2));
-    }
     return {
         charWidth,
         tamanoFuente: tamano,
@@ -92,6 +89,17 @@ function resolveEscPosTicketOpts(charWidthOrOpts = exports.DEFAULT_ESC_POS_WIDTH
     };
 }
 const FONT_B_STICKY = Symbol('escposFontBSticky');
+const BOLD_STICKY = Symbol('escposBoldSticky');
+function fijarNegritaPersistente(printer) {
+    const original = printer.bold;
+    if (typeof original !== 'function')
+        return;
+    const marcado = printer;
+    if (marcado[BOLD_STICKY])
+        return;
+    marcado[BOLD_STICKY] = true;
+    printer.bold = () => original.call(printer, true);
+}
 function fijarFontBPersistente(printer) {
     const setFontB = printer.setTypeFontB;
     if (typeof setFontB !== 'function')
@@ -135,8 +143,11 @@ async function applyEscPosFontSize(printer, tamanoFuente) {
     if (typeof printer.setTypeFontA === 'function') {
         await printer.setTypeFontA();
     }
-    if (t >= 3 && typeof printer.setTextQuadArea === 'function') {
-        await printer.setTextQuadArea();
+    if (t >= 3 && typeof printer.setTextSize === 'function') {
+        await printer.setTextSize(0, 2);
+        fijarNegritaPersistente(printer);
+        if (typeof printer.bold === 'function')
+            await printer.bold(true);
         return;
     }
     if (t >= 2 && typeof printer.setTextDoubleHeight === 'function') {
@@ -536,30 +547,46 @@ async function combinarLogosLadoALado(pathIzq, pathDer, anchoTotal, maxH) {
         };
         pegar(izq, margen);
         pegar(der, margen + izq.width + LOGOS_LADO_A_LADO_GAP_PX);
+        const xDiv = margen + izq.width + Math.floor(LOGOS_LADO_A_LADO_GAP_PX / 2) - 1;
+        const margenDiv = Math.floor(alto * 0.15);
+        for (let y = margenDiv; y < alto - margenDiv; y++) {
+            for (let x = xDiv; x < xDiv + 2; x++) {
+                const di = (y * ancho + x) << 2;
+                dst.data[di] = dst.data[di + 1] = dst.data[di + 2] = 0;
+            }
+        }
         return PNG.sync.write(dst);
     }
     catch {
         return null;
     }
 }
-async function printLogoONombre(printer, logoPath, nombre, maxW, maxH) {
-    if (logoPath) {
-        try {
-            const logoBuf = await cargarLogoTicketRedimensionado(logoPath, maxW, maxH);
-            if (logoBuf) {
-                await imprimirImagenCentrada(printer, pngTramadoParaTermica(logoBuf), maxW);
-            }
-            else if (logoPath.toLowerCase().endsWith('.png')) {
-                await printer.printImage(logoPath);
-            }
-            await printer.newLine();
-            return;
+async function printLogo(printer, logoPath, maxW, maxH) {
+    if (!logoPath)
+        return false;
+    try {
+        const logoBuf = await cargarLogoTicketRedimensionado(logoPath, maxW, maxH);
+        if (logoBuf) {
+            await imprimirImagenCentrada(printer, pngTramadoParaTermica(logoBuf), maxW);
         }
-        catch {
+        else if (logoPath.toLowerCase().endsWith('.png')) {
+            await printer.printImage(logoPath);
         }
+        else {
+            return false;
+        }
+        await printer.newLine();
+        return true;
     }
+    catch {
+        return false;
+    }
+}
+async function printNombreDestacado(printer, nombre, charWidth) {
     await printer.bold(true);
-    await printer.println(nombre.toUpperCase());
+    for (const line of wrapEscPos(nombre.toUpperCase(), charWidth)) {
+        await printer.println(line);
+    }
     await printer.bold(false);
 }
 async function printEncabezadoRestaurante(printer, charWidth = exports.DEFAULT_ESC_POS_WIDTH, tienda, papelMm = (0, impresora_papel_ancho_1.papelMmDesdeChars)(charWidth)) {
@@ -567,19 +594,31 @@ async function printEncabezadoRestaurante(printer, charWidth = exports.DEFAULT_E
     const logoMaxW = (0, impresora_papel_ancho_1.logoAnchoPxParaPapelMm)(papelMm);
     const maxH = await maxAltoLogoTicketPx();
     const logoRestaurante = resolveTicketLogoPath();
-    const logoTienda = tienda ? (0, tienda_logo_upload_util_1.resolveTiendaLogoPath)(tienda.logo_archivo) : null;
-    const combinado = logoRestaurante && logoTienda
-        ? await combinarLogosLadoALado(logoRestaurante, logoTienda, logoMaxW, maxH)
-        : null;
-    if (combinado) {
-        await imprimirImagenCentrada(printer, combinado, logoMaxW);
-        await printer.newLine();
+    if (!tienda) {
+        if (!(await printLogo(printer, logoRestaurante, logoMaxW, maxH))) {
+            await printNombreDestacado(printer, (0, restaurant_branding_1.restaurantName)(), charWidth);
+        }
     }
     else {
-        const maxHPorLogo = tienda ? Math.round(maxH * 0.7) : maxH;
-        await printLogoONombre(printer, logoRestaurante, (0, restaurant_branding_1.restaurantName)(), logoMaxW, maxHPorLogo);
-        if (tienda) {
-            await printLogoONombre(printer, logoTienda, tienda.nombre, logoMaxW, maxHPorLogo);
+        const logoTienda = (0, tienda_logo_upload_util_1.resolveTiendaLogoPath)(tienda.logo_archivo);
+        const combinado = logoRestaurante && logoTienda
+            ? await combinarLogosLadoALado(logoRestaurante, logoTienda, logoMaxW, maxH)
+            : null;
+        if (combinado) {
+            await imprimirImagenCentrada(printer, combinado, logoMaxW);
+            await printer.newLine();
+        }
+        else {
+            const maxHPorLogo = Math.round(maxH * 0.7);
+            await printLogo(printer, logoRestaurante, logoMaxW, maxHPorLogo);
+            await printLogo(printer, logoTienda, logoMaxW, maxHPorLogo);
+        }
+        await printNombreDestacado(printer, tienda.nombre, charWidth);
+        const restaurante = (0, restaurant_branding_1.restaurantName)().trim();
+        if (restaurante && restaurante.toLowerCase() !== tienda.nombre.trim().toLowerCase()) {
+            for (const line of wrapEscPos(restaurante, charWidth)) {
+                await printer.println(line);
+            }
         }
     }
     if (ticketNit()) {

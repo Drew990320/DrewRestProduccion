@@ -1,12 +1,16 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.PALETAS_PREDISENADAS = exports.VISUAL_TONE_PRESETS = exports.VISUAL_TONE_IDS = exports.GRUPOS_VISTA_PALETA_APP = void 0;
+exports.PALETAS_PREDISENADAS = exports.VISUAL_TONE_PRESETS = exports.VISUAL_TONE_IDS = exports.TEMA_PREFERENCIA_IDS = exports.GRUPOS_VISTA_PALETA_APP = void 0;
 exports.modoPaletaVisual = modoPaletaVisual;
 exports.normalizarContrastePaleta = normalizarContrastePaleta;
 exports.derivarColoresSemanticos = derivarColoresSemanticos;
 exports.generarPaletaClaraDesdePrincipal = generarPaletaClaraDesdePrincipal;
 exports.generarPaletaOscuraDesdePrincipal = generarPaletaOscuraDesdePrincipal;
 exports.generarSugerenciasTemaDesdePrincipal = generarSugerenciasTemaDesdePrincipal;
+exports.esTemaPreferenciaValida = esTemaPreferenciaValida;
+exports.derivarPaletaOscuraDesdeClara = derivarPaletaOscuraDesdeClara;
+exports.derivarPaletaClaraDesdeOscura = derivarPaletaClaraDesdeOscura;
+exports.resolverPaletasTema = resolverPaletasTema;
 exports.aplicarTonoPaleta = aplicarTonoPaleta;
 exports.generarPaletaDesdePrincipal = generarPaletaDesdePrincipal;
 const nav_app_icon_1 = require("./nav-app-icon");
@@ -326,6 +330,64 @@ function generarSugerenciasTemaDesdePrincipal(primaryHex) {
     return {
         claro: generarPaletaClaraDesdePrincipal(primaryHex),
         oscuro: generarPaletaOscuraDesdePrincipal(primaryHex),
+    };
+}
+exports.TEMA_PREFERENCIA_IDS = [
+    'sistema',
+    'claro',
+    'oscuro',
+];
+function esTemaPreferenciaValida(v) {
+    return v === 'sistema' || v === 'claro' || v === 'oscuro';
+}
+const RANGO_PRIMARY = { claro: [30, 60], oscuro: [46, 72] };
+const RANGO_PRIMARY_DARK = { claro: [20, 48], oscuro: [34, 58] };
+/** Ajusta la luminosidad de un acento para que destaque sobre el fondo del modo. */
+function acentoParaModo(hex, modo, rango) {
+    const p = parseHex(hex);
+    if (!p)
+        return hex;
+    const { h, s, l } = rgbToHsl(p.r, p.g, p.b);
+    const [min, max] = rango[modo];
+    if (l >= min && l <= max)
+        return hex.toUpperCase();
+    return hslToHex(h, s, clamp(l, min, max));
+}
+function acentosDesde(origen, modo) {
+    return {
+        primary: acentoParaModo(origen.primary, modo, RANGO_PRIMARY),
+        primary_dark: acentoParaModo(origen.primary_dark, modo, RANGO_PRIMARY_DARK),
+        secondary: acentoParaModo(origen.secondary, modo, RANGO_PRIMARY),
+    };
+}
+/** Tema oscuro coherente con la paleta clara: conserva principal y secundario del usuario. */
+function derivarPaletaOscuraDesdeClara(claro) {
+    return {
+        ...generarPaletaOscuraDesdePrincipal(claro.primary),
+        ...acentosDesde(claro, 'oscuro'),
+    };
+}
+/** Tema claro coherente con una paleta oscura (paletas antiguas guardadas en oscuro). */
+function derivarPaletaClaraDesdeOscura(oscuro) {
+    return {
+        ...generarPaletaClaraDesdePrincipal(oscuro.primary),
+        ...acentosDesde(oscuro, 'claro'),
+    };
+}
+/**
+ * Paletas efectivas del restaurante. `colores` es la paleta clara; `coloresOscuro`
+ * es la personalización del modo oscuro (si no existe se deriva de la clara).
+ */
+function resolverPaletasTema(colores, coloresOscuro) {
+    if (modoPaletaVisual(colores) === 'oscuro') {
+        return {
+            claro: derivarPaletaClaraDesdeOscura(colores),
+            oscuro: coloresOscuro ?? colores,
+        };
+    }
+    return {
+        claro: colores,
+        oscuro: coloresOscuro ?? derivarPaletaOscuraDesdeClara(colores),
     };
 }
 exports.VISUAL_TONE_IDS = [

@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.buildPruebaImpresoraEscPos = buildPruebaImpresoraEscPos;
 const instalacion_on_prem_1 = require("../sistema/instalacion-on-prem");
 const escpos_utils_1 = require("./escpos-utils");
+const ticket_layout_1 = require("./ticket-layout");
 async function buildPruebaImpresoraEscPos(destino, charWidthOrOpts = escpos_utils_1.DEFAULT_ESC_POS_WIDTH, anchoPapelMm = 58) {
     const opts = (0, escpos_utils_1.resolveEscPosTicketOpts)(charWidthOrOpts);
     const printer = (0, escpos_utils_1.createEscPosPrinter)(opts.charWidth);
@@ -18,25 +19,21 @@ async function buildPruebaImpresoraEscPos(destino, charWidthOrOpts = escpos_util
     const buildId = instalacion.build_id?.trim();
     const canal = instalacion.canal_label?.trim() || instalacion.canal?.trim();
     const local = (0, escpos_utils_1.ticketNombreLocal)();
-    const ahora = new Date().toLocaleString('es-CO', {
-        timeZone: 'America/Bogota',
-    });
     await (0, escpos_utils_1.applyEscPosTicketStart)(printer, opts);
-    await printer.alignCenter();
-    await printer.bold(true);
-    await printer.println('DREWREST');
-    await printer.bold(false);
-    await printer.println('Prueba de impresora POS');
-    await printer.drawLine();
-    await printer.alignLeft();
-    await printer.println(`Local: ${local}`);
-    await printer.println(`Fecha: ${ahora}`);
+    await (0, ticket_layout_1.encabezadoTicket)(printer, opts, {
+        titulo: 'PRUEBA',
+        subtitulos: ['Impresora POS · DrewRest'],
+    });
+    await (0, ticket_layout_1.bloqueDatos)(printer, opts, [
+        ['Local', local],
+        ['Fecha', (0, ticket_layout_1.fechaHoraTicket)(new Date())],
+    ]);
     await printer.println(sep);
     await printer.bold(true);
     await printer.println('Producto');
     await printer.bold(false);
-    await printer.println('DrewRest — POS restaurante');
-    await printer.println(`Version: ${version}`);
+    await printer.println('DrewRest - POS restaurante');
+    await printer.println(`Versión: ${version}`);
     if (buildId)
         await printer.println(`Build: ${buildId}`);
     if (canal) {
@@ -66,21 +63,27 @@ async function buildPruebaImpresoraEscPos(destino, charWidthOrOpts = escpos_util
     await printer.println('Checklist visual');
     await printer.bold(false);
     await printer.println('[OK] Texto legible');
-    await printer.println('[OK] Alineacion izquierda');
-    await printer.println('[OK] Negrita / titulos');
-    await printer.println('[OK] Lineas separadoras');
+    await printer.println('[OK] Tildes y eñes: áéíóú ñ');
+    await printer.println('[OK] Negrita / títulos');
+    await printer.println('[OK] Líneas separadoras');
     await printer.println('[  ] Corte de papel');
+    await printer.println('Destacado (total):');
+    await (0, ticket_layout_1.filaMontoGrande)(printer, opts, 'TOTAL', (0, escpos_utils_1.formatCopEscPos)(45000));
+    await printer.alignCenter();
+    await printer.println('Destacado (turno/mesa):');
+    await (0, ticket_layout_1.textoGrande)(printer, opts, 'MESA 12');
+    await printer.alignLeft();
     await printer.println(sep);
     await printer.println(`Ancho papel: ${mm} mm (${w} cols)`);
     await printer.println(`Fuente: ${opts.tamanoFuente} · Margen ${opts.margenInicioLineas}/${opts.margenFinLineas}`);
-    await printer.println(`Lineas de relleno (${mm} mm):`);
+    await printer.println(`Líneas de relleno (${mm} mm):`);
     for (let i = 1; i <= 6; i++) {
         await printer.println(`${i}. Item demo prueba #${i}`);
     }
     await printer.println(sep);
     await printer.alignCenter();
     await printer.println('Si lee este ticket,');
-    await printer.println('la impresora esta OK.');
+    await printer.println('la impresora está OK.');
     await printer.newLine();
     await printer.println('Gracias por usar');
     await printer.bold(true);

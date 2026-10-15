@@ -16,6 +16,8 @@ const client_1 = require("@prisma/client");
 const prisma_service_1 = require("../prisma/prisma.service");
 const timezone_1 = require("../common/timezone");
 const tenant_constants_1 = require("../tenant/tenant.constants");
+const tenant_snapshot_cache_1 = require("../common/tenant-snapshot-cache");
+const SNAPSHOT_MENUS_MS = 5_000;
 function toFlags(m) {
     return {
         idMenu: m.idMenu,
@@ -45,14 +47,22 @@ let MenuActivoService = class MenuActivoService {
             orderBy: [{ prioridad: 'desc' }, { idMenu: 'asc' }],
         });
     }
-    async resolverActivo(tenantId = tenant_constants_1.DEFAULT_TENANT_ID, ahora = new Date()) {
-        const [menus, config] = await Promise.all([
+    cargarMenusYOverride(tenantId) {
+        return Promise.all([
             this.listarMenus(tenantId),
             this.prisma.configOperativa.findUnique({
                 where: { idRestaurante: tenantId },
                 select: { idMenuOverride: true, menuOverrideHasta: true },
             }),
         ]);
+    }
+    menusYOverrideCompartido(tenantId) {
+        return (0, tenant_snapshot_cache_1.snapshotTenant)(`menus-override:${tenantId}`, SNAPSHOT_MENUS_MS, () => this.cargarMenusYOverride(tenantId));
+    }
+    async resolverActivo(tenantId = tenant_constants_1.DEFAULT_TENANT_ID, ahora = new Date(), opts) {
+        const [menus, config] = opts?.compartido
+            ? await this.menusYOverrideCompartido(tenantId)
+            : await this.cargarMenusYOverride(tenantId);
         if (menus.length === 0)
             return null;
         const resolved = (0, menu_franja_1.resolverMenuActivo)(menus.map(toFlags), {
@@ -84,10 +94,8 @@ let MenuActivoService = class MenuActivoService {
         };
     }
     async precioVentaProducto(idProducto, tenantId = tenant_constants_1.DEFAULT_TENANT_ID, precioCatalogo) {
-        const menusCount = await this.prisma.menu.count({
-            where: { idRestaurante: tenantId },
-        });
-        if (menusCount === 0) {
+        const [menus] = await this.menusYOverrideCompartido(tenantId);
+        if (menus.length === 0) {
             if (precioCatalogo != null) {
                 return new client_1.Prisma.Decimal(precioCatalogo);
             }
@@ -99,7 +107,7 @@ let MenuActivoService = class MenuActivoService {
                 throw new common_1.NotFoundException('Producto no encontrado');
             return p.precio;
         }
-        const activo = await this.resolverActivo(tenantId);
+        const activo = await this.resolverActivo(tenantId, new Date(), { compartido: true });
         if (!activo) {
             throw new common_1.BadRequestException('No hay un menú activo configurado');
         }
@@ -183,9 +191,7 @@ let MenuActivoService = class MenuActivoService {
     }
     async sincronizarPrecioEnMenus(idProducto, precio, idMenus, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
         const ids = [
-            ...new Set(idMenus
-                .map((n) => Math.round(Number(n)))
-                .filter((n) => Number.isFinite(n) && n > 0)),
+            ...new Set(idMenus.map((n) => Math.round(Number(n))).filter((n) => Number.isFinite(n) && n > 0)),
         ];
         if (ids.length === 0)
             return;

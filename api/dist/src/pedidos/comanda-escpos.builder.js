@@ -3,56 +3,38 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.buildComandaEscPos = buildComandaEscPos;
 const escpos_utils_1 = require("./escpos-utils");
 const factura_lineas_group_1 = require("./factura-lineas-group");
+const ticket_layout_1 = require("./ticket-layout");
 async function buildComandaEscPos(ticket, charWidthOrOpts = escpos_utils_1.DEFAULT_ESC_POS_WIDTH) {
     const opts = (0, escpos_utils_1.resolveEscPosTicketOpts)(charWidthOrOpts);
     const printer = (0, escpos_utils_1.createEscPosPrinter)(opts.charWidth);
     const w = opts.charWidth;
     const sep = '-'.repeat(w);
     await (0, escpos_utils_1.applyEscPosTicketStart)(printer, opts);
+    await (0, ticket_layout_1.encabezadoTicket)(printer, opts, {
+        titulo: 'COMANDA',
+        subtitulos: [ticket.estacion?.trim() && ticket.estacion.trim().toUpperCase()],
+        marcas: [
+            ticket.es_adicional && 'ADICIONAL',
+            ticket.modo_servicio === 'para_llevar' && 'PARA LLEVAR',
+            ticket.origen_autoservicio && 'AUTOSERVICIO',
+            ticket.es_reimpresion && 'REIMPRESIÓN',
+        ],
+    });
     await printer.alignCenter();
-    await printer.println('COMANDA COCINA');
-    if (ticket.es_adicional) {
-        await printer.bold(true);
-        await printer.println('*** ADICIONAL ***');
-        await printer.bold(false);
-    }
-    if (ticket.es_reimpresion) {
-        await printer.bold(true);
-        await printer.println('*** REIMPRESION ***');
-        await printer.bold(false);
-    }
-    await printer.drawLine();
+    await (0, ticket_layout_1.textoGrande)(printer, opts, ticket.origen_autoservicio ? `TURNO #${ticket.id_pedido}` : ticket.mesa_etiqueta);
     await printer.alignLeft();
-    await printer.bold(true);
-    for (const line of (0, escpos_utils_1.wrapEscPos)(ticket.mesa_etiqueta, w)) {
-        await printer.println(line);
-    }
-    await printer.bold(false);
-    await printer.println(`Pedido #${ticket.id_pedido}`);
-    await printer.println(`Comensales: ${ticket.num_comensales}`);
-    if (ticket.origen_autoservicio) {
-        await printer.bold(true);
-        await printer.println('*** AUTOSERVICIO ***');
-        await printer.bold(false);
-    }
-    else if (ticket.mesero?.trim()) {
-        await printer.println(`Mesero: ${ticket.mesero}`);
-    }
-    if (ticket.modo_servicio === 'para_llevar') {
-        await printer.bold(true);
-        await printer.println('*** PARA LLEVAR ***');
-        await printer.bold(false);
-    }
-    await printer.println(new Date(ticket.emitida_en).toLocaleString('es-CO', {
-        timeZone: 'America/Bogota',
-    }));
+    await (0, ticket_layout_1.separador)(printer, opts);
+    await (0, ticket_layout_1.bloqueDatos)(printer, opts, [
+        ticket.origen_autoservicio && ['Lugar', ticket.mesa_etiqueta],
+        ['Pedido', `#${ticket.id_pedido}`],
+        ['Hora', (0, ticket_layout_1.fechaHoraTicket)(ticket.emitida_en)],
+        !ticket.origen_autoservicio && ['Mesero', ticket.mesero],
+        (ticket.canal_comanda ?? 'mesa') === 'mesa' &&
+            ticket.modo_servicio !== 'para_llevar' && ['Comensales', ticket.num_comensales],
+    ]);
     await printer.println(sep);
     for (const linea of ticket.lineas) {
-        await printer.bold(true);
-        for (const line of (0, escpos_utils_1.wrapEscPos)(`${linea.cantidad}x ${linea.nombre_producto}`, w)) {
-            await printer.println(line);
-        }
-        await printer.bold(false);
+        await (0, ticket_layout_1.textoGrande)(printer, opts, `${linea.cantidad}x ${linea.nombre_producto}`);
         for (const p of linea.personalizaciones) {
             for (const line of (0, escpos_utils_1.wrapEscPos)(`  · ${p}`, w)) {
                 await printer.println(line);
@@ -60,13 +42,17 @@ async function buildComandaEscPos(ticket, charWidthOrOpts = escpos_utils_1.DEFAU
         }
         const nota = (0, factura_lineas_group_1.limpiarNotaCocinaTicket)(linea.nota_cocina);
         if (nota) {
-            for (const line of (0, escpos_utils_1.wrapEscPos)(`  Nota: ${nota}`, w)) {
+            await printer.bold(true);
+            for (const line of (0, escpos_utils_1.wrapEscPos)(`  NOTA: ${nota}`, w)) {
                 await printer.println(line);
             }
+            await printer.bold(false);
         }
         await printer.newLine();
     }
     await printer.println(sep);
+    const unidades = ticket.lineas.reduce((s, l) => s + l.cantidad, 0);
+    await (0, ticket_layout_1.bloqueDatos)(printer, opts, [['Total unidades', unidades]]);
     await (0, escpos_utils_1.applyEscPosTicketEnd)(printer, opts);
     return (0, escpos_utils_1.bufferFromPrinter)(printer);
 }

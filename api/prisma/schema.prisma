@@ -768,6 +768,8 @@ model Pedido {
   origenAutoservicio           Boolean           @default(false) @map("origen_autoservicio")
   /// Cliente ya pulsó «Enviar a caja»; queda pendiente de cobro (no bloquea nueva sesión).
   listoParaCobroAutoservicio   Boolean           @default(false) @map("listo_para_cobro_autoservicio")
+  /// Dispositivo (tablet) de autoservicio que abrió el pedido; separa varios kioskos con el mismo usuario.
+  kioskoId                     String?           @map("kiosko_id") @db.VarChar(64)
   /// Etiquetas de promoción activas en el pedido (ids del catálogo en config_descuento).
   etiquetasPromocion           Json              @default("[]") @map("etiquetas_promocion")
   /// Descuento manual (COP) autorizado por el admin; se consume al cobrar lo pendiente.
@@ -915,6 +917,10 @@ model Factura {
   cobroMixtoGrupo   Int?       @map("cobro_mixto_grupo")
   /// Vuelto / exceso de cobro (efectivo, transferencia, domicilio, mesero).
   detalleExcesoCobro Json?     @map("detalle_exceso_cobro")
+  /// Consecutivo del local asignado al cobrar (las facturas de un mismo pago mixto lo comparten).
+  numeroConsecutivo Int?       @map("numero_consecutivo")
+  /// Prefijo vigente al emitir (ej. POS-); cambiar el prefijo no altera facturas viejas.
+  prefijoConsecutivo String?   @map("prefijo_consecutivo") @db.VarChar(12)
   pedido            Pedido     @relation(fields: [idPedido], references: [idPedido])
   usuario           Usuario    @relation(fields: [idUsuario], references: [idUsuario])
   detalles          DetallePedido[]
@@ -1055,6 +1061,13 @@ model ConfigOperativa {
   facturaCopiaClienteDefecto Boolean @default(false) @map("factura_copia_cliente_defecto")
   /// Ticket de caja al enviar un pedido de autoservicio a cobro.
   imprimirTicketAutoservicio Boolean @default(true) @map("imprimir_ticket_autoservicio")
+  /// Mensaje grande en la pantalla de inicio del kiosko de autoservicio.
+  autoservicioBienvenida  String    @default("¡Bienvenido! Arma tu pedido aquí") @map("autoservicio_bienvenida") @db.VarChar(120)
+  /// Segundos sin tocar la pantalla antes de volver al inicio (0 = nunca).
+  autoservicioInactividadSeg Int    @default(90) @map("autoservicio_inactividad_seg")
+  autoservicioPermiteMesa Boolean   @default(true) @map("autoservicio_permite_mesa")
+  autoservicioPermiteSinMesa Boolean @default(true) @map("autoservicio_permite_sin_mesa")
+  autoservicioPermiteParaLlevar Boolean @default(true) @map("autoservicio_permite_para_llevar")
   /// Comprobante al registrar la base de caja (apertura).
   imprimirBaseCaja        Boolean   @default(true) @map("imprimir_base_caja")
   /// Comprobante al registrar el conteo de cierre de caja.
@@ -1160,6 +1173,9 @@ model ConfigRestaurante {
   precuentaMostrarGracias      Boolean  @default(true) @map("precuenta_mostrar_gracias")
   etiquetaDescuentoSopas     String   @default("Descuento sopas") @map("etiqueta_descuento_sopas") @db.VarChar(80)
   etiquetaDescuentoMuleros   String   @default("Descuento clientes especiales") @map("etiqueta_descuento_muleros") @db.VarChar(80)
+  /// Numeración consecutiva de facturas: prefijo impreso + próximo número a asignar.
+  facturaPrefijo             String   @default("") @map("factura_prefijo") @db.VarChar(12)
+  facturaSiguienteNumero     Int      @default(1) @map("factura_siguiente_numero")
   moduloInventarioActivo     Boolean  @default(true) @map("modulo_inventario_activo")
   moduloMeserosOperativosActivo Boolean @default(true) @map("modulo_meseros_operativos_activo")
   moduloEnvioCorreoActivo    Boolean  @default(false) @map("modulo_envio_correo_activo")
@@ -1208,6 +1224,10 @@ model ConfigVisual {
   colorText          String?  @map("color_text") @db.VarChar(7)
   colorTextMuted     String?  @map("color_text_muted") @db.VarChar(7)
   colorBorder        String?  @map("color_border") @db.VarChar(7)
+  /// Paleta del modo oscuro (clave color → #RRGGBB). Null = derivada de la paleta clara.
+  coloresOscuro      Json?    @map("colores_oscuro")
+  /// sistema | claro | oscuro — modo de los equipos que no eligieron uno propio
+  temaPredeterminado String?  @map("tema_predeterminado") @db.VarChar(10)
   logoLoginArchivo   String?  @map("logo_login_archivo") @db.VarChar(120)
   logoFacturaArchivo String?  @map("logo_factura_archivo") @db.VarChar(120)
   logoTicketArchivo  String?  @map("logo_ticket_archivo") @db.VarChar(120)
@@ -1315,7 +1335,10 @@ model CajaDiaria {
   idRestaurante           Int         @default(1) @map("id_restaurante")
   fecha                   DateTime    @db.Date
   montoBaseEfectivo       Decimal  @map("monto_base_efectivo") @db.Decimal(12, 2)
+  /// Efectivo que queda en caja al cerrar (base final; se propone como apertura del día siguiente).
   montoBaseCierreEfectivo Decimal? @map("monto_base_cierre_efectivo") @db.Decimal(12, 2)
+  /// Efectivo contado en el arqueo, frente al esperado.
+  montoArqueoEfectivo     Decimal? @map("monto_arqueo_efectivo") @db.Decimal(12, 2)
   actualizadoEn           DateTime    @updatedAt @map("actualizado_en")
 
   @@unique([idRestaurante, fecha])

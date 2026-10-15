@@ -45,6 +45,8 @@ class UpsertConfigRestauranteDto {
     precuenta_mostrar_gracias;
     etiqueta_descuento_sopas;
     etiqueta_descuento_muleros;
+    factura_prefijo;
+    factura_siguiente_numero;
     modulo_inventario_activo;
     modulo_meseros_operativos_activo;
     modulo_envio_correo_activo;
@@ -237,6 +239,22 @@ __decorate([
     (0, class_validator_1.MaxLength)(80),
     __metadata("design:type", String)
 ], UpsertConfigRestauranteDto.prototype, "etiqueta_descuento_muleros", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(12),
+    (0, class_validator_1.Matches)(/^[A-Za-z0-9\-_. ]*$/, {
+        message: 'El prefijo solo admite letras, números, guion, punto o espacio',
+    }),
+    __metadata("design:type", String)
+], UpsertConfigRestauranteDto.prototype, "factura_prefijo", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsInt)(),
+    (0, class_validator_1.Min)(1),
+    (0, class_validator_1.Max)(99_999_999),
+    __metadata("design:type", Number)
+], UpsertConfigRestauranteDto.prototype, "factura_siguiente_numero", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsBoolean)(),

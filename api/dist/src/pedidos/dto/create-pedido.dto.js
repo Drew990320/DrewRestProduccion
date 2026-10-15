@@ -11,10 +11,12 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CreatePedidoDto = void 0;
 const class_validator_1 = require("class-validator");
+const kiosko_id_1 = require("../kiosko-id");
 class CreatePedidoDto {
     id_mesa;
     num_comensales;
     origen_autoservicio;
+    kiosko_id;
 }
 exports.CreatePedidoDto = CreatePedidoDto;
 __decorate([
@@ -31,4 +33,9 @@ __decorate([
     (0, class_validator_1.IsBoolean)(),
     __metadata("design:type", Boolean)
 ], CreatePedidoDto.prototype, "origen_autoservicio", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.Matches)(kiosko_id_1.KIOSKO_ID_PATTERN),
+    __metadata("design:type", String)
+], CreatePedidoDto.prototype, "kiosko_id", void 0);
 //# sourceMappingURL=create-pedido.dto.js.map

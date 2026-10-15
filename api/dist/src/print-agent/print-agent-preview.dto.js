@@ -37,6 +37,7 @@ __decorate([
         'cierre_caja',
         'base_caja',
         'base_caja_cierre',
+        'arqueo_caja',
         'test',
     ]),
     __metadata("design:type", String)

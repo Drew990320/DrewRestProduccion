@@ -108,6 +108,8 @@ let ConfigRestauranteService = class ConfigRestauranteService {
             precuenta_mostrar_gracias: row.precuentaMostrarGracias,
             etiqueta_descuento_sopas: row.etiquetaDescuentoSopas,
             etiqueta_descuento_muleros: row.etiquetaDescuentoMuleros,
+            factura_prefijo: row.facturaPrefijo,
+            factura_siguiente_numero: row.facturaSiguienteNumero,
             modulo_inventario_activo: row.moduloInventarioActivo,
             modulo_meseros_operativos_activo: row.moduloMeserosOperativosActivo,
             modulo_envio_correo_activo: row.moduloEnvioCorreoActivo,
@@ -184,7 +186,29 @@ let ConfigRestauranteService = class ConfigRestauranteService {
         return row;
     }
     async obtener(tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
-        return this.mapRow(await this.obtenerRow(tenantId));
+        const api = this.mapRow(await this.obtenerRow(tenantId));
+        const fresco = await this.prisma.configRestaurante.findUnique({
+            where: { idRestaurante: tenantId },
+            select: { facturaSiguienteNumero: true },
+        });
+        if (fresco)
+            api.factura_siguiente_numero = fresco.facturaSiguienteNumero;
+        return api;
+    }
+    async validarSiguienteNumeroFactura(tenantId, prefijo, siguiente) {
+        const max = await this.prisma.factura.aggregate({
+            where: {
+                prefijoConsecutivo: prefijo,
+                numeroConsecutivo: { not: null },
+                pedido: { idRestaurante: tenantId },
+            },
+            _max: { numeroConsecutivo: true },
+        });
+        const ultimo = max._max.numeroConsecutivo ?? 0;
+        if (siguiente <= ultimo) {
+            throw new common_1.BadRequestException(`Ya se emitió la factura ${prefijo}${String(ultimo).padStart(6, '0')}. ` +
+                `El próximo número debe ser mayor a ${ultimo}.`);
+        }
     }
     async actualizar(dto, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
         const actual = await this.obtenerRow(tenantId);
@@ -204,11 +228,19 @@ let ConfigRestauranteService = class ConfigRestauranteService {
         if (pinActivoTras && !pinHashTras?.trim()) {
             throw new common_1.BadRequestException('Define un PIN de 4 dígitos antes de activar el login con PIN.');
         }
+        const prefijoFactura = dto.factura_prefijo !== undefined ? dto.factura_prefijo.trim() : undefined;
+        if (dto.factura_siguiente_numero !== undefined) {
+            await this.validarSiguienteNumeroFactura(tenantId, prefijoFactura ?? actual.facturaPrefijo.trim(), dto.factura_siguiente_numero);
+        }
         const row = await this.prisma.configRestaurante.upsert({
             where: { idRestaurante: tenantId },
             create: {
                 idRestaurante: tenantId,
                 nombreComercial: dto.nombre_comercial?.trim() || 'Restaurante',
+                ...(prefijoFactura !== undefined ? { facturaPrefijo: prefijoFactura } : {}),
+                ...(dto.factura_siguiente_numero !== undefined
+                    ? { facturaSiguienteNumero: dto.factura_siguiente_numero }
+                    : {}),
                 telefono: dto.telefono?.trim() || null,
                 direccion: dto.direccion?.trim() || null,
                 nit: dto.nit?.trim() || null,
@@ -360,6 +392,10 @@ let ConfigRestauranteService = class ConfigRestauranteService {
                     : {}),
                 ...(dto.etiqueta_descuento_muleros !== undefined
                     ? { etiquetaDescuentoMuleros: dto.etiqueta_descuento_muleros.trim() }
+                    : {}),
+                ...(prefijoFactura !== undefined ? { facturaPrefijo: prefijoFactura } : {}),
+                ...(dto.factura_siguiente_numero !== undefined
+                    ? { facturaSiguienteNumero: dto.factura_siguiente_numero }
                     : {}),
                 ...(dto.modulo_inventario_activo !== undefined
                     ? { moduloInventarioActivo: dto.modulo_inventario_activo }

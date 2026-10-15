@@ -138,7 +138,7 @@ function etiquetaEstadoLineaMesero(d) {
         return '¡Cocina avisó! Listo para recoger';
     if (d.enviado_cocina ?? false) {
         if (d.impreso_cocina === false) {
-            return 'En cocina · comanda sin imprimir (vuelve a Pasar a cocina)';
+            return 'En cocina · comanda sin imprimir (usa Reimprimir)';
         }
         return 'En cocina · puedes recoger cuando esté';
     }
@@ -314,13 +314,12 @@ function mensajeListosParaRecoger(platos, entradas, sufijo = '') {
 function detalleSinEnviarCocina(d) {
     return d.marcar_cocina && !(d.enviado_cocina ?? false);
 }
-/** Plato de cocina aún no enviado o con comanda sin imprimir (reintento). */
+/**
+ * Plato de la tanda nueva (aún no enviado). Lo ya enviado sin imprimir no cuenta:
+ * se saca con «Reimprimir», no con «A cocina».
+ */
 function detallePendientePasarCocina(d) {
-    if (!d.marcar_cocina)
-        return false;
-    if (!(d.enviado_cocina ?? false))
-        return true;
-    return d.impreso_cocina === false;
+    return d.marcar_cocina && !(d.enviado_cocina ?? false);
 }
 function platosPendientesPasarCocina(pedido) {
     return pedido.detalles

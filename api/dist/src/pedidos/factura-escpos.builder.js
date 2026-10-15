@@ -4,6 +4,7 @@ exports.buildFacturaEscPos = buildFacturaEscPos;
 const factura_ticket_1 = require("./factura-ticket");
 const factura_vuelto_1 = require("@drewrest/shared-domain/factura-vuelto");
 const escpos_utils_1 = require("./escpos-utils");
+const ticket_layout_1 = require("./ticket-layout");
 const restaurant_branding_1 = require("../common/restaurant-branding");
 function esTicketParaCliente(ticket) {
     return ticket.copia_destinatario !== 'negocio';
@@ -26,8 +27,14 @@ function flagsParaTicket(ticket) {
         return (0, restaurant_branding_1.restaurantPrecuentaMostrarFlags)();
     return (0, restaurant_branding_1.restaurantFacturaMostrarFlags)();
 }
-function lineasMensajePropina(charWidth) {
-    return (0, escpos_utils_1.wrapEscPos)((0, restaurant_branding_1.restaurantTextoPropinaTicket)(), charWidth);
+function tituloFactura(ticket) {
+    if (ticket.es_autoservicio_caja)
+        return 'AUTOSERVICIO';
+    if (ticket.es_precuenta)
+        return 'PRECUENTA';
+    if (ticket.es_total_pedido)
+        return 'TOTAL DEL PEDIDO';
+    return 'FACTURA';
 }
 function ticketEsClienteOPrecuenta(ticket) {
     if (ticket.es_total_pedido)
@@ -47,84 +54,51 @@ async function buildFacturaEscPos(ticket, charWidthOrOpts = escpos_utils_1.DEFAU
     if (ticketLlevaLogoCliente(ticket, flags)) {
         await (0, escpos_utils_1.printEncabezadoRestaurante)(printer, w, ticket.tienda, opts.papelMm);
     }
-    else {
-        await printer.alignCenter();
-    }
-    await printer.println('CUENTA / FACTURA');
-    if (ticket.copia_destinatario === 'negocio') {
-        await printer.bold(true);
-        await printer.println('*** COPIA NEGOCIO ***');
-        await printer.bold(false);
-    }
-    else if (ticket.copia_destinatario === 'cliente') {
-        await printer.bold(true);
-        await printer.println('*** COPIA CLIENTE ***');
-        await printer.bold(false);
-    }
-    if (ticket.es_registro_posterior) {
-        await printer.bold(true);
-        await printer.println('*** REGISTRO POSTERIOR ***');
-        await printer.bold(false);
-    }
-    if (ticket.es_reimpresion) {
-        await printer.bold(true);
-        await printer.println('*** REIMPRESION ***');
-        await printer.bold(false);
-    }
+    await (0, ticket_layout_1.encabezadoTicket)(printer, opts, {
+        titulo: tituloFactura(ticket),
+        subtitulos: [
+            ticket.es_autoservicio_caja && 'Por cobrar en caja',
+            ticket.es_precuenta && !ticket.es_autoservicio_caja && 'No es comprobante de pago',
+            ticket.es_cobro_combinado && !ticket.es_cobro_parcial && 'Cobro combinado (esta tanda)',
+            ticket.es_cuota_combinado && 'Ítems seleccionados (referencia)',
+            ticket.es_cuota_personas && 'Pedido completo (referencia)',
+        ],
+        marcas: [
+            ticket.copia_destinatario === 'negocio' && 'COPIA NEGOCIO',
+            ticket.copia_destinatario === 'cliente' && 'COPIA CLIENTE',
+            ticket.es_cobro_parcial && 'COBRO PARCIAL',
+            ticket.es_registro_posterior && 'REGISTRO POSTERIOR',
+            ticket.es_reimpresion && 'REIMPRESIÓN',
+        ],
+    });
     if (ticket.es_autoservicio_caja) {
+        await printer.alignCenter();
+        await (0, ticket_layout_1.textoGrande)(printer, opts, `TURNO #${ticket.id_pedido}`);
+        await printer.alignLeft();
+        await (0, ticket_layout_1.separador)(printer, opts);
+    }
+    if (!ticket.tienda) {
         await printer.bold(true);
-        await printer.println('*** AUTOSERVICIO ***');
-        await printer.println('POR COBRAR EN CAJA');
+        for (const line of (0, escpos_utils_1.wrapEscPos)(ticket.mesa_etiqueta, w)) {
+            await printer.println(line);
+        }
         await printer.bold(false);
     }
-    else if (ticket.es_precuenta) {
-        await printer.bold(true);
-        await printer.println('*** PRE-CUENTA ***');
-        await printer.println('NO COBRADA');
-        await printer.bold(false);
-    }
-    if (ticket.es_cobro_parcial) {
-        await printer.bold(true);
-        await printer.println('COBRO PARCIAL');
-        await printer.bold(false);
-    }
-    if (ticket.es_cobro_combinado && !ticket.es_cobro_parcial) {
-        await printer.println('Cobro combinado (esta tanda)');
-    }
-    if (ticket.es_cuota_combinado) {
-        await printer.println('Ítems seleccionados (referencia)');
-    }
-    if (ticket.es_cuota_personas) {
-        await printer.println('Pedido completo (referencia)');
-    }
-    if (ticket.es_total_pedido) {
-        await printer.bold(true);
-        await printer.println('TOTAL DEL PEDIDO');
-        await printer.bold(false);
-    }
-    await printer.drawLine();
-    await printer.alignLeft();
-    await printer.bold(true);
-    for (const line of (0, escpos_utils_1.wrapEscPos)(ticket.mesa_etiqueta, w)) {
-        await printer.println(line);
-    }
-    await printer.bold(false);
-    await printer.println(`Pedido #${ticket.id_pedido}`);
-    if (ticket.id_factura != null) {
-        await printer.println(`Factura #${ticket.id_factura}`);
-    }
-    if (flags.comensales && !ticket.tienda) {
-        await printer.println(`Comensales: ${ticket.num_comensales}`);
-    }
-    if (flags.mesero && ticket.mesero?.trim()) {
-        await printer.println(`Mesero: ${ticket.mesero}`);
-    }
-    if (ticket.modo_servicio === 'para_llevar') {
-        await printer.println('Para llevar');
-    }
-    await printer.println(new Date(ticket.emitida_en).toLocaleString('es-CO', {
-        timeZone: 'America/Bogota',
-    }));
+    await (0, ticket_layout_1.bloqueDatos)(printer, opts, [
+        ticket.id_factura != null &&
+            !ticket.es_precuenta && [
+            'Factura No.',
+            ticket.numero_factura ?? String(ticket.id_factura),
+        ],
+        ['Pedido', `#${ticket.id_pedido}`],
+        ['Fecha', (0, ticket_layout_1.fechaHoraTicket)(ticket.emitida_en)],
+        flags.mesero && [ticket.tienda ? 'Vendedor' : 'Mesero', ticket.mesero],
+        flags.comensales &&
+            !ticket.tienda &&
+            !ticket.es_autoservicio_caja &&
+            ticket.modo_servicio !== 'para_llevar' && ['Comensales', ticket.num_comensales],
+        ticket.modo_servicio === 'para_llevar' && ['Servicio', 'Para llevar'],
+    ]);
     await printer.println(sep);
     if (flags.detalleItems) {
         for (const linea of ticket.lineas) {
@@ -154,10 +128,10 @@ async function buildFacturaEscPos(ticket, charWidthOrOpts = escpos_utils_1.DEFAU
     await printer.println((0, escpos_utils_1.lineaConPrecio)('Subtotal', (0, escpos_utils_1.formatCopEscPos)(ticket.subtotal), w));
     if (flags.descuentos) {
         if (ticket.descuento_sopas > 0) {
-            await printer.println((0, escpos_utils_1.lineaConPrecio)('Desc. sopas', `-${(0, escpos_utils_1.formatCopEscPos)(ticket.descuento_sopas)}`, w));
+            await printer.println((0, escpos_utils_1.lineaConPrecio)((0, restaurant_branding_1.restaurantEtiquetasDescuento)().sopas, `-${(0, escpos_utils_1.formatCopEscPos)(ticket.descuento_sopas)}`, w));
         }
         if (ticket.descuento_muleros > 0) {
-            await printer.println((0, escpos_utils_1.lineaConPrecio)('Desc. camionero', `-${(0, escpos_utils_1.formatCopEscPos)(ticket.descuento_muleros)}`, w));
+            await printer.println((0, escpos_utils_1.lineaConPrecio)((0, restaurant_branding_1.restaurantEtiquetasDescuento)().muleros, `-${(0, escpos_utils_1.formatCopEscPos)(ticket.descuento_muleros)}`, w));
         }
         if (ticket.promociones_desglose && ticket.promociones_desglose.length > 0) {
             for (const p of ticket.promociones_desglose) {
@@ -173,19 +147,19 @@ async function buildFacturaEscPos(ticket, charWidthOrOpts = escpos_utils_1.DEFAU
     if (ticket.monto_impoconsumo && ticket.monto_impoconsumo > 0) {
         await printer.println((0, escpos_utils_1.lineaConPrecio)(ticket.etiqueta_impoconsumo ?? 'Impoconsumo', (0, escpos_utils_1.formatCopEscPos)(ticket.monto_impoconsumo), w));
     }
-    await printer.bold(true);
-    await printer.println((0, escpos_utils_1.lineaConPrecio)('TOTAL', (0, escpos_utils_1.formatCopEscPos)(ticket.total), w));
-    await printer.bold(false);
+    await (0, ticket_layout_1.separadorDoble)(printer, opts);
+    await (0, ticket_layout_1.filaMontoGrande)(printer, opts, 'TOTAL', (0, escpos_utils_1.formatCopEscPos)(ticket.total));
+    await (0, ticket_layout_1.separadorDoble)(printer, opts);
     if (flags.metodoPago) {
         if (ticket.es_precuenta) {
-            await printer.println('Estado: pendiente de cobro');
+            await printer.println((0, ticket_layout_1.filaDato)('Estado', 'Pendiente de cobro', w));
         }
         else if (ticket.metodo_pago === 'mixto' && ticket.cobros_resumen?.length) {
             await printer.println('Cobros:');
             for (const c of ticket.cobros_resumen) {
                 await printer.println((0, escpos_utils_1.lineaConPrecio)(`  ${(0, factura_ticket_1.labelMetodoPago)(c.metodo_pago)}`, (0, escpos_utils_1.formatCopEscPos)(c.total), w));
             }
-            await printer.println(`Pago: ${(0, factura_ticket_1.labelMetodoPago)('mixto')}`);
+            await printer.println((0, ticket_layout_1.filaDato)('Pago', (0, factura_ticket_1.labelMetodoPago)('mixto'), w));
         }
         else if (ticket.cobros_resumen && ticket.cobros_resumen.length > 1) {
             await printer.println('Cobros:');
@@ -194,13 +168,13 @@ async function buildFacturaEscPos(ticket, charWidthOrOpts = escpos_utils_1.DEFAU
             }
         }
         else {
-            await printer.println(`Pago: ${(0, factura_ticket_1.labelMetodoPago)(ticket.metodo_pago)}`);
+            await printer.println((0, ticket_layout_1.filaDato)('Pago', (0, factura_ticket_1.labelMetodoPago)(ticket.metodo_pago), w));
         }
         if (ticket.fiado_cliente) {
-            await printer.println(`Cliente credito: ${ticket.fiado_cliente}`);
-            if (ticket.fiado_telefono) {
-                await printer.println(`Tel: ${ticket.fiado_telefono}`);
-            }
+            await (0, ticket_layout_1.bloqueDatos)(printer, opts, [
+                ['Cliente crédito', ticket.fiado_cliente],
+                ['Teléfono', ticket.fiado_telefono],
+            ]);
         }
     }
     if (flags.vuelto) {
@@ -211,11 +185,12 @@ async function buildFacturaEscPos(ticket, charWidthOrOpts = escpos_utils_1.DEFAU
             if (lineas.length > 0) {
                 await printer.println(sep);
                 for (const l of lineas) {
-                    if (l.destacado)
-                        await printer.bold(true);
-                    await printer.println((0, escpos_utils_1.lineaConPrecio)(l.etiqueta, (0, escpos_utils_1.formatCopEscPos)(l.monto), w));
-                    if (l.destacado)
-                        await printer.bold(false);
+                    if (l.destacado) {
+                        await (0, ticket_layout_1.filaMontoGrande)(printer, opts, l.etiqueta, (0, escpos_utils_1.formatCopEscPos)(l.monto));
+                    }
+                    else {
+                        await printer.println((0, escpos_utils_1.lineaConPrecio)(l.etiqueta, (0, escpos_utils_1.formatCopEscPos)(l.monto), w));
+                    }
                 }
             }
         }
@@ -237,23 +212,17 @@ async function buildFacturaEscPos(ticket, charWidthOrOpts = escpos_utils_1.DEFAU
                 await printer.println((0, escpos_utils_1.lineaConPrecio)('Vuelto efectivo', (0, escpos_utils_1.formatCopEscPos)(v.vuelto_efectivo), w));
                 await printer.println((0, escpos_utils_1.lineaConPrecio)('Vuelto transfer.', (0, escpos_utils_1.formatCopEscPos)(v.vuelto_transferencia), w));
             }
-            await printer.println((0, escpos_utils_1.lineaConPrecio)('VUELTO', (0, escpos_utils_1.formatCopEscPos)(v.vuelto_total), w));
             await printer.bold(false);
+            await (0, ticket_layout_1.filaMontoGrande)(printer, opts, 'VUELTO', (0, escpos_utils_1.formatCopEscPos)(v.vuelto_total));
         }
     }
-    if (flags.propina && esTicketParaCliente(ticket)) {
+    if (flags.propina && esTicketParaCliente(ticket) && !ticket.tienda) {
         await printer.println(sep);
-        await printer.alignCenter();
-        await printer.bold(true);
-        for (const line of lineasMensajePropina(w)) {
-            await printer.println(line);
-        }
-        await printer.bold(false);
+        await (0, ticket_layout_1.parrafoCentrado)(printer, opts, (0, restaurant_branding_1.restaurantTextoPropinaTicket)(), true);
     }
     if (flags.gracias) {
         await printer.println(sep);
-        await printer.alignCenter();
-        await printer.println((0, restaurant_branding_1.restaurantTextoGraciasTicket)());
+        await (0, ticket_layout_1.parrafoCentrado)(printer, opts, (0, restaurant_branding_1.restaurantTextoGraciasTicket)());
     }
     if (ticketEsClienteOPrecuenta(ticket)) {
         await (0, escpos_utils_1.printPieDrewTechFactura)(printer, w);

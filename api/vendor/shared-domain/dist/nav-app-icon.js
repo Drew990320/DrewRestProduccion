@@ -384,7 +384,7 @@ exports.NAV_ICON_DEFAULTS = {
     cocina: 'bonfire-outline',
     caja: 'stats-chart-outline',
     mas: 'ellipsis-horizontal',
-    cuenta: 'log-out-outline',
+    cuenta: 'person-circle-outline',
     mesa: 'restaurant-outline',
     menu: 'fast-food-outline',
     cobrar: 'cash-outline',

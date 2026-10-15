@@ -18,6 +18,7 @@ const tenant_constants_1 = require("../tenant/tenant.constants");
 const mesa_label_1 = require("@drewrest/shared-domain/mesa-label");
 const tienda_1 = require("@drewrest/shared-domain/tienda");
 const categoria_menu_icon_1 = require("@drewrest/shared-domain/categoria-menu-icon");
+const pedidos_gateway_1 = require("../pedidos/pedidos.gateway");
 const pedidos_service_1 = require("../pedidos/pedidos.service");
 const tienda_logo_upload_util_1 = require("./tienda-logo-upload.util");
 function mapTienda(t) {
@@ -75,42 +76,44 @@ function mapProducto(p) {
 let TiendaService = class TiendaService {
     prisma;
     pedidos;
-    constructor(prisma, pedidos) {
+    gateway;
+    constructor(prisma, pedidos, gateway) {
         this.prisma = prisma;
         this.pedidos = pedidos;
+        this.gateway = gateway;
     }
-    async resolveTiendaId(tenantId, idTienda) {
+    async resolveTiendaId(tenantId, idTienda, opts) {
+        if (idTienda != null) {
+            const any = await this.prisma.tienda.findFirst({
+                where: { idTienda, idRestaurante: tenantId },
+                select: { idTienda: true, activo: true },
+            });
+            if (!any)
+                throw new common_1.NotFoundException('Tienda no encontrada');
+            if (opts?.paraVender && !any.activo) {
+                throw new common_1.BadRequestException('Esta tienda está inactiva. Actívala en Tienda › Identidad para vender en ella.');
+            }
+            return any.idTienda;
+        }
         const tiendas = await this.prisma.tienda.findMany({
             where: { idRestaurante: tenantId, activo: true },
             orderBy: [{ orden: 'asc' }, { idTienda: 'asc' }],
             select: { idTienda: true },
         });
         if (tiendas.length === 0) {
-            const created = await this.ensureDefaultTienda(tenantId);
-            return created.idTienda;
-        }
-        if (idTienda != null) {
-            const hit = tiendas.find((t) => t.idTienda === idTienda);
-            if (!hit) {
-                const any = await this.prisma.tienda.findFirst({
-                    where: { idTienda, idRestaurante: tenantId },
-                });
-                if (!any)
-                    throw new common_1.NotFoundException('Tienda no encontrada');
-                if (!any.activo)
-                    throw new common_1.BadRequestException('Tienda inactiva');
-                return any.idTienda;
-            }
-            return hit.idTienda;
+            const primera = await this.ensureDefaultTienda(tenantId);
+            if (primera.activo || !opts?.paraVender)
+                return primera.idTienda;
+            throw new common_1.BadRequestException('No hay tiendas activas para vender');
         }
         if (tiendas.length === 1)
             return tiendas[0].idTienda;
         throw new common_1.BadRequestException('Debes indicar id_tienda (hay más de una tienda activa)');
     }
-    async listarTiendas(tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
+    async listarTiendas(tenantId = tenant_constants_1.DEFAULT_TENANT_ID, soloActivas = false) {
         await this.ensureDefaultTienda(tenantId);
         const rows = await this.prisma.tienda.findMany({
-            where: { idRestaurante: tenantId },
+            where: { idRestaurante: tenantId, ...(soloActivas ? { activo: true } : {}) },
             orderBy: [{ orden: 'asc' }, { idTienda: 'asc' }],
         });
         return rows.map(mapTienda);
@@ -133,6 +136,7 @@ let TiendaService = class TiendaService {
                 },
             });
             await this.ensureMesaBoutique(tenantId, created.idTienda);
+            this.gateway.emitConfigActualizada('mesas', tenantId);
             return mapTienda(created);
         }
         catch (e) {
@@ -149,6 +153,20 @@ let TiendaService = class TiendaService {
         });
         if (!existing)
             throw new common_1.NotFoundException('Tienda no encontrada');
+        if (dto.activo === false && existing.activo) {
+            const abiertas = await this.prisma.pedido.count({
+                where: {
+                    idRestaurante: tenantId,
+                    estado: { in: ['abierto', 'en_cocina'] },
+                    OR: [{ idTienda: id }, { mesa: { idTienda: id } }],
+                },
+            });
+            if (abiertas > 0) {
+                throw new common_1.BadRequestException(abiertas === 1
+                    ? 'Esta tienda tiene 1 venta abierta. Cóbrala o cancélala antes de desactivarla.'
+                    : `Esta tienda tiene ${abiertas} ventas abiertas. Cóbralas o cancélalas antes de desactivarla.`);
+            }
+        }
         try {
             let nombre;
             if (dto.nombre != null) {
@@ -172,6 +190,7 @@ let TiendaService = class TiendaService {
                     ...(dto.activo != null ? { activo: dto.activo } : {}),
                 },
             });
+            this.gateway.emitConfigActualizada('mesas', tenantId);
             return mapTienda(updated);
         }
         catch (e) {
@@ -707,7 +726,7 @@ let TiendaService = class TiendaService {
         return this.pedidos.pedidosActivosPorMesa(mesa.idMesa, tenantId);
     }
     async abrirVenta(actor, tenantId = tenant_constants_1.DEFAULT_TENANT_ID, idTienda) {
-        const tid = await this.resolveTiendaId(tenantId, idTienda);
+        const tid = await this.resolveTiendaId(tenantId, idTienda, { paraVender: true });
         const mesa = await this.ensureMesaBoutique(tenantId, tid);
         return this.pedidos.crear({ id_mesa: mesa.idMesa, num_comensales: 1 }, actor.idUsuario, tenantId);
     }
@@ -723,6 +742,7 @@ exports.TiendaService = TiendaService;
 exports.TiendaService = TiendaService = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [prisma_service_1.PrismaService,
-        pedidos_service_1.PedidosService])
+        pedidos_service_1.PedidosService,
+        pedidos_gateway_1.PedidosGateway])
 ], TiendaService);
 //# sourceMappingURL=tienda.service.js.map

@@ -26,6 +26,7 @@ const comanda_escpos_builder_1 = require("./comanda-escpos.builder");
 const factura_escpos_builder_1 = require("./factura-escpos.builder");
 const domicilio_escpos_builder_1 = require("./domicilio-escpos.builder");
 const prueba_impresora_escpos_builder_1 = require("./prueba-impresora-escpos.builder");
+const ticket_preview_samples_1 = require("./ticket-preview.samples");
 const codigos_menu_escpos_builder_1 = require("./codigos-menu-escpos.builder");
 const cierre_caja_escpos_builder_1 = require("./cierre-caja-escpos.builder");
 const cuentas_divididas_escpos_builder_1 = require("./cuentas-divididas-escpos.builder");
@@ -87,6 +88,24 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
             tamanoFuente: destino.tamano_fuente ?? 1,
             margenInicioLineas: destino.margen_inicio_lineas ?? 0,
             margenFinLineas: destino.margen_fin_lineas ?? 2,
+        };
+    }
+    async layoutOptsParaRol(rol) {
+        const destinos = await this.impresorasPos.destinosParaRol(rol).catch(() => []);
+        const destino = destinos[0];
+        if (destino) {
+            return { opts: this.layoutOptsForDestino(destino), impresora: destino.nombre || null };
+        }
+        const charWidth = this.charWidthLegacy();
+        return {
+            opts: {
+                charWidth,
+                papelMm: (0, impresora_papel_ancho_1.normalizarAnchoPapelMm)((0, impresora_papel_ancho_1.papelMmDesdeChars)(charWidth)),
+                tamanoFuente: 1,
+                margenInicioLineas: 0,
+                margenFinLineas: 2,
+            },
+            impresora: null,
         };
     }
     baudRateDefault() {
@@ -454,14 +473,16 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
                 ids_detalle_impresos: [],
             };
         }
+        const variasEstaciones = jobsPlan.length > 1;
         const jobs = jobsPlan.map((j) => {
             const destino = byKey.get(j.destinoKey);
+            const estacion = variasEstaciones ? destino.nombre?.trim() || undefined : undefined;
             if (j.lineas === 'completo') {
-                return { destino, ticket };
+                return { destino, ticket: { ...ticket, estacion } };
             }
             return {
                 destino,
-                ticket: { ...ticket, lineas: j.lineas },
+                ticket: { ...ticket, lineas: j.lineas, estacion },
             };
         });
         const resultados = await Promise.all(jobs.map(({ destino, ticket: t }) => this.imprimirComandaEnDestino(t, destino)));
@@ -628,22 +649,25 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
         };
     }
     async imprimirCierreCaja(ticket) {
-        return this.enviarPorRolConBuilder('cierre', 'caja', (opts) => (0, cierre_caja_escpos_builder_1.buildCierreCajaEscPos)(ticket, opts.charWidth));
+        return this.enviarPorRolConBuilder('cierre', 'caja', (opts) => (0, cierre_caja_escpos_builder_1.buildCierreCajaEscPos)(ticket, opts));
     }
     async imprimirCuentasDivididas(ticket) {
-        return this.enviarPorRolConBuilder('cierre', 'caja', (opts) => (0, cuentas_divididas_escpos_builder_1.buildCuentasDivididasEscPos)(ticket, opts.charWidth));
+        return this.enviarPorRolConBuilder('cierre', 'caja', (opts) => (0, cuentas_divididas_escpos_builder_1.buildCuentasDivididasEscPos)(ticket, opts));
     }
     async imprimirBaseCaja(ticket) {
-        return this.enviarPorRolConBuilder('cierre', 'caja', (opts) => (0, cierre_caja_escpos_builder_1.buildBaseCajaEscPos)(ticket, opts.charWidth));
+        return this.enviarPorRolConBuilder('cierre', 'caja', (opts) => (0, cierre_caja_escpos_builder_1.buildBaseCajaEscPos)(ticket, opts));
+    }
+    async imprimirArqueoCaja(ticket) {
+        return this.enviarPorRolConBuilder('cierre', 'caja', (opts) => (0, cierre_caja_escpos_builder_1.buildArqueoCajaEscPos)(ticket, opts));
     }
     async imprimirBaseCajaCierre(ticket) {
-        return this.enviarPorRolConBuilder('cierre', 'caja', (opts) => (0, cierre_caja_escpos_builder_1.buildBaseCajaCierreEscPos)(ticket, opts.charWidth));
+        return this.enviarPorRolConBuilder('cierre', 'caja', (opts) => (0, cierre_caja_escpos_builder_1.buildBaseCajaCierreEscPos)(ticket, opts));
     }
     async imprimirMovimientoCaja(ticket) {
-        return this.enviarPorRolConBuilder('cierre', 'caja', (opts) => (0, cierre_caja_escpos_builder_1.buildMovimientoCajaEscPos)(ticket, opts.charWidth));
+        return this.enviarPorRolConBuilder('cierre', 'caja', (opts) => (0, cierre_caja_escpos_builder_1.buildMovimientoCajaEscPos)(ticket, opts));
     }
     async imprimirItemsMenu(ticket) {
-        return this.enviarPorRolConBuilder('cierre', 'caja', (opts) => (0, cierre_caja_escpos_builder_1.buildItemsMenuEscPos)(ticket, opts.charWidth));
+        return this.enviarPorRolConBuilder('cierre', 'caja', (opts) => (0, cierre_caja_escpos_builder_1.buildItemsMenuEscPos)(ticket, opts));
     }
     async enviarPorRolConBuilder(tipo, rol, build) {
         const destinos = await this.impresorasPos.destinosParaRol(rol);
@@ -930,6 +954,36 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
         return this.encolarEnDestino(destino, () => this.enviarBufferATargets(buffer, 'comanda', [destino], baudRate, {
             ignorarSensorPapel: true,
         }), { tipo: 'comanda' });
+    }
+    async imprimirEjemplosADestino(tipos, destino, baudRate = null, anchoPapelMm = null, layout, ctx = {}) {
+        const mm = (0, impresora_papel_ancho_1.normalizarAnchoPapelMm)(anchoPapelMm ?? (0, impresora_papel_ancho_1.papelMmDesdeChars)(this.charWidthLegacy()));
+        const opts = {
+            charWidth: (0, impresora_papel_ancho_1.charsPorLineaParaPapelMm)(mm),
+            papelMm: mm,
+            tamanoFuente: layout?.tamano_fuente ?? 1,
+            margenInicioLineas: layout?.margen_inicio_lineas ?? 0,
+            margenFinLineas: layout?.margen_fin_lineas ?? 2,
+        };
+        let impresos = 0;
+        const errores = [];
+        for (const tipo of tipos) {
+            let buffer;
+            try {
+                buffer = await (0, ticket_preview_samples_1.buildSampleEscPosBuffer)(tipo, opts, ctx);
+            }
+            catch (e) {
+                errores.push({ tipo, error: e instanceof Error ? e.message : String(e) });
+                continue;
+            }
+            const res = await this.encolarEnDestino(destino, () => this.enviarBufferATargets(buffer, 'comanda', [destino], baudRate, {
+                ignorarSensorPapel: true,
+            }), { tipo: 'comanda' });
+            if (res.impreso || res.en_cola)
+                impresos += 1;
+            else
+                errores.push({ tipo, error: res.error ?? 'No se pudo imprimir' });
+        }
+        return { impresos, errores, destino };
     }
     async imprimirCodigosMenuADestino(ticket, destino, baudRate = null, anchoPapelMm = null, layout) {
         const mm = (0, impresora_papel_ancho_1.normalizarAnchoPapelMm)(anchoPapelMm ?? (0, impresora_papel_ancho_1.papelMmDesdeChars)(this.charWidthLegacy()));

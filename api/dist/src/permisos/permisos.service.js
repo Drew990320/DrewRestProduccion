@@ -155,10 +155,7 @@ let PermisosService = class PermisosService {
             where: { idRestaurante: tenantId },
             create: {
                 idRestaurante: tenantId,
-                ...Object.fromEntries(permisos_mesero_1.PERMISOS_MESERO_KEYS.map((k) => [
-                    CAMPO_PRISMA[k],
-                    dto[k] ?? permisos_mesero_1.PERMISOS_MESERO_DEFAULTS[k],
-                ])),
+                ...Object.fromEntries(permisos_mesero_1.PERMISOS_MESERO_KEYS.map((k) => [CAMPO_PRISMA[k], dto[k] ?? permisos_mesero_1.PERMISOS_MESERO_DEFAULTS[k]])),
             },
             update: data,
         });
@@ -257,8 +254,8 @@ let PermisosService = class PermisosService {
             throw new common_1.ForbiddenException('No tienes permiso para esta acción');
         }
         const tenantId = actor.idRestaurante ?? tenant_constants_1.DEFAULT_TENANT_ID;
-        const efectivos = await this.getEfectivos(actor.idUsuario, rol, tenantId);
-        if (!efectivos[permiso]) {
+        const config = await this.obtenerConfig(tenantId);
+        if (!config[permiso]) {
             throw new common_1.ForbiddenException('No tienes permiso para esta acción');
         }
     }

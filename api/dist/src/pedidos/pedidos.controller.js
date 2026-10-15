@@ -33,6 +33,7 @@ const imprimir_resumen_seleccion_dto_1 = require("./dto/imprimir-resumen-selecci
 const mover_facturas_fecha_dto_1 = require("./dto/mover-facturas-fecha.dto");
 const caja_diaria_dto_1 = require("./dto/caja-diaria.dto");
 const caja_diaria_cierre_dto_1 = require("./dto/caja-diaria-cierre.dto");
+const caja_diaria_arqueo_dto_1 = require("./dto/caja-diaria-arqueo.dto");
 const crear_movimiento_caja_dto_1 = require("./dto/crear-movimiento-caja.dto");
 const vaciar_resumen_diario_dto_1 = require("./dto/vaciar-resumen-diario.dto");
 const upsert_config_descuentos_dto_1 = require("./dto/upsert-config-descuentos.dto");
@@ -59,6 +60,9 @@ const patch_detalle_notas_cocina_dto_1 = require("./dto/patch-detalle-notas-coci
 const patch_detalle_precio_dto_1 = require("./dto/patch-detalle-precio.dto");
 const patch_detalle_subitems_dto_1 = require("./dto/patch-detalle-subitems.dto");
 const patch_prioridad_cocina_dto_1 = require("./dto/patch-prioridad-cocina.dto");
+function nombreUsuarioTicket(u) {
+    return `${u?.nombre ?? ''} ${u?.apellido ?? ''}`.trim();
+}
 let PedidosController = class PedidosController {
     pedidos;
     constructor(pedidos) {
@@ -82,8 +86,8 @@ let PedidosController = class PedidosController {
     listarCocina(req) {
         return this.pedidos.listarCocina(req.user);
     }
-    autoservicioActivo(req) {
-        return this.pedidos.pedidoAutoservicioActivo(req.user);
+    autoservicioActivo(req, kioskoId) {
+        return this.pedidos.pedidoAutoservicioActivo(req.user, kioskoId);
     }
     colaAutoservicio(req) {
         return this.pedidos.listarColaAutoservicio(req.user);
@@ -93,6 +97,9 @@ let PedidosController = class PedidosController {
     }
     liberarMesaAutoservicio(id, req) {
         return this.pedidos.liberarMesaAutoservicio(id, req.user);
+    }
+    productosFrecuentes(req, limit) {
+        return this.pedidos.productosFrecuentes(req.user.idRestaurante, Number(limit) || 12);
     }
     listarMisActivosResumen(req) {
         return this.pedidos.listarMisActivosResumen(req.user);
@@ -113,11 +120,7 @@ let PedidosController = class PedidosController {
         if (!estados?.trim()) {
             throw new common_1.BadRequestException('El parámetro "estados" es obligatorio (ej. estados=abierto,en_cocina)');
         }
-        const o = orden === 'prioridad_cocina'
-            ? 'prioridad_cocina'
-            : orden === 'asc'
-                ? 'asc'
-                : 'desc';
+        const o = orden === 'prioridad_cocina' ? 'prioridad_cocina' : orden === 'asc' ? 'asc' : 'desc';
         const limitRaw = Number(limitStr ?? '50');
         const offsetRaw = Number(offsetStr ?? '0');
         const limit = Math.min(200, Math.max(1, Number.isFinite(limitRaw) ? Math.floor(limitRaw) : 50));
@@ -166,11 +169,14 @@ let PedidosController = class PedidosController {
     cajaDiaria(fecha, tenantId) {
         return this.pedidos.getCajaDiaria(fecha, tenantId);
     }
-    upsertCajaDiaria(dto, tenantId) {
-        return this.pedidos.upsertCajaDiaria(dto, tenantId);
+    upsertCajaDiaria(dto, tenantId, req) {
+        return this.pedidos.upsertCajaDiaria(dto, tenantId, nombreUsuarioTicket(req.user));
     }
-    upsertCajaDiariaCierre(dto, tenantId) {
-        return this.pedidos.upsertCajaDiariaCierre(dto, tenantId);
+    upsertCajaDiariaArqueo(dto, tenantId, req) {
+        return this.pedidos.upsertCajaDiariaArqueo(dto, tenantId, nombreUsuarioTicket(req.user));
+    }
+    upsertCajaDiariaCierre(dto, tenantId, req) {
+        return this.pedidos.upsertCajaDiariaCierre(dto, tenantId, nombreUsuarioTicket(req.user));
     }
     crearMovimientoCaja(dto, req) {
         return this.pedidos.registrarMovimientoCajaManual(req.user, dto);
@@ -253,8 +259,10 @@ let PedidosController = class PedidosController {
     agregarDetalle(id, dto, req) {
         return this.pedidos.agregarDetalle(id, dto, req.user);
     }
-    pasarCocina(id, req) {
-        return this.pedidos.pasarCocina(id, req.user);
+    pasarCocina(id, reimprimirUltimaTanda, req) {
+        return this.pedidos.pasarCocina(id, req.user, {
+            reimprimirUltimaTanda: reimprimirUltimaTanda === '1' || reimprimirUltimaTanda === 'true',
+        });
     }
     reimprimirComanda(id, req) {
         return this.pedidos.reimprimirComanda(id, req.user);
@@ -268,9 +276,7 @@ let PedidosController = class PedidosController {
         return this.pedidos.enviarFacturaCorreo(id, dto.id_factura, dto.email, req.user);
     }
     reimprimirFactura(id, idFactura, req) {
-        const idF = idFactura != null && idFactura !== ''
-            ? parseInt(idFactura, 10)
-            : undefined;
+        const idF = idFactura != null && idFactura !== '' ? parseInt(idFactura, 10) : undefined;
         return this.pedidos.reimprimirFactura(id, idF != null && Number.isFinite(idF) ? idF : undefined, req.user);
     }
     reimprimirPedidoTotal(id) {
@@ -381,8 +387,9 @@ __decorate([
     (0, common_1.UseGuards)(pedido_tenant_guard_1.PedidoTenantGuard, roles_guard_1.RolesGuard),
     (0, roles_decorator_1.Roles)('autoservicio'),
     __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)('kiosko_id')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
+    __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", void 0)
 ], PedidosController.prototype, "autoservicioActivo", null);
 __decorate([
@@ -408,13 +415,23 @@ __decorate([
 __decorate([
     (0, common_1.Post)(':id/liberar-mesa-autoservicio'),
     (0, common_1.UseGuards)(pedido_tenant_guard_1.PedidoTenantGuard, roles_guard_1.RolesGuard),
-    (0, roles_decorator_1.Roles)('admin'),
+    (0, roles_decorator_1.Roles)('admin', 'mesero'),
     __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
     __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Number, Object]),
     __metadata("design:returntype", void 0)
 ], PedidosController.prototype, "liberarMesaAutoservicio", null);
+__decorate([
+    (0, common_1.Get)('productos-frecuentes'),
+    (0, common_1.UseGuards)(pedido_tenant_guard_1.PedidoTenantGuard, roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)('admin', 'mesero'),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)('limit')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", void 0)
+], PedidosController.prototype, "productosFrecuentes", null);
 __decorate([
     (0, throttler_1.SkipThrottle)(),
     (0, common_1.Get)('mis-activos/resumen'),
@@ -593,18 +610,31 @@ __decorate([
     (0, roles_decorator_1.Roles)('admin'),
     __param(0, (0, common_1.Body)()),
     __param(1, (0, current_tenant_decorator_1.CurrentTenantId)()),
+    __param(2, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [caja_diaria_dto_1.UpsertCajaDiariaDto, Number]),
+    __metadata("design:paramtypes", [caja_diaria_dto_1.UpsertCajaDiariaDto, Number, Object]),
     __metadata("design:returntype", void 0)
 ], PedidosController.prototype, "upsertCajaDiaria", null);
+__decorate([
+    (0, common_1.Put)('caja-diaria/arqueo'),
+    (0, common_1.UseGuards)(pedido_tenant_guard_1.PedidoTenantGuard, roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)('admin'),
+    __param(0, (0, common_1.Body)()),
+    __param(1, (0, current_tenant_decorator_1.CurrentTenantId)()),
+    __param(2, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [caja_diaria_arqueo_dto_1.UpsertCajaDiariaArqueoDto, Number, Object]),
+    __metadata("design:returntype", void 0)
+], PedidosController.prototype, "upsertCajaDiariaArqueo", null);
 __decorate([
     (0, common_1.Put)('caja-diaria/cierre'),
     (0, common_1.UseGuards)(pedido_tenant_guard_1.PedidoTenantGuard, roles_guard_1.RolesGuard),
     (0, roles_decorator_1.Roles)('admin'),
     __param(0, (0, common_1.Body)()),
     __param(1, (0, current_tenant_decorator_1.CurrentTenantId)()),
+    __param(2, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [caja_diaria_cierre_dto_1.UpsertCajaDiariaCierreDto, Number]),
+    __metadata("design:paramtypes", [caja_diaria_cierre_dto_1.UpsertCajaDiariaCierreDto, Number, Object]),
     __metadata("design:returntype", void 0)
 ], PedidosController.prototype, "upsertCajaDiariaCierre", null);
 __decorate([
@@ -874,9 +904,10 @@ __decorate([
     (0, common_1.UseGuards)(pedido_tenant_guard_1.PedidoTenantGuard, roles_guard_1.RolesGuard),
     (0, roles_decorator_1.Roles)('admin', 'mesero', 'autoservicio'),
     __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
-    __param(1, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)('reimprimir_ultima_tanda')),
+    __param(2, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Number, Object]),
+    __metadata("design:paramtypes", [Number, Object, Object]),
     __metadata("design:returntype", void 0)
 ], PedidosController.prototype, "pasarCocina", null);
 __decorate([

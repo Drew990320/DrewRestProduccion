@@ -37,6 +37,11 @@ class UpsertConfigOperativaDto {
     imprimir_factura_al_cobrar;
     factura_copia_cliente_defecto;
     imprimir_ticket_autoservicio;
+    autoservicio_bienvenida;
+    autoservicio_inactividad_seg;
+    autoservicio_permite_mesa;
+    autoservicio_permite_sin_mesa;
+    autoservicio_permite_para_llevar;
     imprimir_base_caja;
     imprimir_cierre_base_caja;
     cocina_tamano_texto;
@@ -191,6 +196,35 @@ __decorate([
     (0, class_validator_1.IsBoolean)(),
     __metadata("design:type", Boolean)
 ], UpsertConfigOperativaDto.prototype, "imprimir_ticket_autoservicio", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(120),
+    __metadata("design:type", String)
+], UpsertConfigOperativaDto.prototype, "autoservicio_bienvenida", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsInt)(),
+    (0, class_validator_1.Min)(0),
+    (0, class_validator_1.Max)(3600),
+    __metadata("design:type", Number)
+], UpsertConfigOperativaDto.prototype, "autoservicio_inactividad_seg", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], UpsertConfigOperativaDto.prototype, "autoservicio_permite_mesa", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], UpsertConfigOperativaDto.prototype, "autoservicio_permite_sin_mesa", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], UpsertConfigOperativaDto.prototype, "autoservicio_permite_para_llevar", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsBoolean)(),

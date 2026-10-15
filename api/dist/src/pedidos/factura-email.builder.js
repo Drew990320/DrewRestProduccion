@@ -31,6 +31,7 @@ function fechaTicket(iso) {
 }
 function buildFacturaEmailText(ticket) {
     const flags = (0, restaurant_branding_1.restaurantFacturaMostrarFlags)();
+    const etiquetas = (0, restaurant_branding_1.restaurantEtiquetasDescuento)();
     const lines = [];
     if (flags.logo) {
         lines.push((0, escpos_utils_1.ticketNombreLocal)());
@@ -41,10 +42,10 @@ function buildFacturaEmailText(ticket) {
         if ((0, escpos_utils_1.ticketDireccion)())
             lines.push((0, escpos_utils_1.ticketDireccion)());
     }
-    lines.push('Cuenta / Factura', '', `${ticket.mesa_etiqueta}`, `Pedido #${ticket.id_pedido}`, ticket.id_factura != null ? `Factura #${ticket.id_factura}` : '');
+    lines.push('Cuenta / Factura', '', `${ticket.mesa_etiqueta}`, `Pedido #${ticket.id_pedido}`, ticket.id_factura != null ? `Factura No. ${ticket.numero_factura ?? ticket.id_factura}` : '');
     if (flags.mesero)
-        lines.push(`Mesero: ${ticket.mesero || '—'}`);
-    if (flags.comensales)
+        lines.push(`${ticket.tienda ? 'Vendedor' : 'Mesero'}: ${ticket.mesero || '—'}`);
+    if (flags.comensales && !ticket.tienda)
         lines.push(`Comensales: ${ticket.num_comensales}`);
     lines.push(`Fecha: ${fechaTicket(ticket.emitida_en)}`);
     if (flags.metodoPago) {
@@ -67,10 +68,10 @@ function buildFacturaEmailText(ticket) {
     lines.push(`Subtotal: ${formatCop(ticket.subtotal)}`);
     if (flags.descuentos) {
         if (ticket.descuento_sopas > 0) {
-            lines.push(`Desc. sopas: -${formatCop(ticket.descuento_sopas)}`);
+            lines.push(`${etiquetas.sopas}: -${formatCop(ticket.descuento_sopas)}`);
         }
         if (ticket.descuento_muleros > 0) {
-            lines.push(`Desc. muleros: -${formatCop(ticket.descuento_muleros)}`);
+            lines.push(`${etiquetas.muleros}: -${formatCop(ticket.descuento_muleros)}`);
         }
         if (ticket.descuento_promociones > 0) {
             lines.push(`Desc. promociones: -${formatCop(ticket.descuento_promociones)}`);
@@ -126,6 +127,7 @@ function buildFacturaEmailText(ticket) {
 }
 function buildFacturaEmailHtml(ticket) {
     const flags = (0, restaurant_branding_1.restaurantFacturaMostrarFlags)();
+    const etiquetas = (0, restaurant_branding_1.restaurantEtiquetasDescuento)();
     const filas = flags.detalleItems
         ? ticket.lineas
             .map((l) => {
@@ -148,10 +150,10 @@ function buildFacturaEmailHtml(ticket) {
     const descuentos = [];
     if (flags.descuentos) {
         if (ticket.descuento_sopas > 0) {
-            descuentos.push(`<tr><td>Desc. sopas</td><td style="text-align:right">-${formatCop(ticket.descuento_sopas)}</td></tr>`);
+            descuentos.push(`<tr><td>${escapeHtml(etiquetas.sopas)}</td><td style="text-align:right">-${formatCop(ticket.descuento_sopas)}</td></tr>`);
         }
         if (ticket.descuento_muleros > 0) {
-            descuentos.push(`<tr><td>Desc. muleros</td><td style="text-align:right">-${formatCop(ticket.descuento_muleros)}</td></tr>`);
+            descuentos.push(`<tr><td>${escapeHtml(etiquetas.muleros)}</td><td style="text-align:right">-${formatCop(ticket.descuento_muleros)}</td></tr>`);
         }
         if (ticket.descuento_promociones > 0) {
             descuentos.push(`<tr><td>Desc. promociones</td><td style="text-align:right">-${formatCop(ticket.descuento_promociones)}</td></tr>`);
@@ -218,11 +220,11 @@ function buildFacturaEmailHtml(ticket) {
     ${encabezadoLocal}
     <p style="margin:0 0 16px;color:#666;font-size:14px">Cuenta / Factura</p>
     <p style="margin:0 0 4px"><strong>${escapeHtml(ticket.mesa_etiqueta)}</strong></p>
-    <p style="margin:0 0 4px;font-size:14px;color:#555">Pedido #${ticket.id_pedido}${ticket.id_factura != null ? ` · Factura #${ticket.id_factura}` : ''}</p>
+    <p style="margin:0 0 4px;font-size:14px;color:#555">Pedido #${ticket.id_pedido}${ticket.id_factura != null ? ` · Factura No. ${escapeHtml(ticket.numero_factura ?? String(ticket.id_factura))}` : ''}</p>
     ${flags.mesero
-        ? `<p style="margin:0 0 4px;font-size:14px;color:#555">Mesero: ${escapeHtml(ticket.mesero || '—')}</p>`
+        ? `<p style="margin:0 0 4px;font-size:14px;color:#555">${ticket.tienda ? 'Vendedor' : 'Mesero'}: ${escapeHtml(ticket.mesero || '—')}</p>`
         : ''}
-    ${flags.comensales
+    ${flags.comensales && !ticket.tienda
         ? `<p style="margin:0 0 4px;font-size:14px;color:#555">Comensales: ${ticket.num_comensales}</p>`
         : ''}
     <p style="margin:0 0 4px;font-size:14px;color:#555">Fecha: ${escapeHtml(fechaTicket(ticket.emitida_en))}</p>

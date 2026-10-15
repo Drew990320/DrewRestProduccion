@@ -22,6 +22,8 @@ class UpsertConfigVisualDto {
     color_text;
     color_text_muted;
     color_border;
+    colores_oscuro;
+    tema_predeterminado;
     iconos_nav;
     iconos_accion;
     estilo_visual;
@@ -96,6 +98,18 @@ __decorate([
     (0, class_validator_1.Matches)(HEX_COLOR),
     __metadata("design:type", Object)
 ], UpsertConfigVisualDto.prototype, "color_border", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.ValidateIf)((_, v) => v != null),
+    (0, class_validator_1.IsObject)(),
+    __metadata("design:type", Object)
+], UpsertConfigVisualDto.prototype, "colores_oscuro", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.ValidateIf)((_, v) => v != null && v !== ''),
+    (0, class_validator_1.IsIn)(['sistema', 'claro', 'oscuro']),
+    __metadata("design:type", Object)
+], UpsertConfigVisualDto.prototype, "tema_predeterminado", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsObject)(),

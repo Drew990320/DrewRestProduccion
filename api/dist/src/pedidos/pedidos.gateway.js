@@ -15,6 +15,7 @@ const jwt_1 = require("@nestjs/jwt");
 const socket_io_1 = require("socket.io");
 const auth_user_cache_1 = require("../auth/auth-user-cache");
 const menu_hoy_cache_1 = require("../common/menu-hoy-cache");
+const tenant_snapshot_cache_1 = require("../common/tenant-snapshot-cache");
 const prisma_service_1 = require("../prisma/prisma.service");
 const tenant_constants_1 = require("../tenant/tenant.constants");
 const tenant_rooms_1 = require("../tenant/tenant-rooms");
@@ -57,8 +58,7 @@ let PedidosGateway = class PedidosGateway {
                 if (payload.pwdAt == null || payload.pwdAt + 2_000 < pwdAtEsperado) {
                     return null;
                 }
-                if (payload.tid != null &&
-                    Number(payload.tid) !== cached.idRestaurante) {
+                if (payload.tid != null && Number(payload.tid) !== cached.idRestaurante) {
                     return null;
                 }
                 return {
@@ -78,8 +78,7 @@ let PedidosGateway = class PedidosGateway {
             if (payload.pwdAt == null || payload.pwdAt + 2_000 < pwdAtEsperado) {
                 return null;
             }
-            if (payload.tid != null &&
-                Number(payload.tid) !== user.idRestaurante) {
+            if (payload.tid != null && Number(payload.tid) !== user.idRestaurante) {
                 return null;
             }
             (0, auth_user_cache_1.setCachedAuthUser)(user);
@@ -156,6 +155,7 @@ let PedidosGateway = class PedidosGateway {
         return activos > 0;
     }
     emitPedidoActualizado(pedidoId, mesaId, idUsuario, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
+        (0, tenant_snapshot_cache_1.invalidarSnapshotsTenant)();
         const payload = {
             pedidoId,
             mesaId,
@@ -173,11 +173,10 @@ let PedidosGateway = class PedidosGateway {
         if (scope === 'menu') {
             (0, menu_hoy_cache_1.invalidateMenuHoyCache)();
         }
+        (0, tenant_snapshot_cache_1.invalidarSnapshotsTenant)();
         const payload = { scope, at: new Date().toISOString() };
         for (const rol of ['admin', 'mesero', 'chef']) {
-            this.server
-                .to((0, tenant_rooms_1.tenantRoom)(`rol:${rol}`, tenantId))
-                .emit('config:actualizada', payload);
+            this.server.to((0, tenant_rooms_1.tenantRoom)(`rol:${rol}`, tenantId)).emit('config:actualizada', payload);
         }
     }
     emitAuthSesionInvalidada(idUsuario, motivo, mensaje, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
@@ -196,9 +195,7 @@ let PedidosGateway = class PedidosGateway {
             .emit('cocina:llama-mesero', payload);
     }
     emitCocinaFaltaPlato(payload, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
-        this.server
-            .to((0, tenant_rooms_1.tenantRoom)('cocina', tenantId))
-            .emit('cocina:falta-plato', payload);
+        this.server.to((0, tenant_rooms_1.tenantRoom)('cocina', tenantId)).emit('cocina:falta-plato', payload);
     }
     emitCompaneroAgregoItems(payload, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
         const destinos = [
@@ -210,29 +207,23 @@ let PedidosGateway = class PedidosGateway {
         }
     }
     emitAutoservicioListoCaja(payload, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
-        this.server
-            .to((0, tenant_rooms_1.tenantRoom)('rol:admin', tenantId))
-            .emit('autoservicio:listo-caja', payload);
+        for (const rol of ['admin', 'mesero']) {
+            this.server.to((0, tenant_rooms_1.tenantRoom)(`rol:${rol}`, tenantId)).emit('autoservicio:listo-caja', payload);
+        }
     }
     emitImpresoraAlerta(payload, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
         for (const rol of ['admin', 'mesero', 'chef']) {
-            this.server
-                .to((0, tenant_rooms_1.tenantRoom)(`rol:${rol}`, tenantId))
-                .emit('impresora:alerta', payload);
+            this.server.to((0, tenant_rooms_1.tenantRoom)(`rol:${rol}`, tenantId)).emit('impresora:alerta', payload);
         }
     }
     emitInventarioAlerta(payload, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
         for (const rol of ['admin', 'chef']) {
-            this.server
-                .to((0, tenant_rooms_1.tenantRoom)(`rol:${rol}`, tenantId))
-                .emit('inventario:alerta', payload);
+            this.server.to((0, tenant_rooms_1.tenantRoom)(`rol:${rol}`, tenantId)).emit('inventario:alerta', payload);
         }
     }
     emitImpresionEstado(payload, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
         for (const rol of ['admin', 'mesero', 'chef']) {
-            this.server
-                .to((0, tenant_rooms_1.tenantRoom)(`rol:${rol}`, tenantId))
-                .emit('impresion:estado', payload);
+            this.server.to((0, tenant_rooms_1.tenantRoom)(`rol:${rol}`, tenantId)).emit('impresion:estado', payload);
         }
     }
 };

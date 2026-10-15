@@ -12,9 +12,12 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.TicketPreviewController = exports.TicketPreviewEnabledGuard = void 0;
+exports.TicketPreviewController = exports.ConfigTicketPreviewController = exports.TicketPreviewEnabledGuard = void 0;
 const common_1 = require("@nestjs/common");
 const jwt_auth_guard_1 = require("../auth/jwt-auth.guard");
+const roles_decorator_1 = require("../auth/roles.decorator");
+const roles_guard_1 = require("../auth/roles.guard");
+const config_ticket_preview_dto_1 = require("./dto/config-ticket-preview.dto");
 const current_tenant_decorator_1 = require("../tenant/current-tenant.decorator");
 const pedido_tenant_guard_1 = require("../tenant/pedido-tenant.guard");
 const imprimir_precuenta_dto_1 = require("./dto/imprimir-precuenta.dto");
@@ -49,6 +52,29 @@ exports.TicketPreviewEnabledGuard = TicketPreviewEnabledGuard = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [ticket_preview_service_1.TicketPreviewService])
 ], TicketPreviewEnabledGuard);
+let ConfigTicketPreviewController = class ConfigTicketPreviewController {
+    preview;
+    constructor(preview) {
+        this.preview = preview;
+    }
+    configPreview(dto) {
+        return this.preview.configPreview(dto);
+    }
+};
+exports.ConfigTicketPreviewController = ConfigTicketPreviewController;
+__decorate([
+    (0, common_1.Post)(),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [config_ticket_preview_dto_1.ConfigTicketPreviewDto]),
+    __metadata("design:returntype", void 0)
+], ConfigTicketPreviewController.prototype, "configPreview", null);
+exports.ConfigTicketPreviewController = ConfigTicketPreviewController = __decorate([
+    (0, common_1.Controller)('ticket-preview-config'),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)('admin'),
+    __metadata("design:paramtypes", [ticket_preview_service_1.TicketPreviewService])
+], ConfigTicketPreviewController);
 let TicketPreviewController = class TicketPreviewController {
     preview;
     constructor(preview) {
@@ -126,6 +152,10 @@ let TicketPreviewController = class TicketPreviewController {
     }
     async baseCajaCierreHtml(query, tenantId, res) {
         const html = await this.preview.baseCajaCierreHtml(query.fecha, tenantId);
+        sendHtml(res, html);
+    }
+    async arqueoCajaHtml(query, tenantId, res) {
+        const html = await this.preview.arqueoCajaHtml(query.fecha, tenantId);
         sendHtml(res, html);
     }
 };
@@ -246,6 +276,15 @@ __decorate([
     __metadata("design:paramtypes", [ticket_preview_query_dto_1.TicketFechaPreviewQueryDto, Object, Object]),
     __metadata("design:returntype", Promise)
 ], TicketPreviewController.prototype, "baseCajaCierreHtml", null);
+__decorate([
+    (0, common_1.Get)('caja-diaria/arqueo/html'),
+    __param(0, (0, common_1.Query)()),
+    __param(1, (0, current_tenant_decorator_1.CurrentTenantId)()),
+    __param(2, (0, common_1.Res)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [ticket_preview_query_dto_1.TicketFechaPreviewQueryDto, Object, Object]),
+    __metadata("design:returntype", Promise)
+], TicketPreviewController.prototype, "arqueoCajaHtml", null);
 exports.TicketPreviewController = TicketPreviewController = __decorate([
     (0, common_1.Controller)('ticket-preview'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, TicketPreviewEnabledGuard),

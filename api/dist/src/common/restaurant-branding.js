@@ -33,6 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.conBrandingBorrador = conBrandingBorrador;
 exports.restaurantName = restaurantName;
 exports.restaurantTicketPhone = restaurantTicketPhone;
 exports.restaurantTicketAddress = restaurantTicketAddress;
@@ -44,6 +45,7 @@ exports.restaurantTextoPropinaTicket = restaurantTextoPropinaTicket;
 exports.restaurantTextoAvisoNoDian = restaurantTextoAvisoNoDian;
 exports.restaurantTextoPieCorreo = restaurantTextoPieCorreo;
 exports.restaurantPrefijoAsuntoCorreo = restaurantPrefijoAsuntoCorreo;
+exports.restaurantEtiquetasDescuento = restaurantEtiquetasDescuento;
 exports.restaurantMostrarCreditoDrewTech = restaurantMostrarCreditoDrewTech;
 exports.restaurantFacturaMostrarFlags = restaurantFacturaMostrarFlags;
 exports.restaurantPrecuentaMostrarFlags = restaurantPrecuentaMostrarFlags;
@@ -54,6 +56,9 @@ exports.restaurantModuloInventarioActivo = restaurantModuloInventarioActivo;
 exports.resolveImagesDir = resolveImagesDir;
 exports.resolveRestaurantLogoPath = resolveRestaurantLogoPath;
 exports.restaurantHasLogo = restaurantHasLogo;
+exports.restaurantLogoEsFabrica = restaurantLogoEsFabrica;
+const async_hooks_1 = require("async_hooks");
+const crypto = __importStar(require("crypto"));
 const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
 const tenant_constants_1 = require("../tenant/tenant.constants");
@@ -63,8 +68,16 @@ const LOGO_CANDIDATE_NAMES = [
     'ticket-logo.png',
     'ticket-logo-source.png',
 ];
+const brandingBorrador = new async_hooks_1.AsyncLocalStorage();
+function conBrandingBorrador(borrador, fn) {
+    return brandingBorrador.run(borrador, fn);
+}
 function rowOrNull() {
-    return (0, config_restaurante_cache_1.getCachedConfigRestaurante)(tenant_constants_1.DEFAULT_TENANT_ID);
+    const base = (0, config_restaurante_cache_1.getCachedConfigRestaurante)(tenant_constants_1.DEFAULT_TENANT_ID);
+    const borrador = brandingBorrador.getStore();
+    if (!borrador)
+        return base;
+    return { ...(base ?? {}), ...borrador };
 }
 function restaurantName() {
     const row = rowOrNull();
@@ -122,6 +135,13 @@ function restaurantTextoPieCorreo() {
 function restaurantPrefijoAsuntoCorreo() {
     const row = rowOrNull();
     return row?.prefijoAsuntoCorreo?.trim() || null;
+}
+function restaurantEtiquetasDescuento() {
+    const row = rowOrNull();
+    return {
+        sopas: row?.etiquetaDescuentoSopas?.trim() || 'Descuento sopas',
+        muleros: row?.etiquetaDescuentoMuleros?.trim() || 'Descuento clientes especiales',
+    };
 }
 function restaurantMostrarCreditoDrewTech() {
     const row = rowOrNull();
@@ -249,5 +269,39 @@ function resolveRestaurantLogoPath() {
 }
 function restaurantHasLogo() {
     return resolveRestaurantLogoPath() != null;
+}
+const SHA256_LOGOS_FABRICA_ANTERIORES = new Set([
+    '6b736d487c28943cf5b70d756d2ccacdc182997e16810e58ef8b7fc2977d14c2',
+]);
+let cacheLogoFabrica = null;
+function sha256Archivo(ruta) {
+    return crypto.createHash('sha256').update(fs.readFileSync(ruta)).digest('hex');
+}
+function restaurantLogoEsFabrica() {
+    const ruta = resolveRestaurantLogoPath();
+    if (!ruta)
+        return false;
+    try {
+        const st = fs.statSync(ruta);
+        if (cacheLogoFabrica &&
+            cacheLogoFabrica.ruta === ruta &&
+            cacheLogoFabrica.mtimeMs === st.mtimeMs &&
+            cacheLogoFabrica.size === st.size) {
+            return cacheLogoFabrica.es;
+        }
+        const hash = sha256Archivo(ruta);
+        let es = SHA256_LOGOS_FABRICA_ANTERIORES.has(hash);
+        if (!es) {
+            const fabrica = path.join(__dirname, '..', '..', 'images', 'logo.png');
+            if (fs.existsSync(fabrica)) {
+                es = path.resolve(fabrica) === path.resolve(ruta) || sha256Archivo(fabrica) === hash;
+            }
+        }
+        cacheLogoFabrica = { ruta, mtimeMs: st.mtimeMs, size: st.size, es };
+        return es;
+    }
+    catch {
+        return false;
+    }
 }
 //# sourceMappingURL=restaurant-branding.js.map

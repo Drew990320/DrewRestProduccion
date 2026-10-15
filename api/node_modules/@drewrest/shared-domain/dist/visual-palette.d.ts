@@ -84,6 +84,23 @@ export declare function derivarColoresSemanticos(palette: Record<VisualColorKey,
 export declare function generarPaletaClaraDesdePrincipal(primaryHex: string): Record<VisualColorKey, string>;
 export declare function generarPaletaOscuraDesdePrincipal(primaryHex: string): Record<VisualColorKey, string>;
 export declare function generarSugerenciasTemaDesdePrincipal(primaryHex: string): SugerenciaTemaVisual;
+/** Preferencia de tema en un equipo: seguir el sistema operativo o fijar claro/oscuro. */
+export type TemaPreferenciaVisual = 'sistema' | ModoTemaVisual;
+export declare const TEMA_PREFERENCIA_IDS: readonly TemaPreferenciaVisual[];
+export declare function esTemaPreferenciaValida(v: unknown): v is TemaPreferenciaVisual;
+export type PaletasTemaVisual = {
+    claro: Record<VisualColorKey, string>;
+    oscuro: Record<VisualColorKey, string>;
+};
+/** Tema oscuro coherente con la paleta clara: conserva principal y secundario del usuario. */
+export declare function derivarPaletaOscuraDesdeClara(claro: Record<VisualColorKey, string>): Record<VisualColorKey, string>;
+/** Tema claro coherente con una paleta oscura (paletas antiguas guardadas en oscuro). */
+export declare function derivarPaletaClaraDesdeOscura(oscuro: Record<VisualColorKey, string>): Record<VisualColorKey, string>;
+/**
+ * Paletas efectivas del restaurante. `colores` es la paleta clara; `coloresOscuro`
+ * es la personalización del modo oscuro (si no existe se deriva de la clara).
+ */
+export declare function resolverPaletasTema(colores: Record<VisualColorKey, string>, coloresOscuro?: Record<VisualColorKey, string> | null): PaletasTemaVisual;
 export declare const VISUAL_TONE_IDS: readonly ["pastel", "mate", "natural", "brillante", "intenso"];
 export type VisualToneId = (typeof VISUAL_TONE_IDS)[number];
 export type VisualTonePreset = {

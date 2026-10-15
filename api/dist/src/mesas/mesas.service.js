@@ -15,6 +15,7 @@ const mesa_dia_1 = require("../common/mesa-dia");
 const prisma_service_1 = require("../prisma/prisma.service");
 const pedidos_gateway_1 = require("../pedidos/pedidos.gateway");
 const timezone_1 = require("../common/timezone");
+const tenant_snapshot_cache_1 = require("../common/tenant-snapshot-cache");
 const tenant_constants_1 = require("../tenant/tenant.constants");
 const config_operativa_cache_1 = require("../common/config-operativa-cache");
 const usuario_display_1 = require("../usuarios/usuario-display");
@@ -24,6 +25,7 @@ var mesa_label_2 = require("@drewrest/shared-domain/mesa-label");
 Object.defineProperty(exports, "MESA_MOSTRADOR_NUMERO", { enumerable: true, get: function () { return mesa_label_2.MESA_MOSTRADOR_NUMERO; } });
 Object.defineProperty(exports, "MESA_PARA_LLEVAR_NUMERO", { enumerable: true, get: function () { return mesa_label_2.MESA_PARA_LLEVAR_NUMERO; } });
 const PEDIDOS_ABIERTOS = ['abierto', 'en_cocina'];
+const SNAPSHOT_MESAS_MS = 2_000;
 const CAPACIDAD_MESA_DEFAULT = 4;
 const MAX_MESAS_POR_LOTE = 50;
 let MesasService = class MesasService {
@@ -126,13 +128,29 @@ let MesasService = class MesasService {
         }
         return this.ensureLugarMesaActiva(idLugar, tenantId);
     }
-    async listarVisiblesHoy(tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
+    listarVisiblesHoy(tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
         const weekday = (0, timezone_1.weekdayBogota)();
+        return (0, tenant_snapshot_cache_1.snapshotTenant)(`mesas-hoy:${tenantId}:${weekday}`, SNAPSHOT_MESAS_MS, () => this.calcularVisiblesHoy(tenantId, weekday));
+    }
+    async calcularVisiblesHoy(tenantId, weekday) {
         const campo = (0, mesa_dia_1.campoDisponibilidadMesaParaWeekday)(weekday);
         if (!campo) {
             return [];
         }
-        const ocultas = await this.numerosOcultosGrilla(tenantId);
+        const [ocultas, anexasActivas] = await Promise.all([
+            this.numerosOcultosGrilla(tenantId),
+            this.prisma.pedidoMesaAnexa.findMany({
+                where: {
+                    pedido: { estado: { in: [...PEDIDOS_ABIERTOS] } },
+                    mesa: { idRestaurante: tenantId },
+                },
+                select: {
+                    idMesa: true,
+                    mesa: { select: { numero: true } },
+                    pedido: { select: { idMesa: true, mesa: { select: { numero: true } } } },
+                },
+            }),
+        ]);
         const mesas = await this.prisma.mesa.findMany({
             where: {
                 idRestaurante: tenantId,
@@ -143,42 +161,28 @@ let MesasService = class MesasService {
             include: { lugar: true },
             orderBy: [{ lugar: { orden: 'asc' } }, { numero: 'asc' }],
         });
-        const ocupadasIds = mesas
-            .filter((m) => m.estado === 'ocupada')
-            .map((m) => m.idMesa);
-        const [pedidosActivos, anexasActivas] = await Promise.all([
-            ocupadasIds.length > 0
-                ? this.prisma.pedido.findMany({
-                    where: {
-                        idMesa: { in: ocupadasIds },
-                        estado: { in: ['abierto', 'en_cocina'] },
-                    },
-                    select: {
-                        idMesa: true,
-                        creadoEn: true,
-                        numComensales: true,
-                        usuario: {
-                            select: {
-                                nombre: true,
-                                apellido: true,
-                                rol: { select: { nombre: true } },
-                            },
+        const ocupadasIds = mesas.filter((m) => m.estado === 'ocupada').map((m) => m.idMesa);
+        const pedidosActivos = ocupadasIds.length > 0
+            ? await this.prisma.pedido.findMany({
+                where: {
+                    idMesa: { in: ocupadasIds },
+                    estado: { in: ['abierto', 'en_cocina'] },
+                },
+                select: {
+                    idMesa: true,
+                    creadoEn: true,
+                    numComensales: true,
+                    usuario: {
+                        select: {
+                            nombre: true,
+                            apellido: true,
+                            rol: { select: { nombre: true } },
                         },
                     },
-                    orderBy: { idPedido: 'desc' },
-                })
-                : Promise.resolve([]),
-            this.prisma.pedidoMesaAnexa.findMany({
-                where: {
-                    pedido: { estado: { in: [...PEDIDOS_ABIERTOS] } },
-                    mesa: { idRestaurante: tenantId },
                 },
-                include: {
-                    mesa: { select: { idMesa: true, numero: true } },
-                    pedido: { include: { mesa: { select: { idMesa: true, numero: true } } } },
-                },
-            }),
-        ]);
+                orderBy: { idPedido: 'desc' },
+            })
+            : [];
         const meseroPorMesa = new Map();
         const abiertaDesdePorMesa = new Map();
         const comensalesPorMesa = new Map();
@@ -224,20 +228,23 @@ let MesasService = class MesasService {
         });
     }
     async listarTodasAdmin(tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
-        const mesas = await this.prisma.mesa.findMany({
-            where: { idRestaurante: tenantId },
-            include: { lugar: true },
-            orderBy: [{ lugar: { orden: 'asc' } }, { numero: 'asc' }],
-        });
-        const conteosActivos = await this.prisma.pedido.groupBy({
-            by: ['idMesa'],
-            where: { estado: { in: [...PEDIDOS_ABIERTOS] } },
-            _count: { idPedido: true },
-        });
-        const conteosTotal = await this.prisma.pedido.groupBy({
-            by: ['idMesa'],
-            _count: { idPedido: true },
-        });
+        const [mesas, conteosActivos, conteosTotal] = await Promise.all([
+            this.prisma.mesa.findMany({
+                where: { idRestaurante: tenantId },
+                include: { lugar: true },
+                orderBy: [{ lugar: { orden: 'asc' } }, { numero: 'asc' }],
+            }),
+            this.prisma.pedido.groupBy({
+                by: ['idMesa'],
+                where: { idRestaurante: tenantId, estado: { in: [...PEDIDOS_ABIERTOS] } },
+                _count: { idPedido: true },
+            }),
+            this.prisma.pedido.groupBy({
+                by: ['idMesa'],
+                where: { idRestaurante: tenantId },
+                _count: { idPedido: true },
+            }),
+        ]);
         const activosPorMesa = new Map(conteosActivos.map((c) => [c.idMesa, c._count.idPedido]));
         const totalPorMesa = new Map(conteosTotal.map((c) => [c.idMesa, c._count.idPedido]));
         return mesas.map((m) => this.mapMesaAdmin(m, activosPorMesa.get(m.idMesa) ?? 0, totalPorMesa.get(m.idMesa) ?? 0));
@@ -309,9 +316,7 @@ let MesasService = class MesasService {
             orderBy: { numero: 'asc' },
         });
         if (existentes.length > 0) {
-            throw new common_1.BadRequestException(`Ya existen mesas con estos números: ${existentes
-                .map((m) => m.numero)
-                .join(', ')}.`);
+            throw new common_1.BadRequestException(`Ya existen mesas con estos números: ${existentes.map((m) => m.numero).join(', ')}.`);
         }
         const capacidad = dto.capacidad ?? CAPACIDAD_MESA_DEFAULT;
         const numeros = Array.from({ length: cantidad }, (_, i) => desde + i);
@@ -466,27 +471,15 @@ let MesasService = class MesasService {
                 idLugar: lugarFinal?.idLugar ?? null,
                 ...(dto.numero != null ? { numero: dto.numero } : {}),
                 ...(dto.capacidad != null ? { capacidad: dto.capacidad } : {}),
-                ...(dto.disponible_lunes != null
-                    ? { disponibleLunes: dto.disponible_lunes }
-                    : {}),
-                ...(dto.disponible_martes != null
-                    ? { disponibleMartes: dto.disponible_martes }
-                    : {}),
+                ...(dto.disponible_lunes != null ? { disponibleLunes: dto.disponible_lunes } : {}),
+                ...(dto.disponible_martes != null ? { disponibleMartes: dto.disponible_martes } : {}),
                 ...(dto.disponible_miercoles != null
                     ? { disponibleMiercoles: dto.disponible_miercoles }
                     : {}),
-                ...(dto.disponible_jueves != null
-                    ? { disponibleJueves: dto.disponible_jueves }
-                    : {}),
-                ...(dto.disponible_viernes != null
-                    ? { disponibleViernes: dto.disponible_viernes }
-                    : {}),
-                ...(dto.disponible_sabado != null
-                    ? { disponibleSabado: dto.disponible_sabado }
-                    : {}),
-                ...(dto.disponible_domingo != null
-                    ? { disponibleDomingo: dto.disponible_domingo }
-                    : {}),
+                ...(dto.disponible_jueves != null ? { disponibleJueves: dto.disponible_jueves } : {}),
+                ...(dto.disponible_viernes != null ? { disponibleViernes: dto.disponible_viernes } : {}),
+                ...(dto.disponible_sabado != null ? { disponibleSabado: dto.disponible_sabado } : {}),
+                ...(dto.disponible_domingo != null ? { disponibleDomingo: dto.disponible_domingo } : {}),
             },
             include: { lugar: true },
         });
@@ -557,9 +550,7 @@ let MesasService = class MesasService {
         }
         const esperado = reservada ? 'libre' : 'reservada';
         if (m.estado !== esperado) {
-            throw new common_1.ConflictException(reservada
-                ? 'Solo se puede reservar una mesa libre'
-                : 'La mesa no está reservada');
+            throw new common_1.ConflictException(reservada ? 'Solo se puede reservar una mesa libre' : 'La mesa no está reservada');
         }
         const actualizada = await this.prisma.mesa.update({
             where: { idMesa },

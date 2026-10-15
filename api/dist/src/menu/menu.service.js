@@ -41,8 +41,10 @@ let MenuService = class MenuService {
         return Boolean(cfg?.moduloMenuImagenesActivo);
     }
     async menuHoy(tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
-        const activo = await this.menuActivo.resolverActivo(tenantId);
-        const menuPorImagenes = await this.menuPorImagenesActivo(tenantId);
+        const [activo, menuPorImagenes] = await Promise.all([
+            this.menuActivo.resolverActivo(tenantId, new Date(), { compartido: true }),
+            this.menuPorImagenesActivo(tenantId),
+        ]);
         const cacheKey = activo
             ? `${tenantId}:${activo.menu.idMenu}:${activo.modo}:img${menuPorImagenes ? 1 : 0}`
             : `${tenantId}:none:img${menuPorImagenes ? 1 : 0}`;
@@ -151,8 +153,7 @@ let MenuService = class MenuService {
                 combo_max: Math.max(1, p.comboMax ?? 1),
                 imagen_url: (0, producto_imagen_upload_util_1.productoImagenPublicUrl)(p.idProducto, p.imagenArchivo),
                 combo_elegibles: p.esCombo
-                    ? p.comboElegiblesComoCombo
-                        .map((e) => ({
+                    ? p.comboElegiblesComoCombo.map((e) => ({
                         id_producto: e.idProductoComponente,
                         nombre: e.componente.nombre,
                         precio: Number(e.componente.precio),

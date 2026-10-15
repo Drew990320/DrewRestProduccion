@@ -10,6 +10,7 @@ exports.LatencyMetricsInterceptor = void 0;
 const common_1 = require("@nestjs/common");
 const rxjs_1 = require("rxjs");
 const latency_metrics_1 = require("./latency-metrics");
+const tenant_snapshot_cache_1 = require("./tenant-snapshot-cache");
 let LatencyMetricsInterceptor = class LatencyMetricsInterceptor {
     intercept(context, next) {
         if (context.getType() !== 'http')
@@ -18,15 +19,17 @@ let LatencyMetricsInterceptor = class LatencyMetricsInterceptor {
         const req = http.getRequest();
         const res = http.getResponse();
         const start = Date.now();
-        const route = req.route?.path ??
-            req.path ??
-            req.url?.split('?')[0] ??
-            'unknown';
+        const route = req.route?.path ?? req.path ?? req.url?.split('?')[0] ?? 'unknown';
+        const escribe = req.method !== 'GET' && req.method !== 'HEAD' && req.method !== 'OPTIONS';
         return next.handle().pipe((0, rxjs_1.tap)({
             next: () => {
+                if (escribe)
+                    (0, tenant_snapshot_cache_1.invalidarSnapshotsTenant)();
                 (0, latency_metrics_1.recordHttpLatency)(req.method, route, Date.now() - start, res.statusCode >= 400);
             },
             error: () => {
+                if (escribe)
+                    (0, tenant_snapshot_cache_1.invalidarSnapshotsTenant)();
                 (0, latency_metrics_1.recordHttpLatency)(req.method, route, Date.now() - start, true);
             },
         }));

@@ -3,8 +3,10 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.TICKET_PREVIEW_CATALOG = void 0;
 exports.catalogItemForTipo = catalogItemForTipo;
 exports.buildSampleEscPosBuffer = buildSampleEscPosBuffer;
+exports.buildConfigPreviewEscPos = buildConfigPreviewEscPos;
 const comanda_escpos_builder_1 = require("./comanda-escpos.builder");
 const cierre_caja_escpos_builder_1 = require("./cierre-caja-escpos.builder");
+const domicilio_escpos_builder_1 = require("./domicilio-escpos.builder");
 const cuentas_divididas_escpos_builder_1 = require("./cuentas-divididas-escpos.builder");
 const factura_escpos_builder_1 = require("./factura-escpos.builder");
 exports.TICKET_PREVIEW_CATALOG = [
@@ -27,16 +29,46 @@ exports.TICKET_PREVIEW_CATALOG = [
         descripcion: 'Marca REIMPRESIÓN en el ticket.',
     },
     {
+        id: 'comanda_estacion',
+        label: 'Comanda por estación',
+        grupo: 'Cocina',
+        descripcion: 'Solo los platos de una estación (bar, parrilla…).',
+    },
+    {
+        id: 'domicilio',
+        label: 'Datos de domicilio',
+        grupo: 'Cocina',
+        descripcion: 'Cliente, teléfono y dirección para el domiciliario.',
+    },
+    {
+        id: 'domicilio_blanco',
+        label: 'Domicilio en blanco',
+        grupo: 'Cocina',
+        descripcion: 'Líneas vacías para llenar a mano.',
+    },
+    {
         id: 'precuenta',
         label: 'Pre-cuenta',
         grupo: 'Cobro',
         descripcion: 'Vista previa antes del cobro; no registra pago.',
     },
     {
+        id: 'autoservicio_caja',
+        label: 'Autoservicio en caja',
+        grupo: 'Cobro',
+        descripcion: 'Turno que el cliente envía desde el kiosko.',
+    },
+    {
         id: 'factura_efectivo',
         label: 'Factura (efectivo)',
         grupo: 'Cobro',
         descripcion: 'Ticket de cobro con ítems, descuentos y total.',
+    },
+    {
+        id: 'venta_tienda',
+        label: 'Venta de tienda',
+        grupo: 'Cobro',
+        descripcion: 'Logos del restaurante y la tienda, con vendedor.',
     },
     {
         id: 'factura_negocio',
@@ -99,10 +131,16 @@ exports.TICKET_PREVIEW_CATALOG = [
         descripcion: 'Comprobante al abrir el día.',
     },
     {
-        id: 'base_caja_cierre',
-        label: 'Arqueo de cierre',
+        id: 'arqueo_caja',
+        label: 'Arqueo de caja',
         grupo: 'Caja',
-        descripcion: 'Base registrada al cerrar caja.',
+        descripcion: 'Efectivo contado frente al esperado, con faltante o sobrante.',
+    },
+    {
+        id: 'base_caja_cierre',
+        label: 'Base final',
+        grupo: 'Caja',
+        descripcion: 'Efectivo que queda para mañana y retiro de caja.',
     },
     {
         id: 'movimiento_entrada',
@@ -115,6 +153,12 @@ exports.TICKET_PREVIEW_CATALOG = [
         label: 'Salida manual de caja',
         grupo: 'Caja',
         descripcion: 'Retiro de efectivo con motivo.',
+    },
+    {
+        id: 'items_menu',
+        label: 'Ventas por producto',
+        grupo: 'Caja',
+        descripcion: 'Cantidades y totales vendidos por plato en el día.',
     },
 ];
 const DEMO_EMITIDA = '2026-07-09T18:30:00.000Z';
@@ -145,6 +189,7 @@ function facturaBase(overrides = {}) {
     return {
         id_pedido: 1042,
         id_factura: 891,
+        numero_factura: 'POS-000123',
         mesa_numero: 7,
         mesa_etiqueta: 'Mesa 7',
         num_comensales: 3,
@@ -193,8 +238,75 @@ const SAMPLE_BUILDERS = {
     comanda: (w) => (0, comanda_escpos_builder_1.buildComandaEscPos)(comandaBase(), w),
     comanda_adicional: (w) => (0, comanda_escpos_builder_1.buildComandaEscPos)(comandaBase({ es_adicional: true }), w),
     comanda_reimpresion: (w) => (0, comanda_escpos_builder_1.buildComandaEscPos)(comandaBase({ es_reimpresion: true }), w),
+    comanda_estacion: (w) => (0, comanda_escpos_builder_1.buildComandaEscPos)(comandaBase({
+        estacion: 'Bar',
+        lineas: [
+            {
+                id_detalle: 3,
+                cantidad: 2,
+                nombre_producto: 'Limonada de coco',
+                nota_cocina: 'Poco hielo',
+                personalizaciones: [],
+            },
+            {
+                id_detalle: 4,
+                cantidad: 1,
+                nombre_producto: 'Cerveza Club Colombia',
+                nota_cocina: null,
+                personalizaciones: [],
+            },
+        ],
+    }), w),
+    domicilio: (w) => (0, domicilio_escpos_builder_1.buildDomicilioEscPos)({
+        id_pedido: 1043,
+        mesa_etiqueta: 'Domicilio',
+        mesero: 'Ana López',
+        forzar_blanco: false,
+        cliente_nombre: 'Carlos Ramírez',
+        cliente_telefono: '300 123 4567',
+        cliente_direccion: 'Cra 45 # 12-34, Apto 501, Barrio Laureles',
+        emitida_en: DEMO_EMITIDA,
+    }, w),
+    domicilio_blanco: (w) => (0, domicilio_escpos_builder_1.buildDomicilioEscPos)({
+        id_pedido: 1044,
+        mesa_etiqueta: 'Domicilio',
+        mesero: 'Ana López',
+        forzar_blanco: true,
+        cliente_nombre: null,
+        cliente_telefono: null,
+        cliente_direccion: null,
+        emitida_en: DEMO_EMITIDA,
+    }, w),
     precuenta: (w) => (0, factura_escpos_builder_1.buildFacturaEscPos)(facturaBase({ es_precuenta: true, metodo_pago: undefined }), w),
+    autoservicio_caja: (w) => (0, factura_escpos_builder_1.buildFacturaEscPos)(facturaBase({
+        es_precuenta: true,
+        es_autoservicio_caja: true,
+        metodo_pago: undefined,
+        mesero: '',
+    }), w),
     factura_efectivo: (w) => (0, factura_escpos_builder_1.buildFacturaEscPos)(facturaBase(), w),
+    venta_tienda: (w, ctx) => (0, factura_escpos_builder_1.buildFacturaEscPos)(facturaBase({
+        mesa_numero: 0,
+        mesa_etiqueta: 'Venta tienda',
+        mesero: 'Laura Gómez',
+        num_comensales: 1,
+        tienda: ctx.tienda ?? { nombre: 'Tienda', logo_archivo: null },
+        lineas: [
+            { cantidad: 1, nombre_producto: 'Camiseta bordada talla M', subtotal_linea: 45000, personalizaciones: [], nota_cocina: null },
+            { cantidad: 2, nombre_producto: 'Café de origen 250 g', subtotal_linea: 36000, personalizaciones: [], nota_cocina: null },
+            { cantidad: 1, nombre_producto: 'Llavero artesanal', subtotal_linea: 8000, personalizaciones: [], nota_cocina: null },
+        ],
+        subtotal: 89000,
+        descuento_muleros: 0,
+        total: 89000,
+        detalle_exceso_cobro: {
+            monto_recibido_efectivo: 100000,
+            vuelto_cliente_efectivo: 11000,
+            vuelto_cliente_transferencia: 0,
+            pago_domiciliario: 0,
+            pago_mesero: 0,
+        },
+    }), w),
     factura_negocio: (w) => (0, factura_escpos_builder_1.buildFacturaEscPos)(facturaBase({ copia_destinatario: 'negocio' }), w),
     factura_cliente: (w) => (0, factura_escpos_builder_1.buildFacturaEscPos)(facturaBase({ copia_destinatario: 'cliente' }), w),
     factura_reimpresion: (w) => (0, factura_escpos_builder_1.buildFacturaEscPos)(facturaBase({ es_reimpresion: true }), w),
@@ -283,6 +395,8 @@ const SAMPLE_BUILDERS = {
             total_devoluciones_efectivo: 12000,
             total_entradas_manual: 20000,
             total_salidas_manual: 8000,
+            monto_contado_efectivo: 1128000,
+            monto_base_cierre_efectivo: 150000,
             emitida_en: DEMO_EMITIDA,
         };
         return (0, cierre_caja_escpos_builder_1.buildCierreCajaEscPos)(ticket, w);
@@ -291,15 +405,27 @@ const SAMPLE_BUILDERS = {
         const ticket = {
             fecha: '2026-07-09',
             monto_base_efectivo: 150000,
+            registrado_por: 'Admin Demo',
             emitida_en: DEMO_EMITIDA,
         };
         return (0, cierre_caja_escpos_builder_1.buildBaseCajaEscPos)(ticket, w);
     },
+    arqueo_caja: (w) => {
+        const ticket = {
+            fecha: '2026-07-09',
+            monto_contado_efectivo: 1128000,
+            efectivo_esperado_en_caja: 1130000,
+            registrado_por: 'Admin Demo',
+            emitida_en: DEMO_EMITIDA,
+        };
+        return (0, cierre_caja_escpos_builder_1.buildArqueoCajaEscPos)(ticket, w);
+    },
     base_caja_cierre: (w) => {
         const ticket = {
             fecha: '2026-07-09',
-            monto_base_cierre_efectivo: 148000,
-            efectivo_esperado_en_caja: 1130000,
+            monto_base_cierre_efectivo: 150000,
+            monto_contado_efectivo: 1128000,
+            registrado_por: 'Admin Demo',
             emitida_en: DEMO_EMITIDA,
         };
         return (0, cierre_caja_escpos_builder_1.buildBaseCajaCierreEscPos)(ticket, w);
@@ -332,15 +458,51 @@ const SAMPLE_BUILDERS = {
         };
         return (0, cierre_caja_escpos_builder_1.buildMovimientoCajaEscPos)(ticket, w);
     },
+    items_menu: (w) => {
+        const ticket = {
+            fecha: '2026-07-09',
+            items: [
+                { nombre_producto: 'Bandeja paisa', categoria_nombre: 'Platos fuertes', cantidad: 18, subtotal: 504000 },
+                { nombre_producto: 'Sancocho de gallina', categoria_nombre: 'Sopas', cantidad: 9, subtotal: 198000 },
+                { nombre_producto: 'Limonada natural', categoria_nombre: 'Bebidas', cantidad: 25, subtotal: 150000 },
+                { nombre_producto: 'Postre de natas', categoria_nombre: 'Postres', cantidad: 6, subtotal: 54000 },
+            ],
+            subtotal_ventas_bruto: 906000,
+            total_descuentos_dia: 12000,
+            total_facturado: 894000,
+            emitida_en: DEMO_EMITIDA,
+        };
+        return (0, cierre_caja_escpos_builder_1.buildItemsMenuEscPos)(ticket, w);
+    },
 };
 function catalogItemForTipo(tipo) {
     return exports.TICKET_PREVIEW_CATALOG.find((c) => c.id === tipo);
 }
-function buildSampleEscPosBuffer(tipo, charWidth) {
+function buildSampleEscPosBuffer(tipo, charWidthOrOpts, ctx = {}) {
     const build = SAMPLE_BUILDERS[tipo];
     if (!build) {
         throw new Error(`Tipo de ticket no válido: ${tipo}`);
     }
-    return build(charWidth);
+    return build(charWidthOrOpts, ctx);
+}
+function buildConfigPreviewEscPos(tipo, opts, numeroFactura) {
+    const emitida = new Date().toISOString();
+    if (tipo === 'factura') {
+        return (0, factura_escpos_builder_1.buildFacturaEscPos)(facturaBase({
+            numero_factura: numeroFactura,
+            emitida_en: emitida,
+            detalle_exceso_cobro: {
+                monto_recibido_efectivo: 70000,
+                vuelto_cliente_efectivo: 10000,
+                vuelto_cliente_transferencia: 0,
+                pago_domiciliario: 0,
+                pago_mesero: 0,
+            },
+        }), opts);
+    }
+    if (tipo === 'precuenta') {
+        return (0, factura_escpos_builder_1.buildFacturaEscPos)(facturaBase({ es_precuenta: true, metodo_pago: undefined, emitida_en: emitida }), opts);
+    }
+    return SAMPLE_BUILDERS[tipo](opts, {});
 }
 //# sourceMappingURL=ticket-preview.samples.js.map

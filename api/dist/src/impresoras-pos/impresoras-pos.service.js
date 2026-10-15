@@ -680,6 +680,16 @@ let ImpresorasPosService = ImpresorasPosService_1 = class ImpresorasPosService {
             return;
         throw new common_1.BadRequestException('Destino inválido. Use printer:Nombre, COM3 o tcp:192.168.1.50 (red/UTP, puerto 9100)');
     }
+    async tiendaParaEjemplo(idRestaurante) {
+        const t = await this.prisma.tienda.findFirst({
+            where: { idRestaurante, activo: true },
+            orderBy: [{ logoArchivo: { sort: 'asc', nulls: 'last' } }, { orden: 'asc' }],
+            select: { nombre: true, etiqueta: true, logoArchivo: true },
+        });
+        if (!t)
+            return undefined;
+        return { nombre: t.etiqueta?.trim() || t.nombre, logo_archivo: t.logoArchivo ?? null };
+    }
     async listarCodigosMenu(idRestaurante) {
         const [cfg, cats] = await Promise.all([
             this.prisma.configRestaurante.findUnique({

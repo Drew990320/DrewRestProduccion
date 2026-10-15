@@ -100,7 +100,10 @@ export declare function totalEsperandoRecogidaPorTipo(pedidos: PedidoCocinaLike[
 };
 /** Texto para avisos al mesero (notificación / banner). */
 export declare function mensajeListosParaRecoger(platos: number, entradas: number, sufijo?: string): string;
-/** Plato de cocina aún no enviado o con comanda sin imprimir (reintento). */
+/**
+ * Plato de la tanda nueva (aún no enviado). Lo ya enviado sin imprimir no cuenta:
+ * se saca con «Reimprimir», no con «A cocina».
+ */
 export declare function detallePendientePasarCocina(d: DetalleCocinaLike): boolean;
 export declare function platosPendientesPasarCocina(pedido: PedidoCocinaLike): number;
 export declare function platosSinEnviarCocina(pedido: PedidoCocinaLike): number;

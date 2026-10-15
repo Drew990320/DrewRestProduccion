@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.buildDomicilioEscPos = buildDomicilioEscPos;
 const escpos_utils_1 = require("./escpos-utils");
+const ticket_layout_1 = require("./ticket-layout");
 async function printCampo(printer, w, etiqueta, valor, blank, lineasExtraVacias = 0) {
     await printer.bold(true);
     await printer.println(etiqueta);
@@ -30,18 +31,20 @@ async function buildDomicilioEscPos(ticket, charWidthOrOpts = escpos_utils_1.DEF
     const tel = usarBlanco ? '' : (ticket.cliente_telefono ?? '').trim();
     const dir = usarBlanco ? '' : (ticket.cliente_direccion ?? '').trim();
     await (0, escpos_utils_1.applyEscPosTicketStart)(printer, opts);
-    await printer.alignCenter();
-    await printer.println(rule);
-    await printer.bold(true);
-    await printer.println('DOMICILIO');
-    await printer.bold(false);
-    await printer.println('Datos de entrega');
-    await printer.println(rule);
+    await (0, ticket_layout_1.encabezadoTicket)(printer, opts, {
+        titulo: 'DOMICILIO',
+        subtitulos: ['Datos de entrega'],
+    });
+    await (0, ticket_layout_1.bloqueDatos)(printer, opts, [
+        ['Pedido', `#${ticket.id_pedido}`],
+        ['Fecha', (0, ticket_layout_1.fechaHoraTicket)(ticket.emitida_en)],
+        ['Atiende', ticket.mesero],
+    ]);
+    await printer.println('-'.repeat(w));
     await printer.newLine();
-    await printer.alignLeft();
     await printCampo(printer, w, 'CLIENTE', nombre, blank);
-    await printCampo(printer, w, 'TELEFONO', tel, blank);
-    await printCampo(printer, w, 'DIRECCION', dir, blank, dir ? 0 : 1);
+    await printCampo(printer, w, 'TELÉFONO', tel, blank);
+    await printCampo(printer, w, 'DIRECCIÓN', dir, blank, dir ? 0 : 1);
     await printer.alignCenter();
     await printer.println(rule);
     await printer.println('* * *');

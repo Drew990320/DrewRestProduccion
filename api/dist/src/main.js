@@ -73,14 +73,27 @@ async function bootstrap() {
     app.enableCors({ origin: (0, cors_origins_1.resolveCorsOrigin)(), credentials: true });
     app.enableShutdownHooks();
     const port = process.env.PORT ?? 3000;
-    const host = process.env.HOST ?? '0.0.0.0';
-    console.log(`[bootstrap] Escuchando en http://${host}:${port} …`);
+    const hostEnv = process.env.HOST?.trim();
+    const host = !hostEnv || hostEnv === '0.0.0.0' ? '::' : hostEnv;
+    console.log(`[bootstrap] Escuchando en puerto ${port} (host ${host}) …`);
     try {
         await app.listen(port, host);
     }
     catch (err) {
-        console.error(`[bootstrap] No se pudo abrir el puerto ${port}:`, err);
-        process.exit(1);
+        if (host === '::') {
+            console.warn('[bootstrap] IPv6 no disponible; escuchando solo IPv4 (0.0.0.0).');
+            try {
+                await app.listen(port, '0.0.0.0');
+            }
+            catch (err2) {
+                console.error(`[bootstrap] No se pudo abrir el puerto ${port}:`, err2);
+                process.exit(1);
+            }
+        }
+        else {
+            console.error(`[bootstrap] No se pudo abrir el puerto ${port}:`, err);
+            process.exit(1);
+        }
     }
     console.log(`API http://localhost:${port} (LAN: http://<tu-ip>:${port})`);
 }

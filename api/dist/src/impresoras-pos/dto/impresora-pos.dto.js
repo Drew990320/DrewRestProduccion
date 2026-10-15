@@ -9,10 +9,22 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ReplaceReglasCocinaDto = exports.ReglaImpresionCocinaDto = exports.UpdateImpresoraPosDto = exports.CreateImpresoraPosDto = void 0;
+exports.ReplaceReglasCocinaDto = exports.ReglaImpresionCocinaDto = exports.UpdateImpresoraPosDto = exports.CreateImpresoraPosDto = exports.ImprimirEjemplosDto = void 0;
 const class_transformer_1 = require("class-transformer");
 const class_validator_1 = require("class-validator");
 const impresoras_pos_types_1 = require("../impresoras-pos.types");
+const ticket_preview_samples_1 = require("../../pedidos/ticket-preview.samples");
+class ImprimirEjemplosDto {
+    tipos;
+}
+exports.ImprimirEjemplosDto = ImprimirEjemplosDto;
+__decorate([
+    (0, class_validator_1.IsArray)(),
+    (0, class_validator_1.ArrayMinSize)(1),
+    (0, class_validator_1.ArrayMaxSize)(40),
+    (0, class_validator_1.IsIn)(ticket_preview_samples_1.TICKET_PREVIEW_CATALOG.map((c) => c.id), { each: true }),
+    __metadata("design:type", Array)
+], ImprimirEjemplosDto.prototype, "tipos", void 0);
 class CreateImpresoraPosDto {
     nombre;
     destino;

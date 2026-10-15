@@ -52,6 +52,7 @@ const action_app_icon_1 = require("@drewrest/shared-domain/action-app-icon");
 const visual_style_1 = require("@drewrest/shared-domain/visual-style");
 const imagen_visual_1 = require("@drewrest/shared-domain/imagen-visual");
 const mesa_visual_1 = require("@drewrest/shared-domain/mesa-visual");
+const visual_palette_1 = require("@drewrest/shared-domain/visual-palette");
 const tenant_constants_1 = require("../tenant/tenant.constants");
 const prisma_service_1 = require("../prisma/prisma.service");
 const config_restaurante_cache_1 = require("../restaurante/config-restaurante-cache");
@@ -203,6 +204,18 @@ let ConfigVisualService = class ConfigVisualService {
         }
         return out;
     }
+    mapColoresOscuro(raw) {
+        if (!raw || typeof raw !== 'object')
+            return null;
+        const out = {};
+        for (const key of nav_app_icon_1.VISUAL_COLOR_KEYS) {
+            const val = raw[key];
+            if (typeof val !== 'string' || !(0, nav_app_icon_1.esColorHexValido)(val))
+                return null;
+            out[key] = val.trim().toUpperCase();
+        }
+        return out;
+    }
     mapColores(row) {
         const stored = {
             primary: row.colorPrimary,
@@ -224,6 +237,10 @@ let ConfigVisualService = class ConfigVisualService {
     mapRow(row) {
         return {
             colores: this.mapColores(row),
+            colores_oscuro: this.mapColoresOscuro(row.coloresOscuro),
+            tema_predeterminado: (0, visual_palette_1.esTemaPreferenciaValida)(row.temaPredeterminado)
+                ? row.temaPredeterminado
+                : 'claro',
             iconos_nav: this.mapIconosNav(row.iconosNav),
             iconos_accion: this.mapIconosAccion(row.iconosAccion),
             estilo_visual: (0, visual_style_1.resolverEstiloVisual)(row.estiloVisual),
@@ -290,6 +307,8 @@ let ConfigVisualService = class ConfigVisualService {
             where: { idRestaurante: tenantId },
             data: {
                 ...this.dataPaletaFabrica(),
+                coloresOscuro: client_1.Prisma.DbNull,
+                temaPredeterminado: null,
                 logoLoginArchivo: null,
                 logoFacturaArchivo: null,
                 logoTicketArchivo: null,
@@ -355,6 +374,15 @@ let ConfigVisualService = class ConfigVisualService {
         if (dto.color_border !== undefined) {
             data.colorBorder = (0, nav_app_icon_1.esColorHexValido)(dto.color_border)
                 ? dto.color_border.trim()
+                : null;
+        }
+        if (dto.colores_oscuro !== undefined) {
+            const oscuro = this.mapColoresOscuro(dto.colores_oscuro);
+            data.coloresOscuro = oscuro ?? client_1.Prisma.DbNull;
+        }
+        if (dto.tema_predeterminado !== undefined) {
+            data.temaPredeterminado = (0, visual_palette_1.esTemaPreferenciaValida)(dto.tema_predeterminado)
+                ? dto.tema_predeterminado
                 : null;
         }
         if (dto.iconos_nav !== undefined) {
