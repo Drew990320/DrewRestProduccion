@@ -16,6 +16,7 @@ exports.AuthController = void 0;
 const common_1 = require("@nestjs/common");
 const throttler_1 = require("@nestjs/throttler");
 const auth_service_1 = require("./auth.service");
+const cuenta_mesero_dto_1 = require("./dto/cuenta-mesero.dto");
 const login_dto_1 = require("./dto/login.dto");
 const pin_login_dto_1 = require("./dto/pin-login.dto");
 const password_reset_confirm_dto_1 = require("./dto/password-reset-confirm.dto");
@@ -54,6 +55,21 @@ let AuthController = class AuthController {
     }
     autoservicioSesion(body) {
         return this.auth.iniciarSesionAutoservicio(body);
+    }
+    cuenta(req) {
+        return this.auth.resumenCuenta(req.user);
+    }
+    definirPin(dto, req) {
+        return this.auth.definirPinPersonal(req.user, dto.pin);
+    }
+    definirPropinas(dto, req) {
+        return this.auth.definirContadorPropinas(req.user, dto.mostrar);
+    }
+    anotarPropina(dto, req) {
+        return this.auth.anotarPropinaPersonal(req.user, dto.monto);
+    }
+    quitarPropina(dto, req) {
+        return this.auth.quitarPropinaPersonal(req.user, dto.id);
     }
     me(req) {
         const u = req.user;
@@ -137,6 +153,55 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], AuthController.prototype, "autoservicioSesion", null);
+__decorate([
+    (0, throttler_1.SkipThrottle)(),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, common_1.Get)('cuenta'),
+    __param(0, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], AuthController.prototype, "cuenta", null);
+__decorate([
+    (0, throttler_1.Throttle)({ default: { limit: 8, ttl: 60_000 } }),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, common_1.Put)('cuenta/pin'),
+    __param(0, (0, common_1.Body)()),
+    __param(1, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [cuenta_mesero_dto_1.SetPinPersonalDto, Object]),
+    __metadata("design:returntype", void 0)
+], AuthController.prototype, "definirPin", null);
+__decorate([
+    (0, throttler_1.Throttle)({ default: { limit: 12, ttl: 60_000 } }),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, common_1.Put)('cuenta/propinas'),
+    __param(0, (0, common_1.Body)()),
+    __param(1, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [cuenta_mesero_dto_1.MostrarPropinasDto, Object]),
+    __metadata("design:returntype", void 0)
+], AuthController.prototype, "definirPropinas", null);
+__decorate([
+    (0, throttler_1.Throttle)({ default: { limit: 30, ttl: 60_000 } }),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, common_1.Post)('cuenta/propinas/anotar'),
+    __param(0, (0, common_1.Body)()),
+    __param(1, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [cuenta_mesero_dto_1.AnotarPropinaDto, Object]),
+    __metadata("design:returntype", void 0)
+], AuthController.prototype, "anotarPropina", null);
+__decorate([
+    (0, throttler_1.Throttle)({ default: { limit: 30, ttl: 60_000 } }),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, common_1.Post)('cuenta/propinas/quitar'),
+    __param(0, (0, common_1.Body)()),
+    __param(1, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [cuenta_mesero_dto_1.QuitarPropinaDto, Object]),
+    __metadata("design:returntype", void 0)
+], AuthController.prototype, "quitarPropina", null);
 __decorate([
     (0, throttler_1.SkipThrottle)(),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),

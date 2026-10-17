@@ -171,6 +171,9 @@ let RecursosController = class RecursosController {
     actualizarPresentacion(id, idPresentacion, dto, tenantId) {
         return this.recursos.actualizarPresentacion(id, idPresentacion, dto, tenantId);
     }
+    eliminar(id, tenantId) {
+        return this.recursos.eliminarRecurso(id, tenantId);
+    }
     eliminarPresentacion(id, idPresentacion, tenantId) {
         return this.recursos.eliminarPresentacion(id, idPresentacion, tenantId);
     }
@@ -366,6 +369,15 @@ __decorate([
     __metadata("design:paramtypes", [Number, Number, recurso_dto_1.ActualizarPresentacionRecursoDto, Number]),
     __metadata("design:returntype", void 0)
 ], RecursosController.prototype, "actualizarPresentacion", null);
+__decorate([
+    (0, common_1.Delete)(':id'),
+    (0, roles_decorator_1.Roles)('admin'),
+    __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
+    __param(1, (0, current_tenant_decorator_1.CurrentTenantId)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number, Number]),
+    __metadata("design:returntype", void 0)
+], RecursosController.prototype, "eliminar", null);
 __decorate([
     (0, common_1.Delete)(':id/presentaciones/:idPresentacion'),
     (0, roles_decorator_1.Roles)('admin'),

@@ -1,4 +1,4 @@
-import { type ConversionUnidad } from './inventario-unidades';
+import { type ConversionUnidad, type PresentacionArticulo } from './inventario-unidades';
 import type { MovimientoInventarioPlan } from './inventario-movimientos';
 export type SustitucionReceta = Readonly<{
     id_articulo: number;
@@ -20,6 +20,11 @@ export type Receta = Readonly<{
     version?: number;
     lineas: readonly RecetaLinea[];
 }>;
+/**
+ * Receta de un solo ingrediente (general), con o sin alternos.
+ * Una subreceta o varias líneas es un compuesto: se descuenta al pasar a cocina.
+ */
+export declare function recetaIngredienteGeneral(receta: Receta): RecetaLinea | null;
 export type ArticuloInventarioReceta = Readonly<{
     id_articulo: number;
     unidad_stock: string;
@@ -27,7 +32,15 @@ export type ArticuloInventarioReceta = Readonly<{
     activo?: boolean;
     /** Presentaciones propias del artículo (tienen prioridad sobre las del negocio). */
     conversiones?: readonly ConversionUnidad[];
+    /** Precio por presentación. Si la línea usa esa unidad, el costo sale de ahí. */
+    presentaciones?: readonly PresentacionArticulo[];
 }>;
+/**
+ * Costo de una unidad de stock. Si la línea está en una presentación con precio
+ * (la caja), usa ese precio repartido en sus unidades. Si el artículo no tiene
+ * costo y solo una presentación lo tiene, usa esa.
+ */
+export declare function costoUnitarioEnStock(art: ArticuloInventarioReceta, unidadLinea: string): number;
 export type ErrorReceta = Readonly<{
     codigo: 'linea_sin_articulo' | 'articulo_desconocido' | 'subreceta_desconocida' | 'conversion_fallida' | 'receta_vacia';
     mensaje: string;

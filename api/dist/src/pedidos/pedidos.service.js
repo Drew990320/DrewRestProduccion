@@ -2671,6 +2671,18 @@ let PedidosService = class PedidosService {
             const idMesaPedido = pedido.idMesa;
             await this.prisma.$transaction(async (tx) => {
                 for (const d of pedido.detalles) {
+                    const stockAntes = await (0, stock_bebida_1.leerStockMenuControladoTx)(tx, d.producto);
+                    await this.inventarioDeduccion.revertirLineaEnTx(tx, {
+                        tenantId: pedido.idRestaurante,
+                        idPedido,
+                        linea: {
+                            id_detalle_pedido: d.idDetalle,
+                            id_producto: d.idProducto,
+                            cantidad: d.cantidad,
+                            nombre_producto: d.producto.nombre,
+                        },
+                        idUsuario: actor.idUsuario,
+                    });
                     await (0, stock_bebida_1.reintegrarStockBebidaTx)(tx, d.producto, d.cantidad);
                     await (0, stock_retail_1.reintegrarStockRetailTx)(tx, {
                         cantidad: d.cantidad,
@@ -2678,6 +2690,9 @@ let PedidosService = class PedidosService {
                         idProductoVariante: d.idProductoVariante,
                         producto: d.producto,
                     });
+                    if (stockAntes != null) {
+                        await (0, stock_bebida_1.cerrarStockMenuSiNoMovioTx)(tx, d.producto, d.cantidad, stockAntes);
+                    }
                 }
                 await tx.pedidoHistorial.deleteMany({ where: { idPedido } });
                 const anexasLiberadas = await this.liberarMesasAnexasDePedidoTx(tx, idPedido);
@@ -2701,6 +2716,7 @@ let PedidosService = class PedidosService {
         }
         if (cancelados > 0) {
             this.gateway.emitConfigActualizada('mesas');
+            this.gateway.emitConfigActualizada('menu');
         }
         let fechaLabel = luxon_1.DateTime.now().setZone('America/Bogota').toFormat('yyyy-LL-dd');
         if (fecha) {
@@ -5202,6 +5218,7 @@ let PedidosService = class PedidosService {
             this.inventarioDeduccion.obtenerConfig(pedido.idRestaurante),
         ]);
         await this.prisma.$transaction(async (tx) => {
+            const stockAntes = await (0, stock_bebida_1.leerStockMenuControladoTx)(tx, producto);
             await (0, stock_bebida_1.descontarStockBebidaTx)(tx, producto, dto.cantidad);
             const d = await tx.detallePedido.create({
                 data: {
@@ -5277,6 +5294,9 @@ let PedidosService = class PedidosService {
                 ],
                 idUsuario,
             });
+            if (stockAntes != null) {
+                await (0, stock_bebida_1.cerrarStockMenuSiNoMovioTx)(tx, producto, -dto.cantidad, stockAntes);
+            }
             if (debeAutoEmpaque) {
                 const emp = await tx.producto.findFirst({
                     where: { esEmpacable: true, activo: true },
@@ -5347,6 +5367,7 @@ let PedidosService = class PedidosService {
         });
         await this.notificarCompaneroModificoPedido(pedido, idUsuario, lineasAgregadas, 'agregado');
         this.emit(idPedido, pedido.idMesa, pedido.idUsuario, pedido.idRestaurante);
+        this.gateway.emitConfigActualizada('menu', pedido.idRestaurante);
         return this.obtenerPorIdTrasEscritura(idPedido, pedido.idRestaurante, {
             consolidar: false,
         });
@@ -5393,7 +5414,11 @@ let PedidosService = class PedidosService {
                 cantidad: cantidadCombo,
             });
             const invLineas = [];
+            const stockAntesCombo = new Map();
             for (const comp of ordenados) {
+                const antesComp = await (0, stock_bebida_1.leerStockMenuControladoTx)(tx, comp);
+                if (antesComp != null)
+                    stockAntesCombo.set(comp.idProducto, antesComp);
                 await (0, stock_bebida_1.descontarStockBebidaTx)(tx, comp, cantidadCombo);
                 const hijo = await tx.detallePedido.create({
                     data: {
@@ -5455,6 +5480,12 @@ let PedidosService = class PedidosService {
                     idUsuario,
                 });
             }
+            for (const comp of ordenados) {
+                const antesComp = stockAntesCombo.get(comp.idProducto);
+                if (antesComp == null)
+                    continue;
+                await (0, stock_bebida_1.cerrarStockMenuSiNoMovioTx)(tx, comp, -cantidadCombo, antesComp);
+            }
             await tx.pedidoHistorial.create({
                 data: {
                     idPedido,
@@ -5493,6 +5524,7 @@ let PedidosService = class PedidosService {
         });
         await this.notificarCompaneroModificoPedido(pedido, idUsuario, lineasAgregadas, 'agregado');
         this.emit(idPedido, pedido.idMesa, pedido.idUsuario, pedido.idRestaurante);
+        this.gateway.emitConfigActualizada('menu', pedido.idRestaurante);
         return this.obtenerPorIdTrasEscritura(idPedido, pedido.idRestaurante, {
             consolidar: false,
         });
@@ -5712,6 +5744,9 @@ let PedidosService = class PedidosService {
         if (!ABIERTOS.includes(det.pedido.estado)) {
             throw new common_1.ConflictException('El pedido no admite cambios en las líneas');
         }
+        if (det.idFactura != null) {
+            throw new common_1.ConflictException('La línea ya fue cobrada');
+        }
         const rolActor = actor.rol.nombre;
         const esAdminActor = rolActor === 'admin' || rolActor === 'superadmin';
         if (det.enviadoCocina &&
@@ -5755,6 +5790,7 @@ let PedidosService = class PedidosService {
         await this.prisma.$transaction(async (tx) => {
             if (hijosCombo.length > 0) {
                 for (const hijo of hijosCombo) {
+                    const stockAntes = await (0, stock_bebida_1.leerStockMenuControladoTx)(tx, hijo.producto);
                     await this.inventarioDeduccion.revertirLineaEnTx(tx, {
                         tenantId: det.pedido.idRestaurante,
                         idPedido: pedidoId,
@@ -5767,9 +5803,13 @@ let PedidosService = class PedidosService {
                         idUsuario,
                     });
                     await (0, stock_bebida_1.reintegrarStockBebidaTx)(tx, hijo.producto, hijo.cantidad);
+                    if (stockAntes != null) {
+                        await (0, stock_bebida_1.cerrarStockMenuSiNoMovioTx)(tx, hijo.producto, hijo.cantidad, stockAntes);
+                    }
                 }
             }
             else {
+                const stockAntes = await (0, stock_bebida_1.leerStockMenuControladoTx)(tx, det.producto);
                 await this.inventarioDeduccion.revertirLineaEnTx(tx, {
                     tenantId: det.pedido.idRestaurante,
                     idPedido: pedidoId,
@@ -5788,6 +5828,9 @@ let PedidosService = class PedidosService {
                     idProductoVariante: det.idProductoVariante,
                     producto: det.producto,
                 });
+                if (stockAntes != null) {
+                    await (0, stock_bebida_1.cerrarStockMenuSiNoMovioTx)(tx, det.producto, det.cantidad, stockAntes);
+                }
             }
             await tx.pedidoHistorial.create({
                 data: {
@@ -5801,6 +5844,7 @@ let PedidosService = class PedidosService {
         });
         await this.notificarCompaneroModificoPedido(det.pedido, idUsuario, [{ nombre_producto: det.producto.nombre, cantidad: det.cantidad }], 'quitado');
         this.emit(pedidoId, mesaId, det.pedido.idUsuario, det.pedido.idRestaurante);
+        this.gateway.emitConfigActualizada('menu', det.pedido.idRestaurante);
         return this.obtenerPorIdTrasEscritura(pedidoId);
     }
     async asignarSubitemsDetalle(idDetalle, dto, actor) {
@@ -5957,6 +6001,9 @@ let PedidosService = class PedidosService {
         if (!ABIERTOS.includes(det.pedido.estado)) {
             throw new common_1.ConflictException('El pedido no admite cambios en las líneas');
         }
+        if (det.idFactura != null) {
+            throw new common_1.ConflictException('La línea ya fue cobrada');
+        }
         if ((0, mazorca_linea_pedido_1.esDetalleMazorcaAcompanamiento)(det.producto)) {
             throw new common_1.BadRequestException('La cantidad de mazorcas se ajusta con el número de comensales');
         }
@@ -6018,6 +6065,7 @@ let PedidosService = class PedidosService {
             });
             const invCfg = await this.inventarioDeduccion.obtenerConfig(det.pedido.idRestaurante);
             await this.prisma.$transaction(async (tx) => {
+                const stockAntes = await (0, stock_bebida_1.leerStockMenuControladoTx)(tx, det.producto);
                 await (0, stock_bebida_1.descontarStockBebidaTx)(tx, det.producto, delta);
                 const nuevo = await tx.detallePedido.create({
                     data: {
@@ -6053,6 +6101,9 @@ let PedidosService = class PedidosService {
                     ],
                     idUsuario,
                 });
+                if (stockAntes != null) {
+                    await (0, stock_bebida_1.cerrarStockMenuSiNoMovioTx)(tx, det.producto, -delta, stockAntes);
+                }
                 for (const h of hijosEmpaque) {
                     await tx.detallePedido.create({
                         data: {
@@ -6087,6 +6138,7 @@ let PedidosService = class PedidosService {
             });
             await this.notificarCompaneroModificoPedido(det.pedido, idUsuario, [{ nombre_producto: det.producto.nombre, cantidad: delta }], 'agregado');
             this.emit(det.pedido.idPedido, det.pedido.idMesa, det.pedido.idUsuario, det.pedido.idRestaurante);
+            this.gateway.emitConfigActualizada('menu', det.pedido.idRestaurante);
             return this.obtenerPorIdTrasEscritura(det.pedido.idPedido);
         }
         if (cantidad > det.cantidad) {
@@ -6111,6 +6163,7 @@ let PedidosService = class PedidosService {
             })
             : [];
         await this.prisma.$transaction(async (tx) => {
+            const stockAntes = await (0, stock_bebida_1.leerStockMenuControladoTx)(tx, det.producto);
             await (0, stock_bebida_1.ajustarStockBebidaTx)(tx, det.producto, cantidad - det.cantidad);
             const delta = cantidad - det.cantidad;
             if (delta > 0) {
@@ -6141,6 +6194,9 @@ let PedidosService = class PedidosService {
                 deltaCantidad: cantidad - det.cantidad,
                 idUsuario,
             });
+            if (stockAntes != null) {
+                await (0, stock_bebida_1.cerrarStockMenuSiNoMovioTx)(tx, det.producto, det.cantidad - cantidad, stockAntes);
+            }
             await tx.detallePedido.update({
                 where: { idDetalle },
                 data: { cantidad },
@@ -6178,6 +6234,7 @@ let PedidosService = class PedidosService {
             });
         });
         this.emit(det.pedido.idPedido, det.pedido.idMesa, det.pedido.idUsuario, det.pedido.idRestaurante);
+        this.gateway.emitConfigActualizada('menu', det.pedido.idRestaurante);
         return this.obtenerPorIdTrasEscritura(det.pedido.idPedido, det.pedido.idRestaurante, {
             consolidar: false,
         });
@@ -8615,6 +8672,18 @@ let PedidosService = class PedidosService {
                 precio_unitario: Number(d.precioUnitario),
             }));
             for (const d of pendientesTx) {
+                const stockAntes = await (0, stock_bebida_1.leerStockMenuControladoTx)(tx, d.producto);
+                await this.inventarioDeduccion.revertirLineaEnTx(tx, {
+                    tenantId: pedido.idRestaurante,
+                    idPedido,
+                    linea: {
+                        id_detalle_pedido: d.idDetalle,
+                        id_producto: d.idProducto,
+                        cantidad: d.cantidad,
+                        nombre_producto: d.producto.nombre,
+                    },
+                    idUsuario: actor.idUsuario,
+                });
                 await (0, stock_bebida_1.reintegrarStockBebidaTx)(tx, d.producto, d.cantidad);
                 await (0, stock_retail_1.reintegrarStockRetailTx)(tx, {
                     cantidad: d.cantidad,
@@ -8622,6 +8691,9 @@ let PedidosService = class PedidosService {
                     idProductoVariante: d.idProductoVariante,
                     producto: d.producto,
                 });
+                if (stockAntes != null) {
+                    await (0, stock_bebida_1.cerrarStockMenuSiNoMovioTx)(tx, d.producto, d.cantidad, stockAntes);
+                }
                 await tx.detPersonalizacion.deleteMany({
                     where: { idDetalle: d.idDetalle },
                 });
@@ -8655,6 +8727,7 @@ let PedidosService = class PedidosService {
             }
         });
         this.emit(idPedido, idMesaPedido, pedido.idUsuario, pedido.idRestaurante);
+        this.gateway.emitConfigActualizada('menu', pedido.idRestaurante);
         return this.obtenerPorIdTrasEscritura(idPedido);
     }
     async assertPuedeCerrarConAnulacion(actor) {
@@ -9000,6 +9073,18 @@ let PedidosService = class PedidosService {
                 include: { producto: { include: { categoria: true } } },
             });
             for (const d of detalles) {
+                const stockAntes = await (0, stock_bebida_1.leerStockMenuControladoTx)(tx, d.producto);
+                await this.inventarioDeduccion.revertirLineaEnTx(tx, {
+                    tenantId: pedido.idRestaurante,
+                    idPedido,
+                    linea: {
+                        id_detalle_pedido: d.idDetalle,
+                        id_producto: d.idProducto,
+                        cantidad: d.cantidad,
+                        nombre_producto: d.producto.nombre,
+                    },
+                    idUsuario: actor?.idUsuario,
+                });
                 await (0, stock_bebida_1.reintegrarStockBebidaTx)(tx, d.producto, d.cantidad);
                 await (0, stock_retail_1.reintegrarStockRetailTx)(tx, {
                     cantidad: d.cantidad,
@@ -9007,6 +9092,9 @@ let PedidosService = class PedidosService {
                     idProductoVariante: d.idProductoVariante,
                     producto: d.producto,
                 });
+                if (stockAntes != null) {
+                    await (0, stock_bebida_1.cerrarStockMenuSiNoMovioTx)(tx, d.producto, d.cantidad, stockAntes);
+                }
             }
             await tx.pedido.delete({ where: { idPedido } });
             const abiertosRest = await tx.pedido.count({
@@ -9020,6 +9108,7 @@ let PedidosService = class PedidosService {
             }
         });
         this.emit(idPedido, pedido.idMesa, pedido.idUsuario, pedido.idRestaurante);
+        this.gateway.emitConfigActualizada('menu', pedido.idRestaurante);
         return { ok: true };
     }
     async agruparMesa(idPedido, dto, actor) {

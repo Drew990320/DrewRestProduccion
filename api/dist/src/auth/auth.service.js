@@ -48,6 +48,8 @@ const core_1 = require("@nestjs/core");
 const jwt_1 = require("@nestjs/jwt");
 const bcrypt = __importStar(require("bcrypt"));
 const crypto_1 = require("crypto");
+const luxon_1 = require("luxon");
+const fecha_bogota_db_1 = require("../common/fecha-bogota-db");
 const mail_service_1 = require("../mail/mail.service");
 const pedidos_service_1 = require("../pedidos/pedidos.service");
 const prisma_service_1 = require("../prisma/prisma.service");
@@ -276,7 +278,12 @@ let AuthService = class AuthService {
         });
         return rows.map((u) => {
             const { nombre, apellido } = (0, usuario_display_1.nombreUsuarioPublico)(u.nombre, u.apellido, u.rol.nombre);
-            return { id: u.idUsuario, nombre, apellido };
+            return {
+                id: u.idUsuario,
+                nombre,
+                apellido,
+                requiere_pin_personal: Boolean(u.pinPersonalHash?.trim()),
+            };
         });
     }
     async loginConPin(dto) {
@@ -296,8 +303,145 @@ let AuthService = class AuthService {
         if (!user) {
             throw new common_1.UnauthorizedException('PIN o usuario inválido');
         }
+        const personalHash = user.pinPersonalHash?.trim();
+        if (personalHash) {
+            const personal = dto.pin_personal?.trim() ?? '';
+            const okPersonal = /^\d{4}$/.test(personal) && (await bcrypt.compare(personal, personalHash));
+            if (!okPersonal) {
+                throw new common_1.UnauthorizedException('PIN de tu cuenta incorrecto');
+            }
+        }
         await (0, tenant_access_1.assertTenantAccessForUser)(this.prisma, user);
         return this.issueSession(user);
+    }
+    async resumenCuenta(actor) {
+        const user = await this.prisma.usuario.findUnique({
+            where: { idUsuario: actor.idUsuario },
+            select: {
+                idUsuario: true,
+                idRestaurante: true,
+                pinPersonalHash: true,
+                mostrarContadorPropinas: true,
+            },
+        });
+        if (!user) {
+            throw new common_1.UnauthorizedException('Sesión inválida');
+        }
+        const stats = await this.statsCuentaMesero(user.idUsuario, user.idRestaurante);
+        return {
+            pin_personal_definido: Boolean(user.pinPersonalHash?.trim()),
+            mostrar_contador_propinas: user.mostrarContadorPropinas,
+            ...stats,
+        };
+    }
+    async definirPinPersonal(actor, pin) {
+        const limpio = (pin ?? '').trim();
+        if (limpio && !/^\d{4}$/.test(limpio)) {
+            throw new common_1.BadRequestException('El PIN debe tener 4 dígitos');
+        }
+        if (limpio) {
+            const cfg = await this.prisma.configRestaurante.findUnique({
+                where: { idRestaurante: actor.idRestaurante },
+                select: { loginPinHash: true },
+            });
+            const hashLocal = cfg?.loginPinHash?.trim();
+            if (hashLocal && (await bcrypt.compare(limpio, hashLocal))) {
+                throw new common_1.BadRequestException('Ese PIN es el del local. Elige otro para tu cuenta.');
+            }
+        }
+        await this.prisma.usuario.update({
+            where: { idUsuario: actor.idUsuario },
+            data: { pinPersonalHash: limpio ? await bcrypt.hash(limpio, 10) : null },
+        });
+        return this.resumenCuenta(actor);
+    }
+    async definirContadorPropinas(actor, mostrar) {
+        await this.prisma.usuario.update({
+            where: { idUsuario: actor.idUsuario },
+            data: { mostrarContadorPropinas: mostrar },
+        });
+        return this.resumenCuenta(actor);
+    }
+    async anotarPropinaPersonal(actor, monto) {
+        const limpio = Math.round(monto);
+        if (!Number.isFinite(limpio) || limpio < 1 || limpio > 5_000_000) {
+            throw new common_1.BadRequestException('Indica un monto de propina válido');
+        }
+        const { date } = (0, fecha_bogota_db_1.fechaBogotaDb)();
+        await this.prisma.propinaPersonalMesero.create({
+            data: {
+                idUsuario: actor.idUsuario,
+                idRestaurante: actor.idRestaurante,
+                fecha: date,
+                monto: limpio,
+            },
+        });
+        return this.resumenCuenta(actor);
+    }
+    async quitarPropinaPersonal(actor, idPropina) {
+        const row = await this.prisma.propinaPersonalMesero.findFirst({
+            where: { idPropina, idUsuario: actor.idUsuario },
+        });
+        if (!row) {
+            throw new common_1.NotFoundException('Esa propina ya no está');
+        }
+        await this.prisma.propinaPersonalMesero.delete({ where: { idPropina } });
+        return this.resumenCuenta(actor);
+    }
+    async statsCuentaMesero(idUsuario, idRestaurante) {
+        const hoy = luxon_1.DateTime.now().setZone('America/Bogota');
+        const desde = hoy.minus({ days: 29 }).startOf('day');
+        const hoyKey = hoy.toFormat('yyyy-LL-dd');
+        const pedidos = await this.prisma.pedido.findMany({
+            where: {
+                idUsuario,
+                idRestaurante,
+                modoServicio: 'en_mesa',
+                origenAutoservicio: false,
+                creadoEn: { gte: desde.toJSDate() },
+            },
+            select: {
+                idMesa: true,
+                creadoEn: true,
+                mesasAnexas: { select: { idMesa: true } },
+            },
+        });
+        const porDia = new Map();
+        for (const p of pedidos) {
+            const dia = luxon_1.DateTime.fromJSDate(p.creadoEn, { zone: 'utc' })
+                .setZone('America/Bogota')
+                .toFormat('yyyy-LL-dd');
+            let mesas = porDia.get(dia);
+            if (!mesas) {
+                mesas = new Set();
+                porDia.set(dia, mesas);
+            }
+            mesas.add(p.idMesa);
+            for (const anexa of p.mesasAnexas)
+                mesas.add(anexa.idMesa);
+        }
+        const cuentas = [...porDia.values()].map((s) => s.size);
+        const promedio = cuentas.length === 0
+            ? null
+            : Math.round((cuentas.reduce((a, b) => a + b, 0) / cuentas.length) * 10) / 10;
+        const { date } = (0, fecha_bogota_db_1.fechaBogotaDb)();
+        const notas = await this.prisma.propinaPersonalMesero.findMany({
+            where: { idUsuario, idRestaurante, fecha: date },
+            orderBy: { idPropina: 'desc' },
+            select: { idPropina: true, monto: true },
+        });
+        const propinas = notas.map((n) => ({
+            id: n.idPropina,
+            monto: Math.round(Number(n.monto)),
+        }));
+        return {
+            promedio_mesas: promedio,
+            mesas_hoy: porDia.get(hoyKey)?.size ?? 0,
+            dias_con_mesas: porDia.size,
+            propinas_hoy: propinas.reduce((s, n) => s + n.monto, 0),
+            propinas_conteo_hoy: propinas.length,
+            propinas,
+        };
     }
     async iniciarSesionAutoservicio(dto) {
         const tenantId = dto?.tenant_slug?.trim()

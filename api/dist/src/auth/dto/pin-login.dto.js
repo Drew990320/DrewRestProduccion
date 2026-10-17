@@ -31,6 +31,7 @@ __decorate([
 class PinLoginDto {
     pin;
     user_id;
+    pin_personal;
     tenant_slug;
 }
 exports.PinLoginDto = PinLoginDto;
@@ -45,6 +46,12 @@ __decorate([
     (0, class_validator_1.Min)(1),
     __metadata("design:type", Number)
 ], PinLoginDto.prototype, "user_id", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.Matches)(/^\d{4}$/, { message: 'El PIN debe tener 4 dígitos' }),
+    __metadata("design:type", String)
+], PinLoginDto.prototype, "pin_personal", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),

@@ -286,8 +286,23 @@ let ProductosService = class ProductosService {
         if (!esMazorca && !created.esCuotaPendienteReparto) {
             await this.menuActivo.asegurarProductoEnMenuDefault(created.idProducto, created.precio, tenantId);
         }
+        let producto = created;
+        if (created.controlStock && !created.usaProduccionPorciones && !created.esCombo) {
+            await this.recursos.vincularStockMenuAlKardex({
+                idProducto: created.idProducto,
+                nombre: created.nombre,
+                stock: created.stockDisponible,
+                tenantId,
+                esBebida: Boolean(created.categoria.esBebida),
+                costo: created.precioCosto != null ? Number(created.precioCosto) : null,
+            });
+            producto = await this.prisma.producto.findUniqueOrThrow({
+                where: { idProducto: created.idProducto },
+                include: { categoria: { select: { nombre: true, esBebida: true, codigoMenu: true } } },
+            });
+        }
         this.gateway.emitConfigActualizada('menu', tenantId);
-        return mapProducto(created);
+        return mapProducto(producto);
     }
     async actualizar(idProducto, dto, tenantId = tenant_constants_1.DEFAULT_TENANT_ID, actor) {
         const existing = await this.prisma.producto.findFirst({
@@ -478,8 +493,25 @@ let ProductosService = class ProductosService {
             dto.id_categoria !== existing.idCategoria) {
             await (0, limpiar_reglas_impresion_cocina_1.limpiarReglasImpresionPorProducto)(this.prisma, idProducto, tenantId);
         }
+        let guardado = updated;
+        if (updated.controlStock && !updated.usaProduccionPorciones && !updated.esCombo) {
+            await this.recursos.vincularStockMenuAlKardex({
+                idProducto,
+                nombre: updated.nombre,
+                stock: updated.stockDisponible,
+                stockAnterior: existing.stockDisponible,
+                tenantId,
+                esBebida: Boolean(updated.categoria?.esBebida),
+                costo: updated.precioCosto != null ? Number(updated.precioCosto) : null,
+                idUsuario: actor?.idUsuario,
+            });
+            guardado = await this.prisma.producto.findUniqueOrThrow({
+                where: { idProducto },
+                include: { categoria: { select: { nombre: true, esBebida: true, codigoMenu: true } } },
+            });
+        }
         this.gateway.emitConfigActualizada('menu', tenantId);
-        return mapProducto(updated);
+        return mapProducto(guardado);
     }
     async ingresoStockRapido(idProducto, dto, tenantId = tenant_constants_1.DEFAULT_TENANT_ID, idUsuario) {
         const cantidad = Math.round(Number(dto.cantidad));

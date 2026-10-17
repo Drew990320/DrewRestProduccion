@@ -55,7 +55,9 @@ let InventarioRecetaService = class InventarioRecetaService {
                     idRestaurante: tenantId,
                     ...(lineas ? { idRecurso: { in: [...idsRec] } } : {}),
                 },
-                include: { presentaciones: { select: { nombre: true, factor: true } } },
+                include: {
+                    presentaciones: { select: { nombre: true, factor: true, costoUltimo: true } },
+                },
             }),
         ]);
         const mapArt = new Map();
@@ -71,6 +73,11 @@ let InventarioRecetaService = class InventarioRecetaService {
                 id_articulo: r.idRecurso,
                 unidad_stock: r.unidad,
                 costo_unitario: Number(r.costo),
+                presentaciones: r.presentaciones.map((p) => ({
+                    nombre: p.nombre,
+                    factor: Number(p.factor),
+                    costo: p.costoUltimo != null ? Number(p.costoUltimo) : null,
+                })),
                 conversiones: (0, inventario_unidades_1.conversionesDePresentaciones)(r.unidad, r.presentaciones.map((p) => ({ nombre: p.nombre, factor: Number(p.factor) }))),
             });
         }
@@ -298,7 +305,9 @@ let InventarioRecetaService = class InventarioRecetaService {
                 if (id == null)
                     return false;
                 const art = mapArt.get(id);
-                return art == null || !(art.costo_unitario != null && art.costo_unitario > 0);
+                if (art == null)
+                    return true;
+                return !((0, inventario_receta_1.costoUnitarioEnStock)(art, l.unidad) > 0);
             });
             return {
                 id_receta: row.idReceta,
@@ -364,13 +373,26 @@ let InventarioRecetaService = class InventarioRecetaService {
             if (l.id_recurso != null) {
                 const rec = await this.prisma.recurso.findFirst({
                     where: { idRecurso: l.id_recurso, idRestaurante: tenantId },
-                    include: { presentaciones: { select: { nombre: true, factor: true } } },
+                    include: {
+                        presentaciones: { select: { nombre: true, factor: true, costoUltimo: true } },
+                    },
                 });
                 if (!rec) {
                     throw new common_1.BadRequestException(`Recurso ${l.id_recurso} no encontrado`);
                 }
-                if (!l.opcional && !(Number(rec.costo) > 0)) {
-                    throw new common_1.BadRequestException(`El recurso «${rec.nombre}» no tiene precio/costo de compra. Registra una compra o define su costo antes de usarlo en la receta.`);
+                const presentaciones = rec.presentaciones.map((p) => ({
+                    nombre: p.nombre,
+                    factor: Number(p.factor),
+                    costo: p.costoUltimo != null ? Number(p.costoUltimo) : null,
+                }));
+                if (!l.opcional &&
+                    !((0, inventario_receta_1.costoUnitarioEnStock)({
+                        id_articulo: rec.idRecurso,
+                        unidad_stock: rec.unidad,
+                        costo_unitario: Number(rec.costo),
+                        presentaciones,
+                    }, l.unidad) > 0)) {
+                    throw new common_1.BadRequestException(`«${rec.nombre}» no tiene costo. Indica el precio de la presentación que usa la receta, por ejemplo la caja, o el costo del artículo.`);
                 }
                 validarUnidad(l.unidad, rec.unidad, rec.nombre, (0, inventario_unidades_1.conversionesDePresentaciones)(rec.unidad, rec.presentaciones.map((p) => ({ nombre: p.nombre, factor: Number(p.factor) }))));
             }

@@ -15,16 +15,16 @@ function esAccionRecorrido(actionId) {
 }
 /** Etiquetas reales de la barra lateral / inferior (AppNavBar). */
 const NAV_MESERO = {
-    bodyTablet: 'Barra izquierda: «Mesas», «Pedidos», «Cocina» y «Cuenta» (último ítem). Si el local usa mostrador o para llevar, también verás «Mostrador» y «Para llevar»; con permiso, «Ayuda».',
-    bodyMovil: 'Barra inferior con las mismas etiquetas: «Mesas», «Pedidos», «Cocina» y «Cuenta».',
-    buscarTablet: 'Columna izquierda de íconos con etiqueta debajo de cada uno',
-    buscarMovil: 'Barra inferior fija con ícono y nombre en cada botón',
+    bodyTablet: 'Grupo Operación, a la izquierda: «Mesas», «Pedidos» y «Cuenta». Si el local los tiene activos verás «Mostrador» (en la barra compacta, «Barra»), «Pedidos para llevar», «Autoservicio» y «Ayuda». Con tienda aparece «Ventas». Cocina es otra barra: la usa quien tiene el rol de cocina.',
+    bodyMovil: 'Las mismas entradas van en la barra inferior. «Cuenta» es el último ítem de Operación.',
+    buscarTablet: 'Columna izquierda, bajo el título OPERACIÓN',
+    buscarMovil: 'Barra inferior fija, con ícono y nombre en cada botón',
 };
 const NAV_ADMIN = {
-    bodyTablet: 'Barra izquierda: «Mesas», «Pedidos», «Cocina», «Caja», «Inventario», «Contabilidad» y «Más».',
-    bodyMovil: 'Barra inferior con las mismas entradas; «Más» abre el menú de administración.',
-    buscarTablet: 'Columna izquierda de íconos',
-    buscarMovil: 'Barra inferior con «Más» al final (admin)',
+    bodyTablet: 'A la izquierda: «Mesas», «Pedidos», «Mostrador», «Pedidos para llevar», «Ayuda», «Resumen» y «Más». Cocina, inventario, contabilidad y el equipo del local están dentro de «Más», agrupados por sección. Con tienda, «Ventas» y «Configuración» van en el grupo Tienda.',
+    bodyMovil: 'La barra inferior repite esas entradas. «Más» abre la administración.',
+    buscarTablet: 'Columna izquierda. «Más» abre el panel de secciones',
+    buscarMovil: 'Barra inferior. «Más» es el acceso a la administración',
 };
 const NAV_CHEF = {
     bodyTablet: 'Barra izquierda: «Cocina» y «Cuenta».',
@@ -221,7 +221,7 @@ exports.HELP_RECORRIDO_ACTIONS = [
         steps: [
             {
                 title: '1. Vista de administrador',
-                body: 'Mismo flujo de salón que un mesero, más «Caja», «Inventario», «Contabilidad» y «Más» para configurar el local.',
+                body: 'El mismo flujo de salón que un mesero, más «Resumen» para el cuadre y «Más» para menú, equipo, inventario y finanzas.',
                 confirmarEntendido: true,
             },
             {
@@ -268,10 +268,10 @@ exports.HELP_RECORRIDO_ACTIONS = [
                 pantalla: 'pedido_menu',
             },
             {
-                title: '9. Resumen diario',
-                body: 'Totales del día, métodos de pago y detalle por pedido.',
-                buscarTablet: '«Caja» en la barra izquierda · columna derecha con acciones de caja',
-                buscarMovil: '«Caja» en la barra inferior',
+                title: '9. Resumen del día',
+                body: '«Resumen» es el cuadre: ventas, métodos de pago y movimientos de caja. El excedente de una transferencia queda aquí como propina de caja. No es la propina que el mesero anota en su cuenta.',
+                buscarTablet: '«Resumen» en la barra izquierda, grupo de gestión',
+                buscarMovil: '«Resumen» en la barra inferior',
                 target: 'nav.caja',
                 listoSi: 'resumen_diario.en_pantalla',
                 pantalla: 'resumen_diario',
@@ -279,42 +279,44 @@ exports.HELP_RECORRIDO_ACTIONS = [
             },
             {
                 title: '10. Menú «Más»',
-                body: 'Configuración del restaurante: menú, mesas, permisos, conexión móvil, etc.',
-                buscar: 'Ítem «Más» al final de la barra de navegación',
+                body: '«Más» agrupa la administración: Operación, Menú, Inventario y finanzas, Equipo y mesas, y Sistema.',
+                buscar: 'Ítem «Más» en la barra de navegación',
                 target: 'nav.mas',
                 listoSi: 'nav.mas_abierto',
                 pantalla: 'nav_mas_abierto',
             },
             {
-                title: '11. Catálogo y promociones',
-                body: 'En el sheet «Más»: «Editar menú», «Categorías y disponibilidad», «Descuentos y promociones».',
-                buscar: 'Lista del menú «Más» con esas tres opciones',
+                title: '11. Menú del local',
+                body: 'Sección Menú: «Menú» (productos y precios), «Menús por franja», «Categorías y disponibilidad» y «Descuentos y promociones».',
+                buscar: '«Más» → Menú',
                 target: 'more.menu_admin',
                 confirmarEntendido: true,
             },
             {
-                title: '12. Mesas y permisos',
-                body: 'En «Más»: «Gestionar mesas», «Lugares de mesas», «Permisos», «Configuración».',
-                buscar: 'Esas entradas en el sheet «Más»',
+                title: '12. Equipo y mesas',
+                body: 'Sección Equipo y mesas: «Usuarios», «Lugares de mesas», «Gestionar mesas», «Permisos» y «Beneficios del personal». En Usuarios creas meseros y cocina, y marcas quién entra al pago de turno.',
+                buscar: '«Más» → Equipo y mesas → Usuarios',
+                target: 'more.usuarios',
                 confirmarEntendido: true,
             },
             {
-                title: '13. Conexión móvil',
-                body: 'QR y URL para que el equipo abra DrewRest en el celular.',
-                buscar: '«Conexión móvil» en el menú «Más»',
+                title: '13. Inventario y finanzas',
+                body: 'Inventario mueve stock. Compras ingresa lotes de vendibles. Contabilidad registra entró, salió, me deben y debo. Ganancias lleva gastos, personal y resultado. Créditos es lo que los clientes deben. Una factura de proveedor no sube el inventario sola.',
+                buscar: '«Más» → Inventario y finanzas',
+                confirmarEntendido: true,
+            },
+            {
+                title: '14. Sistema',
+                body: 'Personalización visual, Configuración del local, Impresoras POS y Conexión móvil (QR para el equipo). La vista previa de tickets, si está activa, está en Operación.',
+                buscar: '«Más» → Sistema → Conexión móvil',
                 target: 'more.conexion',
                 listoSi: 'conexion.en_pantalla',
                 pantalla: 'conexion_movil',
                 confirmarEntendido: true,
             },
             {
-                title: '14. Inventario y tickets',
-                body: '«Inventario» en la nav principal. Vista previa de tickets en «Más» → «Vista previa tickets POS» (modo demo).',
-                confirmarEntendido: true,
-            },
-            {
                 title: '15. Recorrido terminado',
-                body: 'Usa el ícono ? en cada pantalla para guías específicas.',
+                body: 'En cada pantalla el ícono ? abre la guía de ese módulo. El mesero anota sus propinas en Cuenta; el cuadre de caja sigue en Resumen.',
                 confirmarEntendido: true,
             },
         ],

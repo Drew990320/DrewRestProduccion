@@ -51,6 +51,8 @@ export type PresentacionArticulo = Readonly<{
     nombre: string;
     /** Cuántas unidades base trae una presentación. */
     factor: number;
+    /** Precio de una presentación (la caja), no de la unidad base. */
+    costo?: number | null;
 }>;
 /** Las presentaciones de un artículo como reglas de conversión hacia su unidad base. */
 export declare function conversionesDePresentaciones(unidadBase: string, presentaciones: readonly PresentacionArticulo[]): ConversionUnidad[];

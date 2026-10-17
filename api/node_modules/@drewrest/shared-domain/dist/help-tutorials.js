@@ -14,6 +14,10 @@ var help_tutorials_recorrido_2 = require("./help-tutorials-recorrido");
 Object.defineProperty(exports, "idRecorridoCompleto", { enumerable: true, get: function () { return help_tutorials_recorrido_2.idRecorridoCompleto; } });
 Object.defineProperty(exports, "esAccionRecorrido", { enumerable: true, get: function () { return help_tutorials_recorrido_2.esAccionRecorrido; } });
 Object.defineProperty(exports, "HELP_RECORRIDO_ACTIONS", { enumerable: true, get: function () { return help_tutorials_recorrido_2.HELP_RECORRIDO_ACTIONS; } });
+/** Paso de lectura: el coach avanza con «Entendido, siguiente». */
+function guia(title, body, extra) {
+    return { title, body, confirmarEntendido: true, ...extra };
+}
 exports.HELP_TUTORIAL_MODULES = [
     {
         id: 'inicio',
@@ -23,41 +27,65 @@ exports.HELP_TUTORIAL_MODULES = [
         roles: ['mesero', 'chef', 'admin', 'superadmin'],
         routeHints: ['/mesas', '/login', '/superadmin'],
         steps: [
-            {
-                title: 'Bienvenido',
-                body: 'DrewRest organiza el servicio en mesas, pedidos, cocina y caja. La barra inferior (móvil) o lateral (tablet) te lleva a cada zona según tu rol.',
-                tip: 'En pantallas anchas el menú queda fijo a la izquierda para más espacio de trabajo.',
-            },
-            {
-                title: 'Tu cuenta',
-                body: 'Abre «Más» o «Cuenta» para cerrar sesión o acceder a opciones de administración si eres admin.',
-            },
-            {
-                title: 'Ayuda siempre disponible',
-                body: 'El botón de ayuda (?) abre tutoriales completos, por módulo o sobre la pantalla donde estés.',
-            },
+            guia('El turno, en cuatro zonas', 'DrewRest separa el servicio: salón (mesas y pedidos), cocina, cobro y administración. Cada rol ve solo la barra que le corresponde.', {
+                tip: 'En pantallas anchas el menú queda fijo a la izquierda. En el teléfono va abajo.',
+            }),
+            guia('La barra de tu rol', 'Mesero: Mesas, Pedidos y Cuenta. Si el local los usa, también Mostrador (en la barra compacta, Barra), Pedidos para llevar, Autoservicio y Ayuda. Administrador: lo mismo, más Resumen y Más. Cocina: la cola y Cuenta.', {
+                bodyTablet: 'A la izquierda, bajo OPERACIÓN. El administrador cierra con Resumen y Más. Cocina no comparte esa barra: tiene la suya.',
+                bodyMovil: 'Las mismas entradas van en la barra inferior. Cuenta (mesero o cocina) o Más (administrador) es el acceso personal o de gestión.',
+                buscarTablet: 'Columna izquierda, título OPERACIÓN',
+                buscarMovil: 'Barra inferior fija',
+            }),
+            guia('Cuenta del mesero', 'En Cuenta el mesero ve su promedio de mesas, define un PIN solo suyo y, si lo enciende, anota las propinas que le entran. Ese registro no mueve la caja.', {
+                buscar: 'Ítem «Cuenta» al final de Operación',
+            }),
+            guia('Ayuda en la pantalla donde estás', 'El ícono ? del encabezado abre este coach: tour completo, el módulo de la pantalla y guías por acción. Puedes pausar y retomar.', {
+                buscar: 'Ícono ? junto a las notificaciones',
+                target: 'help.header',
+                listoSi: 'help.ayuda_visible',
+            }),
+        ],
+    },
+    {
+        id: 'cuenta_mesero',
+        title: 'Tu cuenta',
+        subtitle: 'PIN, mesas y propinas que anotas',
+        icon: 'person-circle-outline',
+        roles: ['mesero'],
+        routeHints: [],
+        steps: [
+            guia('Abre Cuenta', 'Cuenta es tu espacio del turno: nombre, promedio de mesas, propinas y PIN. Cerrar sesión está al pie. La X del encabezado solo cierra el panel.', { buscar: 'Ítem «Cuenta» al final de la barra de Operación' }),
+            guia('Promedio de mesas', 'Promedio cuenta mesas distintas por día, en los últimos 30 días con servicio. Hoy es el número de mesas distintas que llevas en esta fecha. Una mesa agrupada suma las mesas del grupo.', { buscar: 'Tarjetas Promedio y Hoy, bajo tu nombre' }),
+            guia('PIN solo tuyo', 'Definir PIN guarda 4 dígitos distintos al PIN del local. En la pantalla compartida, el PIN del local sigue abriendo la lista; si elegiste tu nombre, después pide el tuyo. En tu celular el correo no cambia.', { buscar: 'Fila «PIN de tu cuenta» → Definir PIN' }),
+            guia('Propinas que te entran', 'Enciende Propinas, escribe el monto y pulsa Anotar. El total del día es la suma de lo que registraste. El basurero quita una anotación. Esto no entra al cuadre de caja: el excedente de una transferencia sigue en Resumen.', {
+                buscar: 'Interruptor Propinas, campo Monto y botón Anotar',
+                tip: 'Si apagas el interruptor, las anotaciones de hoy se conservan.',
+            }),
         ],
     },
     {
         id: 'mesas',
         title: 'Mesas y salón',
-        subtitle: 'Estado, lugares y apertura de pedidos',
+        subtitle: 'Salón, filtros y otros canales',
         icon: 'grid-outline',
         roles: ['mesero', 'admin'],
         routeHints: ['/mesas', '/mesa/'],
         steps: [
-            {
-                title: 'Mapa de mesas',
-                body: 'Cada tarjeta muestra el estado: libre, ocupada, cuenta pedida o lista para cobrar. Toca una mesa para ver el detalle o abrir pedido.',
-            },
-            {
-                title: 'Lugares y comensales',
-                body: 'En mesas compartidas puedes repartir platos por persona o lugar. El admin configura lugares en Administración → Lugares de mesas.',
-            },
-            {
-                title: 'Mostrador y para llevar',
-                body: 'Desde la navegación accede a mostrador o pedidos para llevar cuando el restaurante opera en esos modos.',
-            },
+            guia('Mapa por salón', 'Mesas abre el salón activo (Salón principal, auxiliar, terraza u otro lugar). Cada tarjeta es una mesa: número, estado y tiempo.', {
+                buscar: 'Pestañas de salón arriba de la grilla',
+                pantalla: 'mesas_lista',
+                listoSi: 'mesas.en_mapa',
+            }),
+            guia('Libre, ocupada y filtros', '«Disponible» se puede abrir. Una mesa ocupada muestra el pedido en curso. Todas, Libres y Ocupadas filtran la grilla sin cambiar de salón.', { buscar: 'Botones Todas, Libres y Ocupadas' }),
+            guia('Abrir la mesa', 'Toca la tarjeta Disponible y confirma «Abrir mesa». Entras al pedido de esa mesa. Si ya está ocupada, ves el pedido activo.', {
+                buscar: 'Tarjeta con texto «Disponible»',
+                accion: 'Pulsa la mesa y luego «Abrir mesa».',
+                target: 'mesas.tarjeta_mesa',
+            }),
+            guia('Mostrador, para llevar y ayuda', 'Mostrador (en la barra compacta, Barra) atiende sin mesa. Pedidos para llevar es el canal de recoger. Ayuda, si tienes permiso, muestra pedidos de compañeros para apoyar el pase.', {
+                buscar: 'Esos ítems en la barra de Operación',
+            }),
+            guia('Hoy en sala', 'A la derecha del mapa, el bloque «Hoy en sala» abre con «Resumen»: mesas totales, disponibles, ocupadas y quién tiene mesas abiertas.', { buscar: 'Columna derecha: Hoy en sala → Resumen' }),
         ],
     },
     {
@@ -68,18 +96,22 @@ exports.HELP_TUTORIAL_MODULES = [
         roles: ['mesero', 'admin'],
         routeHints: ['/pedido/', '/menu'],
         steps: [
-            {
-                title: 'Agregar productos',
-                body: 'Elige categoría y producto. Algunos platos abren personalización (proteína, acompañamientos, infantil).',
-            },
-            {
-                title: 'Enviar a cocina',
-                body: 'Las líneas nuevas se marcan para cocina. Puedes enviar por tandas; cocina ve prioridad y tiempos.',
-            },
-            {
-                title: 'Transferir o agrupar mesas',
-                body: 'Puedes mover el pedido a otra mesa (libre u ocupada como cuenta separada), o agrupar mesas adicionales al mismo pedido. Separa el grupo antes de enviar a cocina.',
-            },
+            guia('Del pedido al menú', 'En la mesa, «Agregar del menú» abre el catálogo del día. En tablet esa acción está en la columna PEDIDO; en el teléfono, en la fila de íconos.', {
+                buscarTablet: 'Columna derecha «PEDIDO» → Agregar del menú',
+                buscarMovil: 'Fila de íconos del pedido → Agregar del menú',
+                target: 'mesa.accion_menu',
+            }),
+            guia('Agregar con el +', 'Elige la categoría y pulsa + en el producto. El plato entra al pedido al instante. Combos y platos con reparto abren un paso corto antes de sumar.', {
+                buscar: 'Chips de categoría y botón + del producto',
+                target: 'pedido.agregar_rapido',
+                pantalla: 'pedido_menu',
+            }),
+            guia('Notas para cocina', 'El ícono de nota, o «Notas a cocina» en la línea ya agregada, sirve para omitir un ingrediente o dejar una indicación. Se puede editar antes de pasar a cocina.', { buscar: 'Ícono de nota en el producto, o la línea ya pedida' }),
+            guia('Pasar a cocina', '«Pasar a cocina» envía la tanda pendiente. La comanda sale sin precios. Puedes mandar por partes: primero entradas, luego el resto. Hace falta el permiso Enviar a cocina.', {
+                buscar: 'Botón «Pasar a cocina» en PEDIDO o en la fila de íconos',
+                target: 'mesa.accion_cocina',
+            }),
+            guia('Transferir, agrupar y mis pedidos', 'Transferir mueve el pedido a otra mesa. Agrupar une mesas libres al mismo pedido; sepáralas antes de cocina si el grupo ya no aplica. «Pedidos» lista tus cuentas abiertas, en orden de llegada.', { buscar: 'Paneles Transferir y Agrupar, e ítem «Pedidos» en la barra' }),
         ],
     },
     {
@@ -90,46 +122,51 @@ exports.HELP_TUTORIAL_MODULES = [
         roles: ['chef', 'admin'],
         routeHints: ['/cocina'],
         steps: [
-            {
-                title: 'Cola de comandas',
-                body: 'Los pedidos activos aparecen ordenados por llegada y prioridad. Marca listo cuando el plato sale.',
-            },
-            {
-                title: 'Prioridad automática',
-                body: 'El sistema puede subir prioridad según proteína o reglas del restaurante (configurable en admin).',
-            },
-            {
-                title: 'Llamar mesero',
-                body: 'Usa el botón flotante en cocina para avisar al mesero asignado cuando necesites apoyo en el pase.',
-            },
+            guia('Cola de comandas', 'Cocina muestra los platos enviados, ordenados por llegada y prioridad. Cada línea indica mesa y lo que hay que preparar.', {
+                buscar: 'Pantalla Cocina',
+                pantalla: 'cocina',
+                irARuta: '/(app)/cocina',
+                listoSi: 'cocina.en_pantalla',
+            }),
+            guia('Marcar listo', 'Cuando el plato está en el pase, márcalo listo para recoger. El mesero lo ve en sus pedidos y en Ayuda.', { buscar: 'Botón «Marcar listo para recoger» en la línea' }),
+            guia('Llamar al mesero', '«Llamar mesero» avisa a quien tiene la mesa. En tablet está en la columna Cocina; en el teléfono, en la fila superior.', {
+                buscarTablet: 'Columna derecha «Cocina»',
+                buscarMovil: 'Fila superior: Actualizar cola y Llamar mesero',
+            }),
+            guia('Prioridad', 'El local puede subir la prioridad por hora, por reglas del plato o solo a mano. Eso se define en Configuración, no en cada comanda.', { buscar: 'Más → Sistema → Configuración, prioridad de cocina' }),
         ],
     },
     {
         id: 'cobro',
         title: 'Cuenta y cobro',
-        subtitle: 'Factura, pagos parciales y cierre',
+        subtitle: 'Cobro, propinas y cuadre',
         icon: 'card-outline',
         roles: ['mesero', 'admin'],
         routeHints: ['/factura', '/resumen-diario'],
         steps: [
-            {
-                title: 'Ver cuenta',
-                body: 'Desde el pedido abre Factura para revisar líneas, descuentos y promociones aplicadas.',
-            },
-            {
-                title: 'Cobro por persona o monto',
-                body: 'Puedes cobrar todo, por comensal o montos parciales. El sistema mantiene saldo pendiente hasta cerrar.',
-            },
-            {
-                title: 'Resumen diario',
-                body: 'Admin revisa ventas del día, movimientos de caja y puede reabrir cobros según permisos.',
-            },
+            guia('Abrir el cobro', 'Con el pedido abierto, «Cobrar» en la navegación del pedido (Mesas, Mesa, Menú, Cobrar) abre la cuenta. También está «Cobrar / facturar» en las acciones del pedido.', {
+                buscar: 'Ítem «Cobrar» en la barra del pedido',
+                target: 'nav.pedido_cobrar',
+            }),
+            guia('Método y confirmación', 'Revisa líneas, descuentos y total. Elige el método de pago y pulsa «Confirmar cobro». Puedes cobrar todo, por persona o un monto parcial; el saldo sigue abierto hasta cerrar.', {
+                buscar: 'Título «Cobrar pedido», métodos de pago y botón verde «Confirmar cobro»',
+                pantalla: 'pedido_factura',
+            }),
+            guia('Dos propinas distintas', 'Si el cliente transfiere de más, ese excedente queda en el cuadre de caja para que Resumen cierre. La propina que le entra al mesero se anota aparte, en su Cuenta. Una no sustituye a la otra.', {
+                tip: 'Apagar el registro de la cuenta no borra lo ya anotado hoy. Solo oculta el espacio.',
+            }),
+            guia('Resumen del día', 'El administrador abre «Resumen» para ver ventas, métodos de pago y movimientos de caja. Ahí se cuadra el efectivo, no la libreta personal del mesero.', {
+                buscar: 'Ítem «Resumen» en la barra del administrador',
+                target: 'nav.caja',
+                pantalla: 'resumen_diario',
+                irARuta: '/(app)/resumen-diario',
+            }),
         ],
     },
     {
         id: 'admin_catalogo',
         title: 'Catálogo',
-        subtitle: 'Menú, categorías y promociones',
+        subtitle: 'Productos, franjas y promociones',
         icon: 'fast-food-outline',
         roles: ['admin'],
         routeHints: [
@@ -138,24 +175,26 @@ exports.HELP_TUTORIAL_MODULES = [
             '/descuentos-promociones',
         ],
         steps: [
-            {
-                title: 'Editar menú',
-                body: 'Crea productos, precios, subítems de cocina y reglas de reparto. Las categorías definen el día de la semana visible.',
-            },
-            {
-                title: 'Categorías y disponibilidad',
-                body: 'Organiza categorías y define qué días aparecen en el menú (ej. menú ejecutivo entre semana).',
-            },
-            {
-                title: 'Descuentos y promociones',
-                body: 'Configura reglas automáticas o etiquetas que el mesero aplica al pedir.',
-            },
+            guia('Productos y precios', 'Más → Menú → Menú. Ahí creas y editas productos, precios y cómo se arman para cocina. Lo que guardas es lo que el mesero ve al pedir.', {
+                buscar: 'Más → sección Menú → Menú',
+                target: 'more.menu_admin',
+                pantalla: 'menu_admin',
+                irARuta: '/(app)/menu-admin',
+                listoSi: 'menu_admin.en_pantalla',
+            }),
+            guia('Cuándo se ve cada categoría', '«Categorías y disponibilidad» define los días en que una categoría sale en el menú. «Menús por franja» cambia la carta según la hora.', {
+                buscar: 'Más → Menú → Categorías y disponibilidad, o Menús por franja',
+            }),
+            guia('Descuentos y promociones', '«Descuentos y promociones» arma reglas que se aplican al pedir o etiquetas que el mesero puede usar. Una promoción automática no es un descuento escrito a mano en la cuenta.', {
+                buscar: 'Más → Menú → Descuentos y promociones',
+                target: 'more.descuentos',
+            }),
         ],
     },
     {
         id: 'admin_operacion',
         title: 'Operación del local',
-        subtitle: 'Mesas, permisos y configuración',
+        subtitle: 'Equipo, mesas y sistema',
         icon: 'settings-outline',
         roles: ['admin'],
         routeHints: [
@@ -171,18 +210,61 @@ exports.HELP_TUTORIAL_MODULES = [
             '/cuentas-por-pagar',
         ],
         steps: [
-            {
-                title: 'Mesas y lugares',
-                body: 'Define mesas físicas, capacidad y lugares virtuales para reparto en mesa larga.',
-            },
-            {
-                title: 'Configuración global',
-                body: 'Empaque para llevar, descuentos, reglas de cocina y módulos activos del restaurante.',
-            },
-            {
-                title: 'Personalización visual',
-                body: 'Logo, colores e iconos del menú. En demo los tickets usan estos logos en la vista previa PDF.',
-            },
+            guia('Más, por secciones', 'Más no es una lista suelta. Operación (cocina y vista previa), Menú, Inventario y finanzas, Equipo y mesas, y Sistema. Entra a la sección del trabajo que vas a hacer.', {
+                buscar: 'Ítem «Más» en la barra',
+                target: 'nav.mas',
+                listoSi: 'nav.mas_abierto',
+                pantalla: 'nav_mas_abierto',
+            }),
+            guia('Equipo', 'Usuarios crea meseros y cocina, cambia la clave y marca «Pago de turno» para quien deba salir en Ganancias → Personal. Permisos decide si pueden agregar, enviar a cocina, cobrar, transferir, agrupar o ayudar a compañeros. Beneficios del personal registra soda, almuerzo y otros descuentos del turno.', {
+                buscar: 'Más → Equipo y mesas → Usuarios',
+                target: 'more.usuarios',
+                pantalla: 'usuarios',
+                irARuta: '/(app)/usuarios',
+                listoSi: 'usuarios.en_pantalla',
+            }),
+            guia('Mesas del local', 'Gestionar mesas define las mesas físicas y su salón. Lugares de mesas arma los puestos para repartir una cuenta larga. Eso no abre un pedido: el pedido se abre en el mapa de Mesas.', { buscar: 'Más → Equipo y mesas → Gestionar mesas' }),
+            guia('Sistema del local', 'Personalización visual cambia logo, colores e íconos. Configuración guarda datos del ticket, PIN del local, módulos activos y prioridad de cocina. Impresoras POS enlaza las impresoras. Conexión móvil muestra el QR para que el equipo entre desde el celular.', {
+                buscar: 'Más → Sistema',
+                target: 'more.configuracion',
+            }),
+        ],
+    },
+    {
+        id: 'finanzas',
+        title: 'Inventario y finanzas',
+        subtitle: 'Stock, caja contable, gastos y deudas',
+        icon: 'wallet-outline',
+        roles: ['admin'],
+        routeHints: [
+            '/recursos',
+            '/inventario',
+            '/compras',
+            '/contabilidad',
+            '/ganancias',
+            '/creditos',
+            '/proveedores',
+            '/cuentas-por-pagar',
+        ],
+        steps: [
+            guia('Cada módulo anota una cosa', 'Inventario mueve unidades. Compras ingresa un lote de producto vendible. Contabilidad anota dinero y deudas en lenguaje de negocio. Ganancias calcula utilidad. Créditos es lo que te deben los clientes. Resumen cuadra la caja del día.', { buscar: 'Más → Inventario y finanzas' }),
+            guia('Inventario y compras', 'En Inventario, «Nuevo artículo» da de alta un insumo. «Entrada de stock» suma lo que llegó; el Kardex guarda el movimiento. Compras es el atajo para un lote de algo que ya vendes en el menú. Una factura de proveedor, en Cuentas por pagar, no sube el stock sola.', {
+                buscar: 'Más → Inventario, o Compras',
+                pantalla: 'inventario',
+                irARuta: '/(app)/recursos',
+                listoSi: 'inventario.en_pantalla',
+                target: 'inventario.agregar_item',
+            }),
+            guia('Contabilidad', 'Registrar movimiento clasifica: entró dinero, salió dinero, me deben, debo, o un ajuste interno. El historial lee esos movimientos. Proveedores y cuentas por pagar viven en el mismo hub.', {
+                buscar: 'Más → Contabilidad → Registrar movimiento',
+                pantalla: 'contabilidad',
+                irARuta: '/(app)/contabilidad',
+                listoSi: 'contabilidad.en_pantalla',
+            }),
+            guia('Ganancias', 'Resultado muestra la utilidad del periodo. Gastos lleva fijos y extras. Personal paga el turno de quien marcaste en Usuarios. Costos es lo que te cuesta cada producto del menú.', {
+                buscar: 'Más → Ganancias → Resultado, Gastos, Personal, Costos',
+            }),
+            guia('Créditos', 'Créditos guarda clientes que pagan después y sus abonos. No es una propina ni un movimiento de caja hasta que el dinero entra.', { buscar: 'Más → Inventario y finanzas → Créditos' }),
         ],
     },
     {
@@ -193,19 +275,14 @@ exports.HELP_TUTORIAL_MODULES = [
         roles: ['admin'],
         routeHints: ['/conexion-movil'],
         steps: [
-            {
-                title: 'Misma red Wi‑Fi',
-                body: 'En el restaurante local, el QR apunta a la IP del servidor en tu red. Los celulares deben estar en la misma Wi‑Fi.',
-            },
-            {
-                title: 'Demo en la nube',
-                body: 'En la demo pública el QR abre el login en internet para que pruebes el flujo móvil sin estar en la LAN del local.',
-                tip: 'Ideal para mostrar el módulo a clientes en el campo.',
-            },
-            {
-                title: 'Copiar enlace',
-                body: 'También puedes copiar la URL y enviarla por chat si el QR no es cómodo en el momento.',
-            },
+            guia('Misma red, o la demo', 'En el local, el QR apunta a la IP del servidor. Los celulares tienen que estar en la misma Wi‑Fi. En la demo pública el QR abre el acceso por internet.', {
+                pantalla: 'conexion_movil',
+                irARuta: '/(app)/conexion-movil',
+                listoSi: 'conexion.en_pantalla',
+                buscar: 'Más → Sistema → Conexión móvil',
+                target: 'more.conexion',
+            }),
+            guia('QR y enlace', 'Muestra el código o copia la URL y mándala por chat. Quien abre el enlace entra al login del turno, con correo o con el PIN del local.', { buscar: 'Código QR y botón para copiar la URL', target: 'conexion.qr' }),
         ],
     },
     {
@@ -216,22 +293,12 @@ exports.HELP_TUTORIAL_MODULES = [
         roles: ['superadmin'],
         routeHints: ['/superadmin'],
         steps: [
-            {
-                title: 'Control de acceso',
-                body: 'Activa o desactiva el restaurante y define fecha límite de licencia. Los usuarios del local no ven este panel.',
-            },
-            {
-                title: 'Modo pruebas',
-                body: 'Desde Resumen diario puedes vaciar el día o cancelar pedidos reabiertos sin contraseña extra de admin.',
-            },
-            {
-                title: 'Purgar datos',
-                body: 'Puedes borrar solo el historial de pedidos (ventas y facturas) sin tocar el menú. En un local de pruebas, el próximo pedido vuelve a ser #1. También hay purgas de menú, inventario, mesas y lugares. Siempre confirma.',
-            },
-            {
-                title: 'Crear equipo',
-                body: 'Desde Equipo del restaurante puedes crear el administrador, cocinero y meseros con contraseña, listos para entregar el local.',
-            },
+            guia('Acceso del local', 'Desde aquí activas o bloqueas el restaurante y la fecha límite de licencia. El equipo del local no ve este panel.', {
+                pantalla: 'superadmin',
+                listoSi: 'superadmin.en_pantalla',
+            }),
+            guia('Equipo inicial', 'En Equipo del restaurante creas administrador, cocina y meseros con su clave, listos para entregar el turno.', { buscar: 'Equipo del restaurante' }),
+            guia('Purgar con cuidado', 'Puedes vaciar historial de pedidos sin tocar el menú, o purgar menú, inventario, mesas y lugares. Cada purga pide confirmación. En un local de pruebas, el siguiente pedido puede volver a empezar en 1.', { buscar: 'Purgar datos' }),
         ],
     },
 ];
@@ -870,6 +937,11 @@ exports.HELP_TUTORIAL_ACTIONS = [
                 buscar: 'Sección «Detalle por mesa y pedido»',
                 accion: 'Expande mesas para ver cobros.',
             },
+            {
+                title: '3. Propina de caja',
+                body: 'El excedente de una transferencia queda en este cuadre. La propina que el mesero anota en Cuenta no entra aquí.',
+                confirmarEntendido: true,
+            },
         ],
     },
     {
@@ -908,7 +980,7 @@ exports.HELP_TUTORIAL_ACTIONS = [
         steps: [
             {
                 title: '1. Abre permisos',
-                buscar: 'Administración → Permisos meseros',
+                buscar: 'Más → Equipo y mesas → Permisos. Grupos: Pedido y cocina, Cobro y anulación, Mesas y equipo.',
             },
             {
                 title: '2. Activa o desactiva',
@@ -936,6 +1008,20 @@ exports.HELP_TUTORIAL_ACTIONS = [
                 buscar: 'Campo de fecha y «Guardar»',
                 accion: 'Opcional: vencimiento de licencia demo.',
             },
+        ],
+    },
+    {
+        id: 'cuenta_del_mesero',
+        title: 'Tu cuenta: PIN y propinas',
+        subtitle: 'Lo que el mesero registra para sí',
+        moduleId: 'cuenta_mesero',
+        roles: ['mesero'],
+        screenIds: ['mesas_lista', 'general'],
+        routeHints: ['/mesas', '/mis-pedidos'],
+        steps: [
+            guia('1. Abre Cuenta', 'Es el último ítem de Operación. Ahí está tu nombre, el promedio de mesas y el acceso a cerrar sesión.', { buscar: 'Barra de Operación → Cuenta' }),
+            guia('2. PIN de tu cuenta', 'Cuatro dígitos distintos al PIN del local. En una pantalla compartida, después de elegir tu nombre se pide este PIN.', { buscar: 'Fila «PIN de tu cuenta»' }),
+            guia('3. Anota una propina', 'Enciende Propinas, escribe el monto y pulsa Anotar. El total es solo lo que registraste. No mueve la caja ni el excedente de transferencia.', { buscar: 'Interruptor Propinas → Monto → Anotar' }),
         ],
     },
     ...help_tutorials_recorrido_1.HELP_RECORRIDO_ACTIONS,

@@ -15,6 +15,7 @@ const common_1 = require("@nestjs/common");
 const inventario_deduccion_1 = require("@drewrest/shared-domain/inventario-deduccion");
 const inventario_comportamiento_1 = require("@drewrest/shared-domain/inventario-comportamiento");
 const inventario_motor_1 = require("@drewrest/shared-domain/inventario-motor");
+const inventario_receta_1 = require("@drewrest/shared-domain/inventario-receta");
 const inventario_unidades_1 = require("@drewrest/shared-domain/inventario-unidades");
 const recurso_comportamiento_1 = require("@drewrest/shared-domain/recurso-comportamiento");
 const recurso_movimientos_1 = require("@drewrest/shared-domain/recurso-movimientos");
@@ -238,6 +239,11 @@ let InventarioDeduccionService = InventarioDeduccionService_1 = class Inventario
             cantidad_minima: this.qty(row.stockMin),
             costo_unitario: Number(row.costo),
             id_producto: row.idProducto ?? undefined,
+            presentaciones: (row.presentaciones ?? []).map((p) => ({
+                nombre: p.nombre,
+                factor: Number(p.factor),
+                costo: p.costoUltimo != null ? Number(p.costoUltimo) : null,
+            })),
             conversiones: (0, inventario_unidades_1.conversionesDePresentaciones)(row.unidad, (row.presentaciones ?? []).map((p) => ({ nombre: p.nombre, factor: Number(p.factor) }))),
         };
     }
@@ -252,7 +258,7 @@ let InventarioDeduccionService = InventarioDeduccionService_1 = class Inventario
                 where: { idRestaurante: tenantId, estado: { not: 'baja' } },
                 include: {
                     categoria: true,
-                    presentaciones: { select: { nombre: true, factor: true } },
+                    presentaciones: { select: { nombre: true, factor: true, costoUltimo: true } },
                 },
             }),
             tx.inventario.findMany({ where: { idRestaurante: tenantId } }),
@@ -332,6 +338,9 @@ let InventarioDeduccionService = InventarioDeduccionService_1 = class Inventario
                 id_producto: a.id_producto,
                 cantidad_minima: a.cantidad_minima,
                 conversiones: a.conversiones ? [...a.conversiones] : undefined,
+                presentaciones: a.presentaciones
+                    ? a.presentaciones.map((p) => ({ nombre: p.nombre, factor: p.factor, costo: p.costo }))
+                    : undefined,
             });
         }
         const comercialPorProductoIds = new Map();
@@ -415,7 +424,7 @@ let InventarioDeduccionService = InventarioDeduccionService_1 = class Inventario
                     where: { idRestaurante: tenantId, idRecurso: { in: ids } },
                     include: {
                         categoria: true,
-                        presentaciones: { select: { nombre: true, factor: true } },
+                        presentaciones: { select: { nombre: true, factor: true, costoUltimo: true } },
                     },
                 })
                 : [];
@@ -452,6 +461,7 @@ let InventarioDeduccionService = InventarioDeduccionService_1 = class Inventario
                 costo_unitario: meta.costo_unitario,
                 id_producto: meta.id_producto,
                 conversiones: meta.conversiones,
+                presentaciones: meta.presentaciones,
             });
         }
         const comercialPorProducto = new Map();
@@ -529,6 +539,10 @@ let InventarioDeduccionService = InventarioDeduccionService_1 = class Inventario
     }
     planificarParaLinea(linea, evento, politica, ctx, idPedido, opts) {
         const receta = ctx.recetaPorProducto.get(linea.id_producto);
+        const general = receta ? (0, inventario_receta_1.recetaIngredienteGeneral)(receta) : null;
+        const politicaLinea = general != null && opts?.controlStock
+            ? { ...politica, evento_receta: politica.evento_comercial }
+            : politica;
         if (receta) {
             const plan = (0, inventario_motor_1.planificarDeduccionReceta)({
                 linea: {
@@ -542,7 +556,7 @@ let InventarioDeduccionService = InventarioDeduccionService_1 = class Inventario
                 recetas: ctx.recetas,
                 conversiones: ctx.conversiones,
                 evento,
-                politica,
+                politica: politicaLinea,
                 id_pedido: idPedido,
                 sustituciones: opts?.sustituciones,
                 reservado: opts?.reservado,
@@ -556,7 +570,7 @@ let InventarioDeduccionService = InventarioDeduccionService_1 = class Inventario
             return plan.movimientos;
         }
         const comercial = ctx.comercialPorProducto.get(linea.id_producto);
-        if (comercial) {
+        if (comercial && opts?.controlStock !== false) {
             return (0, inventario_motor_1.planificarDeduccionVentaComercial)({
                 linea: {
                     id_detalle_pedido: linea.id_detalle_pedido,
@@ -571,6 +585,26 @@ let InventarioDeduccionService = InventarioDeduccionService_1 = class Inventario
             });
         }
         return [];
+    }
+    async flagsMenu(tx, ids) {
+        const unicos = [...new Set(ids.filter((id) => id > 0))];
+        if (!unicos.length)
+            return new Map();
+        const rows = await tx.producto.findMany({
+            where: { idProducto: { in: unicos } },
+            select: {
+                idProducto: true,
+                controlStock: true,
+                categoria: { select: { esBebida: true } },
+            },
+        });
+        return new Map(rows.map((r) => [
+            r.idProducto,
+            {
+                controlStock: r.controlStock,
+                esBebida: Boolean(r.categoria?.esBebida),
+            },
+        ]));
     }
     tipoMovPrisma(tipo) {
         if (tipo === 'consumo_manual')
@@ -666,9 +700,15 @@ let InventarioDeduccionService = InventarioDeduccionService_1 = class Inventario
         const politica = this.politicaDesdeRow(configRow);
         const productIds = input.lineas.map((l) => l.id_producto);
         const ctx = await this.cargarContextoDeduccion(tx, input.tenantId, productIds);
+        const flagsMenu = await this.flagsMenu(tx, productIds);
         const reservado = new Map();
         for (const linea of input.lineas) {
-            const movs = this.planificarParaLinea(linea, input.evento, politica, ctx, input.idPedido, { reservado });
+            const flags = flagsMenu.get(linea.id_producto);
+            const movs = this.planificarParaLinea(linea, input.evento, politica, ctx, input.idPedido, {
+                reservado,
+                controlStock: flags?.controlStock,
+                esBebida: flags?.esBebida,
+            });
             if (!movs.length)
                 continue;
             await this.persistirMovimientos(tx, movs, {
@@ -706,6 +746,7 @@ let InventarioDeduccionService = InventarioDeduccionService_1 = class Inventario
         const ctx = await this.cargarContextoDeduccion(tx, input.tenantId, [
             input.linea.id_producto,
         ]);
+        const flagsLinea = (await this.flagsMenu(tx, [input.linea.id_producto])).get(input.linea.id_producto);
         const eventoComercial = politica.evento_comercial;
         const lineaDelta = {
             ...input.linea,
@@ -713,7 +754,10 @@ let InventarioDeduccionService = InventarioDeduccionService_1 = class Inventario
         };
         const docAdj = `${this.docId(eventoComercial, input.linea.id_detalle_pedido)}:adj:${input.deltaCantidad}`;
         if (input.deltaCantidad > 0) {
-            const movs = this.planificarParaLinea(lineaDelta, eventoComercial, politica, ctx, input.idPedido);
+            const movs = this.planificarParaLinea(lineaDelta, eventoComercial, politica, ctx, input.idPedido, {
+                controlStock: flagsLinea?.controlStock,
+                esBebida: flagsLinea?.esBebida,
+            });
             if (movs.length) {
                 await this.persistirMovimientos(tx, movs, {
                     evento: eventoComercial,
@@ -736,11 +780,15 @@ let InventarioDeduccionService = InventarioDeduccionService_1 = class Inventario
             return;
         }
         const recetaAdj = ctx.recetaPorProducto.get(input.linea.id_producto);
-        const movs = this.planificarParaLinea(lineaDelta, eventoComercial, politica, ctx, input.idPedido, recetaAdj
-            ? {
-                sustituciones: await this.sustitucionesUsadas(tx, input.linea.id_detalle_pedido, recetaAdj, ctx),
-            }
-            : undefined);
+        const movs = this.planificarParaLinea(lineaDelta, eventoComercial, politica, ctx, input.idPedido, {
+            controlStock: flagsLinea?.controlStock,
+            esBebida: flagsLinea?.esBebida,
+            ...(recetaAdj
+                ? {
+                    sustituciones: await this.sustitucionesUsadas(tx, input.linea.id_detalle_pedido, recetaAdj, ctx),
+                }
+                : {}),
+        });
         if (movs.length) {
             await this.persistirMovimientos(tx, movs, {
                 evento: eventoComercial,
@@ -770,6 +818,7 @@ let InventarioDeduccionService = InventarioDeduccionService_1 = class Inventario
         const ctx = await this.cargarContextoDeduccion(tx, input.tenantId, [
             input.linea.id_producto,
         ]);
+        const flagsRev = (await this.flagsMenu(tx, [input.linea.id_producto])).get(input.linea.id_producto);
         const eventos = [
             politica.evento_comercial,
             politica.evento_receta,
@@ -780,7 +829,16 @@ let InventarioDeduccionService = InventarioDeduccionService_1 = class Inventario
             ? await this.sustitucionesUsadas(tx, input.linea.id_detalle_pedido, recetaRev, ctx)
             : undefined;
         for (const evento of [...new Set(eventos)]) {
-            const movs = this.planificarParaLinea(input.linea, evento, politica, ctx, input.idPedido, usadas ? { sustituciones: usadas } : undefined);
+            const movs = this.planificarParaLinea(input.linea, evento, politica, ctx, input.idPedido, usadas
+                ? {
+                    sustituciones: usadas,
+                    controlStock: flagsRev?.controlStock,
+                    esBebida: flagsRev?.esBebida,
+                }
+                : {
+                    controlStock: flagsRev?.controlStock,
+                    esBebida: flagsRev?.esBebida,
+                });
             if (!movs.length)
                 continue;
             await this.persistirMovimientos(tx, movs, {

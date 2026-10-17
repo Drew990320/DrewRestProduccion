@@ -1,10 +1,48 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.recetaIngredienteGeneral = recetaIngredienteGeneral;
+exports.costoUnitarioEnStock = costoUnitarioEnStock;
 exports.consolidarMovimientos = consolidarMovimientos;
 exports.calcularConsumoReceta = calcularConsumoReceta;
 exports.elegirSustitucionesPorStock = elegirSustitucionesPorStock;
 exports.calcularCostoReceta = calcularCostoReceta;
 const inventario_unidades_1 = require("./inventario-unidades");
+/**
+ * Receta de un solo ingrediente (general), con o sin alternos.
+ * Una subreceta o varias líneas es un compuesto: se descuenta al pasar a cocina.
+ */
+function recetaIngredienteGeneral(receta) {
+    const lineas = receta.lineas.filter((l) => !l.opcional);
+    if (lineas.length !== 1)
+        return null;
+    const linea = lineas[0];
+    if (linea.id_subreceta)
+        return null;
+    if (linea.id_articulo == null || !(linea.cantidad > 0))
+        return null;
+    return linea;
+}
+/**
+ * Costo de una unidad de stock. Si la línea está en una presentación con precio
+ * (la caja), usa ese precio repartido en sus unidades. Si el artículo no tiene
+ * costo y solo una presentación lo tiene, usa esa.
+ */
+function costoUnitarioEnStock(art, unidadLinea) {
+    const presentaciones = art.presentaciones ?? [];
+    const unidad = (0, inventario_unidades_1.normalizarUnidad)(unidadLinea);
+    const elegida = presentaciones.find((p) => (0, inventario_unidades_1.normalizarUnidad)(p.nombre) === unidad &&
+        p.factor > 0 &&
+        p.costo != null &&
+        p.costo > 0);
+    if (elegida?.costo != null && elegida.factor > 0)
+        return elegida.costo / elegida.factor;
+    if ((art.costo_unitario ?? 0) > 0)
+        return art.costo_unitario ?? 0;
+    const conPrecio = presentaciones.filter((p) => p.factor > 0 && p.costo != null && p.costo > 0);
+    if (conPrecio.length === 1)
+        return conPrecio[0].costo / conPrecio[0].factor;
+    return art.costo_unitario ?? 0;
+}
 function resolverArticuloLinea(linea, sustitucionElegida) {
     if (sustitucionElegida != null)
         return sustitucionElegida;
@@ -79,7 +117,7 @@ function expandirLinea(linea, porciones, articulos, recetas, conversiones, susti
         return { movimientos, costo, errores };
     }
     const delta = -(0, inventario_unidades_1.redondearInventario)(conv.cantidad);
-    const costoUnit = art.costo_unitario ?? 0;
+    const costoUnit = costoUnitarioEnStock(art, linea.unidad);
     movimientos.push({
         id_articulo: idArt,
         tipo_mov: 'consumo_receta',

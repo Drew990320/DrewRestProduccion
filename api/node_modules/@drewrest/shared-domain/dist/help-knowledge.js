@@ -53,12 +53,12 @@ exports.HELP_KNOWLEDGE_TOPICS = [
         id: 'caja_resumen',
         moduleId: 'cobro',
         title: 'Caja y resumen diario',
-        summary: '«Caja» en la navegación abre el resumen diario: totales, métodos de pago y detalle por pedido del día.',
+        summary: '«Resumen» abre el cuadre del día: totales, métodos de pago y detalle por pedido. El excedente de transferencia queda aquí.',
         screenIds: ['resumen_diario'],
         roles: ['admin'],
         relatedTargetIds: ['nav.caja'],
         faq: [
-            { q: '¿Cómo reviso ventas del día?', a: 'Navegación → Caja (resumen diario).' },
+            { q: '¿Cómo reviso ventas del día?', a: 'Navegación → Resumen.' },
         ],
     },
     {
@@ -101,6 +101,54 @@ exports.HELP_KNOWLEDGE_TOPICS = [
         screenIds: ['cocina'],
         roles: ['chef', 'admin'],
         relatedTargetIds: ['nav.cocina', 'tools.operacion_rail'],
+    },
+    {
+        id: 'propina_cuenta_vs_caja',
+        moduleId: 'cobro',
+        title: 'Propina del mesero y propina de caja',
+        summary: 'La propina de Cuenta la anota el mesero y no mueve la caja. El excedente de una transferencia queda en Resumen para el cuadre.',
+        screenIds: ['resumen_diario', 'mesas_lista'],
+        roles: ['mesero', 'admin'],
+        faq: [
+            {
+                q: '¿Dónde anoto lo que me dejaron de propina?',
+                a: 'En Cuenta, enciende Propinas, escribe el monto y pulsa Anotar.',
+            },
+            {
+                q: '¿El excedente de una transferencia es mi propina?',
+                a: 'No. Ese excedente queda en el cuadre de caja, en Resumen.',
+            },
+        ],
+    },
+    {
+        id: 'equipo_local',
+        moduleId: 'admin_operacion',
+        title: 'Equipo, permisos y mesas',
+        summary: 'Más → Equipo y mesas: Usuarios, Lugares de mesas, Gestionar mesas, Permisos y Beneficios del personal.',
+        screenIds: ['usuarios', 'permisos', 'mesas_admin', 'lugares_mesa', 'meseros_operativos'],
+        roles: ['admin'],
+        relatedTargetIds: ['more.usuarios', 'more.permisos', 'more.mesas_admin'],
+        faq: [
+            {
+                q: '¿Dónde creo un mesero?',
+                a: 'Más → Equipo y mesas → Usuarios. Si cobra turno, activa Pago de turno.',
+            },
+            {
+                q: '¿Por qué un mesero no ve Pasar a cocina?',
+                a: 'Más → Permisos → Pedido y cocina → Enviar a cocina.',
+            },
+        ],
+    },
+    {
+        id: 'ganancias_periodo',
+        moduleId: 'finanzas',
+        title: 'Ganancias del periodo',
+        summary: 'Más → Ganancias: Resultado, Gastos, Personal y Costos. Personal paga a quien tiene Pago de turno en Usuarios.',
+        roles: ['admin'],
+        faq: [
+            { q: '¿Dónde veo la utilidad?', a: 'Más → Ganancias → Resultado.' },
+            { q: '¿Dónde registro un gasto del día?', a: 'Más → Ganancias → Gastos.' },
+        ],
     },
 ];
 function conocimientoPorModulo(moduleId, rol) {

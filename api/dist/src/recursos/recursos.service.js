@@ -155,6 +155,22 @@ let RecursosService = RecursosService_1 = class RecursosService {
             items,
         };
     }
+    costoVigente(rec, propuesto) {
+        const tiposSinPrecioPropio = propuesto == null || !(propuesto > 0);
+        if (!tiposSinPrecioPropio)
+            return propuesto;
+        const costo = Number(rec.costo);
+        if (costo > 0)
+            return costo;
+        const conPrecio = (rec.presentaciones ?? []).filter((p) => Number(p.costoUltimo) > 0 && Number(p.factor) > 0);
+        const fuente = conPrecio.find((p) => p.predeterminada) ?? conPrecio[0];
+        if (fuente?.costoUltimo != null)
+            return Number(fuente.costoUltimo) / Number(fuente.factor);
+        const ref = rec.costoReferencia != null ? Number(rec.costoReferencia) : 0;
+        if (ref > 0)
+            return ref;
+        return propuesto ?? null;
+    }
     qty(v) {
         return (0, inventario_unidades_1.redondearInventario)(Number(v));
     }
@@ -657,7 +673,7 @@ let RecursosService = RecursosService_1 = class RecursosService {
     async aplicarMovimientoTx(tx, idRecurso, tenantId, input) {
         const rec = await tx.recurso.findFirst({
             where: { idRecurso, idRestaurante: tenantId },
-            include: { categoria: true },
+            include: { categoria: true, presentaciones: true },
         });
         if (!rec)
             throw new common_1.NotFoundException('Recurso no encontrado');
@@ -679,16 +695,23 @@ let RecursosService = RecursosService_1 = class RecursosService {
             nuevo = (0, inventario_unidades_1.redondearInventario)(actual + delta);
         }
         const abs = Math.abs(input.cantidad);
-        const costoCompra = input.costo_unitario ?? (rec.costo != null ? Number(rec.costo) : null);
+        const costoGuardado = this.costoVigente(rec, input.costo_unitario);
+        const costoCompra = input.tipo === 'compra'
+            ? input.costo_unitario ?? null
+            : costoGuardado;
         const stockAntes = actual;
         const costoAntes = rec.costo != null ? Number(rec.costo) : 0;
-        const costoPromedio = input.tipo === 'compra' && costoCompra != null
-            ? (0, inventario_costo_1.calcularCostoPromedioPonderado)({
-                stockAnterior: stockAntes,
-                costoAnterior: costoAntes,
-                qtyEntrada: abs,
-                costoEntrada: costoCompra,
-            })
+        const costoPromedio = input.tipo === 'compra' && costoCompra != null && costoCompra > 0
+            ? input.fijar_costo === false && costoAntes > 0
+                ? null
+                : input.fijar_costo === true || costoAntes <= 0
+                    ? costoCompra
+                    : (0, inventario_costo_1.calcularCostoPromedioPonderado)({
+                        stockAnterior: stockAntes,
+                        costoAnterior: costoAntes,
+                        qtyEntrada: abs,
+                        costoEntrada: costoCompra,
+                    })
             : null;
         await tx.movimientoRecurso.create({
             data: {
@@ -726,6 +749,7 @@ let RecursosService = RecursosService_1 = class RecursosService {
             if (rec.idProducto != null) {
                 await (0, recurso_stock_producto_1.syncStockProductoDesdeRecursoTx)(tx, rec.idProducto, tenantId);
             }
+            await this.espejarStockMenuDeRecurso(tx, idRecurso, tenantId, nuevo);
             const min = this.qty(rec.stockMin);
             if (nuevo < actual &&
                 !flags.es_activo_fijo &&
@@ -753,6 +777,207 @@ let RecursosService = RecursosService_1 = class RecursosService {
             stock: nuevo,
             costo_revaluado: input.tipo === 'compra' && costoPromedio != null,
         };
+    }
+    async espejarStockMenuDeRecurso(tx, idRecurso, tenantId, stock) {
+        const lineas = await tx.recetaLinea.findMany({
+            where: {
+                idRecurso,
+                receta: { idRestaurante: tenantId, activa: true },
+            },
+            select: {
+                receta: {
+                    select: {
+                        idProducto: true,
+                        lineas: {
+                            select: { idRecurso: true, idSubreceta: true, opcional: true },
+                        },
+                    },
+                },
+            },
+        });
+        const ids = [];
+        for (const fila of lineas) {
+            const utiles = fila.receta.lineas.filter((l) => !l.opcional);
+            if (utiles.length !== 1 || utiles[0].idSubreceta != null)
+                continue;
+            if (utiles[0].idRecurso !== idRecurso)
+                continue;
+            ids.push(fila.receta.idProducto);
+        }
+        if (!ids.length)
+            return;
+        await tx.producto.updateMany({
+            where: {
+                idProducto: { in: ids },
+                controlStock: true,
+                usaProduccionPorciones: false,
+            },
+            data: { stockDisponible: Math.max(0, Math.floor(stock)) },
+        });
+    }
+    async vincularStockMenuAlKardex(input) {
+        const stock = Math.max(0, Math.round(input.stock));
+        const resultado = await this.prisma.$transaction(async (tx) => {
+            await this.migracion.asegurarCategoriasYUbicaciones(input.tenantId, tx);
+            const receta = await tx.recetaProducto.findFirst({
+                where: { idProducto: input.idProducto, idRestaurante: input.tenantId, activa: true },
+                include: { lineas: true },
+            });
+            const utiles = (receta?.lineas ?? []).filter((l) => !l.opcional);
+            const unica = utiles.length === 1 ? utiles[0] : null;
+            let idRecurso = unica && !unica.idSubreceta ? unica.idRecurso : null;
+            if (idRecurso == null && unica && !unica.idSubreceta && unica.idInventario != null) {
+                const puente = await tx.recurso.findFirst({
+                    where: { idRestaurante: input.tenantId, idInventarioLegacy: unica.idInventario },
+                    select: { idRecurso: true },
+                });
+                idRecurso = puente?.idRecurso ?? null;
+            }
+            const compuesta = utiles.length > 1 || (unica != null && idRecurso == null);
+            if (compuesta) {
+                if (input.stockAnterior != null && input.stockAnterior !== stock) {
+                    await tx.producto.update({
+                        where: { idProducto: input.idProducto },
+                        data: { stockDisponible: input.stockAnterior },
+                    });
+                }
+                return 'receta';
+            }
+            if (idRecurso == null) {
+                const propio = await tx.recurso.findFirst({
+                    where: {
+                        idProducto: input.idProducto,
+                        idRestaurante: input.tenantId,
+                        estado: { not: 'baja' },
+                    },
+                    select: { idRecurso: true },
+                });
+                idRecurso = propio?.idRecurso ?? null;
+            }
+            if (idRecurso == null) {
+                const porCodigo = await tx.recurso.findFirst({
+                    where: {
+                        idRestaurante: input.tenantId,
+                        codigo: `MENU-${input.idProducto}`,
+                        estado: { not: 'baja' },
+                    },
+                    select: { idRecurso: true },
+                });
+                if (porCodigo) {
+                    idRecurso = porCodigo.idRecurso;
+                    await tx.recurso.update({
+                        where: { idRecurso },
+                        data: {
+                            idProducto: input.idProducto,
+                            nombre: input.nombre.trim().slice(0, 150),
+                        },
+                    });
+                }
+            }
+            if (idRecurso == null) {
+                const codigoCat = input.esBebida ? 'bebidas' : 'productos_venta';
+                const cat = await tx.categoriaRecurso.findFirst({
+                    where: { idRestaurante: input.tenantId, codigo: codigoCat },
+                });
+                if (!cat) {
+                    throw new common_1.BadRequestException('No está la categoría de productos en el kardex');
+                }
+                const costo = input.costo != null && input.costo > 0 ? input.costo : 0;
+                const creado = await tx.recurso.create({
+                    data: {
+                        idRestaurante: input.tenantId,
+                        codigo: `MENU-${input.idProducto}`,
+                        nombre: input.nombre.trim().slice(0, 150),
+                        idCategoria: cat.idCategoria,
+                        unidad: 'u',
+                        costo,
+                        costoReferencia: costo > 0 ? costo : null,
+                        stock: 0,
+                        idProducto: input.idProducto,
+                        estado: 'activo',
+                    },
+                    select: { idRecurso: true },
+                });
+                idRecurso = creado.idRecurso;
+            }
+            else {
+                await tx.recurso.updateMany({
+                    where: {
+                        idRecurso,
+                        idProducto: input.idProducto,
+                        codigo: { startsWith: 'MENU-' },
+                    },
+                    data: { nombre: input.nombre.trim().slice(0, 150) },
+                });
+            }
+            if (!receta) {
+                const art = await tx.recurso.findUnique({
+                    where: { idRecurso },
+                    select: { unidad: true },
+                });
+                const creada = await tx.recetaProducto.create({
+                    data: {
+                        idRestaurante: input.tenantId,
+                        idProducto: input.idProducto,
+                        activa: true,
+                    },
+                    select: { idReceta: true },
+                });
+                await tx.recetaLinea.create({
+                    data: {
+                        idReceta: creada.idReceta,
+                        idRecurso,
+                        cantidad: 1,
+                        unidad: art?.unidad || 'u',
+                        orden: 0,
+                    },
+                });
+            }
+            else if (utiles.length === 0) {
+                const art = await tx.recurso.findUnique({
+                    where: { idRecurso },
+                    select: { unidad: true },
+                });
+                await tx.recetaLinea.create({
+                    data: {
+                        idReceta: receta.idReceta,
+                        idRecurso,
+                        cantidad: 1,
+                        unidad: art?.unidad || 'u',
+                        orden: 0,
+                    },
+                });
+            }
+            const actual = await tx.recurso.findUnique({
+                where: { idRecurso },
+                select: { stock: true },
+            });
+            const hay = this.qty(actual?.stock ?? 0);
+            const delta = (0, inventario_unidades_1.redondearInventario)(stock - hay);
+            if (delta !== 0) {
+                await this.aplicarMovimientoTx(tx, idRecurso, input.tenantId, {
+                    tipo: 'ajuste',
+                    cantidad: delta,
+                    observacion: 'Stock del menú',
+                    modulo_origen: 'menu',
+                    id_usuario: input.idUsuario,
+                });
+            }
+            const fresco = await tx.recurso.findUnique({
+                where: { idRecurso },
+                select: { stock: true },
+            });
+            await tx.producto.update({
+                where: { idProducto: input.idProducto },
+                data: {
+                    controlStock: true,
+                    stockDisponible: Math.max(0, Math.floor(this.qty(fresco?.stock ?? stock))),
+                },
+            });
+            return 'kardex';
+        });
+        (0, deduccion_contexto_cache_1.invalidateDeduccionEstructuraCache)(input.tenantId);
+        return resultado;
     }
     async sumarStockVendibleSiVinculado(idProducto, cantidad, tenantId, idUsuario) {
         const rec = await this.prisma.recurso.findFirst({
@@ -841,6 +1066,7 @@ let RecursosService = RecursosService_1 = class RecursosService {
                 id_ubicacion_destino: dto.id_ubicacion_destino,
                 id_usuario: idUsuario,
                 modulo_origen: 'recursos',
+                ...(tipo === 'compra' ? { fijar_costo: fijarPrecio } : {}),
             });
         });
         let recetas_recalculadas = RECETAS_VACIAS;
@@ -908,6 +1134,9 @@ let RecursosService = RecursosService_1 = class RecursosService {
             });
         });
         (0, deduccion_contexto_cache_1.invalidateDeduccionEstructuraCache)(tenantId);
+        if (dto.costo_ultimo != null && dto.costo_ultimo > 0) {
+            await this.recetasCosto.recalcularPorRecurso(idRecurso, tenantId);
+        }
         return this.obtenerRecurso(idRecurso, tenantId);
     }
     async actualizarPresentacion(idRecurso, idPresentacion, dto, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
@@ -933,6 +1162,12 @@ let RecursosService = RecursosService_1 = class RecursosService {
             ? await this.lineasRecetaConUnidad(idRecurso, actual.nombre)
             : [];
         const cambiaFactor = dto.factor != null && dto.factor !== Number(actual.factor);
+        const costoNuevo = dto.costo_ultimo === undefined
+            ? Number(actual.costoUltimo ?? 0)
+            : dto.costo_ultimo != null && dto.costo_ultimo > 0
+                ? dto.costo_ultimo
+                : 0;
+        const cambiaCosto = dto.costo_ultimo !== undefined && costoNuevo !== Number(actual.costoUltimo ?? 0);
         await this.prisma.$transaction(async (tx) => {
             if (dto.predeterminada) {
                 await tx.presentacionRecurso.updateMany({
@@ -962,12 +1197,41 @@ let RecursosService = RecursosService_1 = class RecursosService {
             }
         });
         (0, deduccion_contexto_cache_1.invalidateDeduccionEstructuraCache)(tenantId);
-        if (cambiaFactor) {
-            const usadas = await this.lineasRecetaConUnidad(idRecurso, renombra ? nombre : actual.nombre);
-            if (usadas.length)
-                await this.recetasCosto.recalcularPorRecurso(idRecurso, tenantId);
+        if (cambiaFactor || cambiaCosto) {
+            await this.recetasCosto.recalcularPorRecurso(idRecurso, tenantId);
         }
         return this.obtenerRecurso(idRecurso, tenantId);
+    }
+    async eliminarRecurso(idRecurso, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
+        const rec = await this.prisma.recurso.findFirst({
+            where: { idRecurso, idRestaurante: tenantId },
+            select: { idRecurso: true, nombre: true, stock: true, estado: true },
+        });
+        if (!rec || rec.estado === 'baja')
+            throw new common_1.NotFoundException('Artículo no encontrado');
+        const lineas = await this.prisma.recetaLinea.findMany({
+            where: { idRecurso, receta: { idRestaurante: tenantId } },
+            select: { receta: { select: { producto: { select: { nombre: true } } } } },
+        });
+        if (lineas.length) {
+            const productos = [
+                ...new Set(lineas.map((l) => l.receta.producto?.nombre).filter(Boolean)),
+            ].join(', ');
+            throw new common_1.BadRequestException(`La receta de ${productos || 'algunos productos'} usa «${rec.nombre}». Cámbiala antes de eliminar el artículo.`);
+        }
+        const movimientos = await this.prisma.movimientoRecurso.count({ where: { idRecurso } });
+        const conHistorial = movimientos > 0 || this.qty(rec.stock) !== 0;
+        if (conHistorial) {
+            await this.prisma.recurso.update({
+                where: { idRecurso },
+                data: { estado: 'baja' },
+            });
+        }
+        else {
+            await this.prisma.recurso.delete({ where: { idRecurso } });
+        }
+        (0, deduccion_contexto_cache_1.invalidateDeduccionEstructuraCache)(tenantId);
+        return { ok: true, modo: conHistorial ? 'baja' : 'borrado' };
     }
     async eliminarPresentacion(idRecurso, idPresentacion, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
         const p = await this.prisma.presentacionRecurso.findFirst({
@@ -1224,7 +1488,7 @@ let RecursosService = RecursosService_1 = class RecursosService {
         await this.migracion.migrarSiNecesario(tenantId);
         const recursos = await this.prisma.recurso.findMany({
             where: { idRestaurante: tenantId },
-            include: { categoria: true },
+            include: { categoria: true, presentaciones: true },
         });
         const mapped = recursos.map((r) => this.mapRecurso(r));
         const ahora = new Date();
@@ -1242,11 +1506,13 @@ let RecursosService = RecursosService_1 = class RecursosService {
         });
         let valorStock = 0;
         let valorActivos = 0;
-        for (const r of mapped) {
-            const val = r.stock * r.costo;
-            if (r.categoria?.es_activo_fijo)
+        for (const r of recursos) {
+            const unit = this.costoVigente(r, null) ?? 0;
+            const val = this.qty(r.stock) * unit;
+            const flags = (0, recurso_comportamiento_1.flagsDesdeCategoriaRow)((r.categoria ?? {}));
+            if (flags.es_activo_fijo)
                 valorActivos += val;
-            else if (r.categoria?.controla_stock)
+            else if (flags.controla_stock)
                 valorStock += val;
         }
         const recientes = await this.listarMovimientos(tenantId, { limite: 15 });
