@@ -286,15 +286,97 @@ function partirNivelSuperior(texto) {
 }
 
 const SENTENCIA_ADITIVA_RE =
-  /^(CREATE\s+(TYPE|TABLE|INDEX|UNIQUE\s+INDEX)\b|ALTER\s+TYPE\s+"[^"]+"\s+ADD\s+VALUE\b)/i;
+  /^(CREATE\s+(TYPE|TABLE|INDEX|UNIQUE\s+INDEX|SEQUENCE)\b|ALTER\s+TYPE\s+"[^"]+"\s+ADD\s+VALUE\b|ALTER\s+SEQUENCE\s+\S+\s+OWNED\s+BY\b)/i;
 
-/** Solo lo que agrega estructura; nunca DROP, cambios de tipo ni renombres. */
+/** Agrega estructura o defaults (autoincrementos); nunca DROP, cambios de tipo ni renombres. */
 function soloParteAditiva(sentencia) {
   if (SENTENCIA_ADITIVA_RE.test(sentencia)) return sentencia;
   const m = sentencia.match(/^ALTER\s+TABLE\s+("[^"]+")\s+([\s\S]+)$/i);
   if (!m) return null;
-  const adds = partirNivelSuperior(m[2]).filter((c) => /^ADD\s+(COLUMN|CONSTRAINT)\b/i.test(c));
+  const adds = partirNivelSuperior(m[2]).filter(
+    (c) =>
+      /^ADD\s+(COLUMN|CONSTRAINT)\b/i.test(c) ||
+      /^ALTER\s+COLUMN\s+"[^"]+"\s+SET\s+DEFAULT\b/i.test(c),
+  );
   return adds.length ? `ALTER TABLE ${m[1]} ${adds.join(', ')}` : null;
+}
+
+/**
+ * Secuencias por debajo del MAX(id) de su tabla (BD restauradas o secuencias recreadas)
+ * hacen fallar inserts con PK duplicada. Solo sube secuencias, nunca las baja.
+ */
+async function alinearSecuencias() {
+  const prisma = new PrismaClient();
+  try {
+    const rows = await prisma.$queryRawUnsafe(`
+      SELECT t.relname AS tabla, a.attname AS columna,
+             pg_get_serial_sequence(format('%I.%I', n.nspname, t.relname), a.attname) AS seq
+      FROM pg_attribute a
+      JOIN pg_class t ON t.oid = a.attrelid
+      JOIN pg_namespace n ON n.oid = t.relnamespace
+      WHERE n.nspname = 'public' AND t.relkind = 'r' AND a.attnum > 0 AND NOT a.attisdropped
+        AND pg_get_serial_sequence(format('%I.%I', n.nspname, t.relname), a.attname) IS NOT NULL
+    `);
+    let ajustadas = 0;
+    for (const r of rows) {
+      const [{ maxv }] = await prisma.$queryRawUnsafe(
+        `SELECT COALESCE(MAX("${r.columna}"), 0)::bigint AS maxv FROM "${r.tabla}"`,
+      );
+      const [{ lastv, called }] = await prisma.$queryRawUnsafe(
+        `SELECT last_value::bigint AS lastv, is_called AS called FROM ${r.seq}`,
+      );
+      const siguiente = called ? BigInt(lastv) + 1n : BigInt(lastv);
+      if (BigInt(maxv) >= siguiente) {
+        await prisma.$queryRawUnsafe(`SELECT setval('${r.seq}', ${BigInt(maxv)}, true)`);
+        ajustadas += 1;
+        console.log(`  secuencia ${r.seq} → ${maxv}`);
+      }
+    }
+    if (ajustadas > 0) console.log(`Secuencias alineadas: ${ajustadas}.`);
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+/** Columnas id_* enteras sin default y sin secuencia: autoincremento perdido. */
+async function hayAutoincrementosPerdidos() {
+  const prisma = new PrismaClient();
+  try {
+    const rows = await prisma.$queryRawUnsafe(`
+      SELECT count(*)::int AS n
+      FROM information_schema.table_constraints tc
+      JOIN information_schema.key_column_usage k
+        ON k.constraint_name = tc.constraint_name AND k.table_schema = tc.table_schema
+      JOIN information_schema.columns c
+        ON c.table_schema = k.table_schema AND c.table_name = k.table_name AND c.column_name = k.column_name
+      WHERE tc.table_schema = 'public' AND tc.constraint_type = 'PRIMARY KEY'
+        AND c.data_type IN ('integer', 'bigint') AND c.column_default IS NULL
+        AND c.is_identity = 'NO'
+        AND k.table_name <> '_prisma_migrations'
+        AND NOT EXISTS (
+          SELECT 1
+          FROM information_schema.table_constraints fk
+          JOIN information_schema.key_column_usage fkc
+            ON fkc.constraint_name = fk.constraint_name AND fkc.table_schema = fk.table_schema
+          WHERE fk.constraint_type = 'FOREIGN KEY' AND fk.table_schema = 'public'
+            AND fkc.table_name = k.table_name AND fkc.column_name = k.column_name
+        )
+    `);
+    const sinPk = await prisma.$queryRawUnsafe(`
+      SELECT count(*)::int AS n
+      FROM information_schema.tables t
+      WHERE t.table_schema = 'public' AND t.table_type = 'BASE TABLE'
+        AND t.table_name <> '_prisma_migrations'
+        AND NOT EXISTS (
+          SELECT 1 FROM information_schema.table_constraints tc
+          WHERE tc.table_schema = t.table_schema AND tc.table_name = t.table_name
+            AND tc.constraint_type = 'PRIMARY KEY'
+        )
+    `);
+    return Number(rows[0]?.n ?? 0) + Number(sinPk[0]?.n ?? 0) > 0;
+  } finally {
+    await prisma.$disconnect();
+  }
 }
 
 /**
@@ -303,11 +385,18 @@ function soloParteAditiva(sentencia) {
  * y vuelve a ejecutar deploy. No borra ni altera columnas existentes.
  */
 async function sincronizarEsquemaAditivo() {
-  const url = process.env.DATABASE_URL;
-  if (!url) throw new Error('DATABASE_URL no definido; no se puede sincronizar el esquema.');
-
   console.log('');
   console.log('Historial de migraciones inconsistente con la BD: sincronizando solo estructura faltante...');
+  await agregarEstructuraFaltante();
+  await repairMigrationHistory();
+  await markAllMigrationsApplied();
+  runPrisma(['migrate', 'deploy'], { inherit: true });
+  reportarDiferenciasEsquema();
+}
+
+async function agregarEstructuraFaltante() {
+  const url = process.env.DATABASE_URL;
+  if (!url) throw new Error('DATABASE_URL no definido; no se puede sincronizar el esquema.');
   const script = runPrisma([
     'migrate',
     'diff',
@@ -336,11 +425,7 @@ async function sincronizarEsquemaAditivo() {
     await prisma.$disconnect();
   }
   console.log(`Estructura agregada: ${aplicadas} de ${sentencias.length} sentencia(s) aditivas.`);
-
-  await repairMigrationHistory();
-  await markAllMigrationsApplied();
-  runPrisma(['migrate', 'deploy'], { inherit: true });
-  reportarDiferenciasEsquema();
+  await alinearSecuencias();
 }
 
 function bootstrapFreshDatabase() {
@@ -453,6 +538,13 @@ async function main() {
   }
 
   await tryMigrateDeploy();
+  if (await hayAutoincrementosPerdidos()) {
+    console.log('');
+    console.log('Tablas sin llave primaria o sin autoincremento: agregando estructura faltante...');
+    await agregarEstructuraFaltante();
+  } else {
+    await alinearSecuencias();
+  }
   await ensureImpresoraMacEsperada();
 }
 
