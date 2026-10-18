@@ -233,6 +233,116 @@ function reportarDiferenciasEsquema() {
   }
 }
 
+/** Sentencias del `migrate diff --script`, sin comentarios ni bloques BEGIN/COMMIT (recreación de enums). */
+function sentenciasDelDiff(script) {
+  const out = [];
+  let buf = [];
+  let enBloque = false;
+  for (const raw of String(script).split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line || line.startsWith('--')) continue;
+    if (/^BEGIN;$/i.test(line)) {
+      enBloque = true;
+      continue;
+    }
+    if (/^COMMIT;$/i.test(line)) {
+      enBloque = false;
+      buf = [];
+      continue;
+    }
+    if (enBloque) continue;
+    buf.push(raw);
+    if (line.endsWith(';')) {
+      out.push(buf.join('\n').trim().replace(/;$/, ''));
+      buf = [];
+    }
+  }
+  return out;
+}
+
+function partirNivelSuperior(texto) {
+  const partes = [];
+  let depth = 0;
+  let comilla = null;
+  let actual = '';
+  for (const ch of texto) {
+    if (comilla) {
+      if (ch === comilla) comilla = null;
+    } else if (ch === '"' || ch === "'") {
+      comilla = ch;
+    } else if (ch === '(') {
+      depth += 1;
+    } else if (ch === ')') {
+      depth -= 1;
+    } else if (ch === ',' && depth === 0) {
+      partes.push(actual);
+      actual = '';
+      continue;
+    }
+    actual += ch;
+  }
+  if (actual.trim()) partes.push(actual);
+  return partes.map((p) => p.trim());
+}
+
+const SENTENCIA_ADITIVA_RE =
+  /^(CREATE\s+(TYPE|TABLE|INDEX|UNIQUE\s+INDEX)\b|ALTER\s+TYPE\s+"[^"]+"\s+ADD\s+VALUE\b)/i;
+
+/** Solo lo que agrega estructura; nunca DROP, cambios de tipo ni renombres. */
+function soloParteAditiva(sentencia) {
+  if (SENTENCIA_ADITIVA_RE.test(sentencia)) return sentencia;
+  const m = sentencia.match(/^ALTER\s+TABLE\s+("[^"]+")\s+([\s\S]+)$/i);
+  if (!m) return null;
+  const adds = partirNivelSuperior(m[2]).filter((c) => /^ADD\s+(COLUMN|CONSTRAINT)\b/i.test(c));
+  return adds.length ? `ALTER TABLE ${m[1]} ${adds.join(', ')}` : null;
+}
+
+/**
+ * Último recurso con BD en uso e historial inconsistente (p. ej. faltan PK de tablas antiguas):
+ * agrega lo que falte respecto a schema.prisma, marca todas las migraciones como aplicadas
+ * y vuelve a ejecutar deploy. No borra ni altera columnas existentes.
+ */
+async function sincronizarEsquemaAditivo() {
+  const url = process.env.DATABASE_URL;
+  if (!url) throw new Error('DATABASE_URL no definido; no se puede sincronizar el esquema.');
+
+  console.log('');
+  console.log('Historial de migraciones inconsistente con la BD: sincronizando solo estructura faltante...');
+  const script = runPrisma([
+    'migrate',
+    'diff',
+    '--from-url',
+    url,
+    '--to-schema-datamodel',
+    path.join(apiRoot, 'prisma', 'schema.prisma'),
+    '--script',
+  ]);
+
+  const sentencias = sentenciasDelDiff(script).map(soloParteAditiva).filter(Boolean);
+  const prisma = new PrismaClient();
+  let aplicadas = 0;
+  try {
+    for (const sql of sentencias) {
+      try {
+        await prisma.$executeRawUnsafe(sql);
+        aplicadas += 1;
+        console.log(`  + ${sql.split('\n')[0].slice(0, 140)}`);
+      } catch (err) {
+        const msg = String(err?.meta?.message ?? err?.message ?? err).split('\n')[0];
+        console.log(`  (omitida) ${sql.split('\n')[0].slice(0, 100)} → ${msg.slice(0, 160)}`);
+      }
+    }
+  } finally {
+    await prisma.$disconnect();
+  }
+  console.log(`Estructura agregada: ${aplicadas} de ${sentencias.length} sentencia(s) aditivas.`);
+
+  await repairMigrationHistory();
+  await markAllMigrationsApplied();
+  runPrisma(['migrate', 'deploy'], { inherit: true });
+  reportarDiferenciasEsquema();
+}
+
 function bootstrapFreshDatabase() {
   console.log('');
   console.log('Base vacía o sin esquema base: creando desde schema.prisma (db push)...');
@@ -266,6 +376,11 @@ async function tryMigrateDeploy() {
       } catch (error) {
         const output = `${error.stdout ?? ''}${error.stderr ?? ''}${error.message ?? ''}`;
         const nombre = migracionYaPresenteEnEsquema(output);
+        if (/P3018/.test(output) && !nombre) {
+          process.stdout.write(output);
+          await sincronizarEsquemaAditivo();
+          return;
+        }
         if (!nombre || resueltas.includes(nombre) || resueltas.length >= MAX_MIGRACIONES_RESUELTAS) {
           throw error;
         }
