@@ -49,6 +49,20 @@ function failedMigrationNames(output) {
   return [...names];
 }
 
+/** 42710 tipo/objeto, 42P07 tabla/índice, 42701 columna, 42P06 esquema, 42723 función. */
+const OBJETO_DUPLICADO_RE = /\b(42710|42P07|42701|42P06|42723)\b|already exists|ya existe/i;
+
+/**
+ * P3018 porque los objetos de la migración ya existen: el esquema la tiene aplicada
+ * pero `_prisma_migrations` no (historial desincronizado). Devuelve el nombre o null.
+ */
+function migracionYaPresenteEnEsquema(output) {
+  const text = String(output);
+  if (!/P3018/.test(text) || !OBJETO_DUPLICADO_RE.test(text)) return null;
+  const m = text.match(/Migration name:\s*(\S+)/);
+  return m ? m[1] : null;
+}
+
 function isMissingMigrationsTableError(err) {
   const msg = `${err?.message ?? ''} ${err?.meta?.message ?? ''} ${err?.code ?? ''}`;
   return (
@@ -167,6 +181,58 @@ async function markAllMigrationsApplied() {
   }
 }
 
+async function marcarMigracionAplicada(name) {
+  const prisma = new PrismaClient();
+  try {
+    await prisma.$executeRaw`
+      DELETE FROM "_prisma_migrations"
+      WHERE migration_name = ${name}
+        AND (finished_at IS NULL OR rolled_back_at IS NOT NULL)
+    `;
+    const id = crypto.randomUUID().replace(/-/g, '');
+    const checksum = migrationChecksum(name);
+    await prisma.$executeRaw`
+      INSERT INTO "_prisma_migrations"
+        (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count)
+      SELECT ${id}, ${checksum}, NOW(), ${name}, 'resuelta: objetos ya existían en la BD', NULL, NOW(), 1
+      WHERE NOT EXISTS (
+        SELECT 1 FROM "_prisma_migrations"
+        WHERE migration_name = ${name}
+          AND finished_at IS NOT NULL
+          AND rolled_back_at IS NULL
+      )
+    `;
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+/** Solo informa: diferencias entre la BD y schema.prisma tras resolver historial. */
+function reportarDiferenciasEsquema() {
+  const url = process.env.DATABASE_URL;
+  if (!url) return;
+  try {
+    runPrisma([
+      'migrate',
+      'diff',
+      '--from-url',
+      url,
+      '--to-schema-datamodel',
+      path.join(apiRoot, 'prisma', 'schema.prisma'),
+      '--exit-code',
+    ]);
+    console.log('Esquema verificado: la BD coincide con schema.prisma.');
+  } catch (err) {
+    if (err.status === 2) {
+      const detalle = String(err.stdout ?? '').split('\n').slice(0, 30).join('\n');
+      console.warn('AVISO: la BD difiere de schema.prisma tras resolver el historial:');
+      console.warn(detalle);
+    } else {
+      console.warn(`No se pudo verificar el esquema: ${err.message ?? err}`);
+    }
+  }
+}
+
 function bootstrapFreshDatabase() {
   console.log('');
   console.log('Base vacía o sin esquema base: creando desde schema.prisma (db push)...');
@@ -186,11 +252,34 @@ async function bootstrapFreshDatabaseSafe() {
   return bootstrapFreshDatabase();
 }
 
+const MAX_MIGRACIONES_RESUELTAS = 30;
+
 async function tryMigrateDeploy() {
   await repairMigrationHistory();
+  const resueltas = [];
   try {
-    const output = runPrisma(['migrate', 'deploy']);
-    process.stdout.write(output || '');
+    for (;;) {
+      try {
+        const output = runPrisma(['migrate', 'deploy']);
+        process.stdout.write(output || '');
+        break;
+      } catch (error) {
+        const output = `${error.stdout ?? ''}${error.stderr ?? ''}${error.message ?? ''}`;
+        const nombre = migracionYaPresenteEnEsquema(output);
+        if (!nombre || resueltas.includes(nombre) || resueltas.length >= MAX_MIGRACIONES_RESUELTAS) {
+          throw error;
+        }
+        console.log(
+          `Migración ${nombre}: sus objetos ya existen en la BD; se marca como aplicada en el historial.`,
+        );
+        await marcarMigracionAplicada(nombre);
+        resueltas.push(nombre);
+      }
+    }
+    if (resueltas.length > 0) {
+      console.log(`Historial Prisma sincronizado (${resueltas.length} migración(es) ya presentes).`);
+      reportarDiferenciasEsquema();
+    }
     return;
   } catch (error) {
     const output = `${error.stdout ?? ''}${error.stderr ?? ''}${error.message ?? ''}`;
