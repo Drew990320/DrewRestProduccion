@@ -1270,6 +1270,10 @@ model ConfigVisual {
   menuImagenAltura   String?  @map("menu_imagen_altura") @db.VarChar(20)
   /// contain | cover — ajuste de foto en menú
   menuImagenAjuste   String?  @map("menu_imagen_ajuste") @db.VarChar(20)
+  /// Tono al cambiar el estado de una mesa. Apagado hasta que el restaurante lo active.
+  sonidoMesasActivo  Boolean  @default(false) @map("sonido_mesas_activo")
+  /// campana | timbre | madera | cristal | aviso | cocina | suave | doble | ascenso | eco
+  sonidoMesasId      String   @default("campana") @map("sonido_mesas_id") @db.VarChar(20)
   actualizadoEn      DateTime    @updatedAt @map("actualizado_en")
   restaurante        Restaurante @relation(fields: [idRestaurante], references: [idRestaurante])
 

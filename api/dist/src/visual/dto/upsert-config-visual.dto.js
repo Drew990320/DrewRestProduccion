@@ -33,6 +33,8 @@ class UpsertConfigVisualDto {
     logo_ticket_tamano;
     menu_imagen_altura;
     menu_imagen_ajuste;
+    sonido_mesas_activo;
+    sonido_mesas_id;
 }
 exports.UpsertConfigVisualDto = UpsertConfigVisualDto;
 __decorate([
@@ -162,4 +164,15 @@ __decorate([
     (0, class_validator_1.IsString)(),
     __metadata("design:type", Object)
 ], UpsertConfigVisualDto.prototype, "menu_imagen_ajuste", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], UpsertConfigVisualDto.prototype, "sonido_mesas_activo", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.ValidateIf)((_, v) => v != null && v !== ''),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", Object)
+], UpsertConfigVisualDto.prototype, "sonido_mesas_id", void 0);
 //# sourceMappingURL=upsert-config-visual.dto.js.map

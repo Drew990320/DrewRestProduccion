@@ -87,7 +87,7 @@ export declare const CATEGORIA_MENU_ICON_CATEGORIAS: readonly [{
         readonly label: "Chorizo / salchicha";
     }, {
         readonly id: "food-hot-dog";
-        readonly label: "Perro caliente";
+        readonly label: "Perro caliente / hot dog";
     }];
 }, {
     readonly id: "mariscos";
@@ -126,6 +126,9 @@ export declare const CATEGORIA_MENU_ICON_CATEGORIAS: readonly [{
     }, {
         readonly id: "hamburger";
         readonly label: "Hamburguesa";
+    }, {
+        readonly id: "food-hot-dog";
+        readonly label: "Perro caliente / hot dog";
     }, {
         readonly id: "french-fries";
         readonly label: "Papas fritas";
@@ -569,7 +572,7 @@ export declare const CATEGORIA_MENU_ICON_CATEGORIAS: readonly [{
         readonly label: "Chorizo / salchicha";
     }, {
         readonly id: "food-hot-dog";
-        readonly label: "Perro caliente";
+        readonly label: "Perro caliente / hot dog";
     }];
 }];
 export declare const CATEGORIA_TIENDA_ICON_CATEGORIAS: readonly [{

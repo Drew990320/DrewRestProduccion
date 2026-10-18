@@ -53,6 +53,7 @@ const visual_style_1 = require("@drewrest/shared-domain/visual-style");
 const imagen_visual_1 = require("@drewrest/shared-domain/imagen-visual");
 const mesa_visual_1 = require("@drewrest/shared-domain/mesa-visual");
 const visual_palette_1 = require("@drewrest/shared-domain/visual-palette");
+const sonido_mesa_1 = require("@drewrest/shared-domain/sonido-mesa");
 const tenant_constants_1 = require("../tenant/tenant.constants");
 const prisma_service_1 = require("../prisma/prisma.service");
 const config_restaurante_cache_1 = require("../restaurante/config-restaurante-cache");
@@ -258,6 +259,8 @@ let ConfigVisualService = class ConfigVisualService {
             menu_imagen_ajuste: (0, imagen_visual_1.esMenuImagenAjusteValido)(row.menuImagenAjuste)
                 ? row.menuImagenAjuste
                 : null,
+            sonido_mesas_activo: row.sonidoMesasActivo,
+            sonido_mesas_id: (0, sonido_mesa_1.resolverSonidoMesa)(row.sonidoMesasId),
             logo_login_archivo: row.logoLoginArchivo,
             logo_factura_archivo: row.logoFacturaArchivo,
             logo_ticket_archivo: row.logoTicketArchivo,
@@ -323,6 +326,8 @@ let ConfigVisualService = class ConfigVisualService {
                 logoTicketTamano: null,
                 menuImagenAltura: null,
                 menuImagenAjuste: null,
+                sonidoMesasActivo: false,
+                sonidoMesasId: 'campana',
                 actualizadoEn: new Date(),
             },
         });
@@ -444,6 +449,12 @@ let ConfigVisualService = class ConfigVisualService {
                     : (0, imagen_visual_1.esMenuImagenAjusteValido)(dto.menu_imagen_ajuste)
                         ? dto.menu_imagen_ajuste
                         : null;
+        }
+        if (dto.sonido_mesas_activo !== undefined) {
+            data.sonidoMesasActivo = dto.sonido_mesas_activo === true;
+        }
+        if (dto.sonido_mesas_id !== undefined) {
+            data.sonidoMesasId = (0, sonido_mesa_1.resolverSonidoMesa)(dto.sonido_mesas_id);
         }
         await this.obtenerRow(tenantId);
         const row = await this.prisma.configVisual.update({

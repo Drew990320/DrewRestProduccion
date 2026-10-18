@@ -90,7 +90,7 @@ export declare function seccionesCatalogoIconos(catalogo: CatalogoIconos): ({
         readonly label: "Chorizo / salchicha";
     }, {
         readonly id: "food-hot-dog";
-        readonly label: "Perro caliente";
+        readonly label: "Perro caliente / hot dog";
     }];
 } | {
     readonly id: "mariscos";
@@ -129,6 +129,9 @@ export declare function seccionesCatalogoIconos(catalogo: CatalogoIconos): ({
     }, {
         readonly id: "hamburger";
         readonly label: "Hamburguesa";
+    }, {
+        readonly id: "food-hot-dog";
+        readonly label: "Perro caliente / hot dog";
     }, {
         readonly id: "french-fries";
         readonly label: "Papas fritas";
@@ -572,7 +575,7 @@ export declare function seccionesCatalogoIconos(catalogo: CatalogoIconos): ({
         readonly label: "Chorizo / salchicha";
     }, {
         readonly id: "food-hot-dog";
-        readonly label: "Perro caliente";
+        readonly label: "Perro caliente / hot dog";
     }];
 } | {
     readonly id: "tienda_general";

@@ -89,6 +89,10 @@
                                           "types":  "./dist/mesa-visual.d.ts",
                                           "default":  "./dist/mesa-visual.js"
                                       },
+                    "./sonido-mesa":  {
+                                          "types":  "./dist/sonido-mesa.d.ts",
+                                          "default":  "./dist/sonido-mesa.js"
+                                      },
                     "./mesa-plano":  {
                                          "types":  "./dist/mesa-plano.d.ts",
                                          "default":  "./dist/mesa-plano.js"

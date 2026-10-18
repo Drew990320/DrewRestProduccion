@@ -3997,6 +3997,13 @@ let PedidosService = class PedidosService {
                 mesa: { idTienda: { not: null } },
             },
         }));
+        const pedidosAutoservicioP = (0, tenant_snapshot_cache_1.snapshotTenant)(`pedidos-autoservicio-abiertos:${tenantId}`, SNAPSHOT_RESUMEN_MS, () => this.prisma.pedido.count({
+            where: {
+                idRestaurante: tenantId,
+                origenAutoservicio: true,
+                estado: { in: ABIERTOS },
+            },
+        }));
         const rows = await this.prisma.pedido.findMany({
             where: {
                 idRestaurante: tenantId,
@@ -4060,7 +4067,10 @@ let PedidosService = class PedidosService {
                 }
             }
         }
-        const ventasTiendaAbiertas = await ventasTiendaAbiertasP;
+        const [ventasTiendaAbiertas, pedidosAutoservicio] = await Promise.all([
+            ventasTiendaAbiertasP,
+            pedidosAutoservicioP,
+        ]);
         return {
             pedidos_mostrador: pedidosMostrador,
             pedidos_para_llevar: pedidosParaLlevar,
@@ -4068,6 +4078,7 @@ let PedidosService = class PedidosService {
             platos_para_recoger: platosParaRecoger,
             mazorcas_para_recoger: mazorcasParaRecoger,
             ventas_tienda_abiertas: ventasTiendaAbiertas,
+            pedidos_autoservicio: pedidosAutoservicio,
             mesa_ids: mesaIds,
             pedido_ids: pedidoIds,
         };

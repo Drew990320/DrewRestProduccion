@@ -42,7 +42,7 @@ exports.CATEGORIA_MENU_ICON_CATEGORIAS = [
             { id: 'turkey', label: 'Pavo' },
             { id: 'food-turkey', label: 'Pavo' },
             { id: 'sausage', label: 'Chorizo / salchicha' },
-            { id: 'food-hot-dog', label: 'Perro caliente' },
+            { id: 'food-hot-dog', label: 'Perro caliente / hot dog' },
         ],
     },
     {
@@ -65,6 +65,7 @@ exports.CATEGORIA_MENU_ICON_CATEGORIAS = [
             { id: 'rice', label: 'Arroz' },
             { id: 'taco', label: 'Tacos / mexicano' },
             { id: 'hamburger', label: 'Hamburguesa' },
+            { id: 'food-hot-dog', label: 'Perro caliente / hot dog' },
             { id: 'french-fries', label: 'Papas fritas' },
             { id: 'food-variant', label: 'Empanada / relleno' },
             { id: 'food-croissant', label: 'Croissant / wrap' },
@@ -254,7 +255,7 @@ exports.CATEGORIA_MENU_ICON_CATEGORIAS = [
             { id: 'egg-outline', label: 'Huevos' },
             { id: 'french-fries', label: 'Papas fritas' },
             { id: 'sausage', label: 'Chorizo / salchicha' },
-            { id: 'food-hot-dog', label: 'Perro caliente' },
+            { id: 'food-hot-dog', label: 'Perro caliente / hot dog' },
         ],
     },
 ];
