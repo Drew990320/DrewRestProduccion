@@ -93,10 +93,6 @@ async function buildFacturaEscPos(ticket, charWidthOrOpts = escpos_utils_1.DEFAU
         ['Pedido', `#${ticket.id_pedido}`],
         ['Fecha', (0, ticket_layout_1.fechaHoraTicket)(ticket.emitida_en)],
         flags.mesero && [ticket.tienda ? 'Vendedor' : 'Mesero', ticket.mesero],
-        flags.comensales &&
-            !ticket.tienda &&
-            !ticket.es_autoservicio_caja &&
-            ticket.modo_servicio !== 'para_llevar' && ['Comensales', ticket.num_comensales],
         ticket.modo_servicio === 'para_llevar' && ['Servicio', 'Para llevar'],
     ]);
     await printer.println(sep);
@@ -148,7 +144,7 @@ async function buildFacturaEscPos(ticket, charWidthOrOpts = escpos_utils_1.DEFAU
         await printer.println((0, escpos_utils_1.lineaConPrecio)(ticket.etiqueta_impoconsumo ?? 'Impoconsumo', (0, escpos_utils_1.formatCopEscPos)(ticket.monto_impoconsumo), w));
     }
     await (0, ticket_layout_1.separadorDoble)(printer, opts);
-    await (0, ticket_layout_1.filaMontoGrande)(printer, opts, 'TOTAL', (0, escpos_utils_1.formatCopEscPos)(ticket.total));
+    await (0, ticket_layout_1.filaMontoGrande)(printer, opts, 'TOTAL', (0, escpos_utils_1.formatCopEscPos)(ticket.total), true);
     await (0, ticket_layout_1.separadorDoble)(printer, opts);
     if (flags.metodoPago) {
         if (ticket.es_precuenta) {
@@ -216,12 +212,13 @@ async function buildFacturaEscPos(ticket, charWidthOrOpts = escpos_utils_1.DEFAU
             await (0, ticket_layout_1.filaMontoGrande)(printer, opts, 'VUELTO', (0, escpos_utils_1.formatCopEscPos)(v.vuelto_total));
         }
     }
-    if (flags.propina && esTicketParaCliente(ticket) && !ticket.tienda) {
+    const conPropina = flags.propina && esTicketParaCliente(ticket) && !ticket.tienda;
+    if (conPropina || flags.gracias)
         await printer.println(sep);
+    if (conPropina) {
         await (0, ticket_layout_1.parrafoCentrado)(printer, opts, (0, restaurant_branding_1.restaurantTextoPropinaTicket)(), true);
     }
     if (flags.gracias) {
-        await printer.println(sep);
         await (0, ticket_layout_1.parrafoCentrado)(printer, opts, (0, restaurant_branding_1.restaurantTextoGraciasTicket)());
     }
     if (ticketEsClienteOPrecuenta(ticket)) {

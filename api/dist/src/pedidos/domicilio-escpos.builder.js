@@ -24,7 +24,6 @@ async function buildDomicilioEscPos(ticket, charWidthOrOpts = escpos_utils_1.DEF
     const opts = (0, escpos_utils_1.resolveEscPosTicketOpts)(charWidthOrOpts);
     const printer = (0, escpos_utils_1.createEscPosPrinter)(opts.charWidth);
     const w = opts.charWidth;
-    const rule = '='.repeat(w);
     const blank = '_'.repeat(Math.max(10, w - 2));
     const usarBlanco = ticket.forzar_blanco;
     const nombre = usarBlanco ? '' : (ticket.cliente_nombre ?? '').trim();
@@ -46,9 +45,9 @@ async function buildDomicilioEscPos(ticket, charWidthOrOpts = escpos_utils_1.DEF
     await printCampo(printer, w, 'TELÉFONO', tel, blank);
     await printCampo(printer, w, 'DIRECCIÓN', dir, blank, dir ? 0 : 1);
     await printer.alignCenter();
-    await printer.println(rule);
+    await (0, ticket_layout_1.separadorDoble)(printer, opts);
     await printer.println('* * *');
-    await printer.println(rule);
+    await (0, ticket_layout_1.separadorDoble)(printer, opts);
     await (0, escpos_utils_1.applyEscPosTicketEnd)(printer, opts);
     return (0, escpos_utils_1.bufferFromPrinter)(printer);
 }

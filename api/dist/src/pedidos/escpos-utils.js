@@ -36,6 +36,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.printEncabezadoDrewRest = exports.DREWTECH_CREDITO_LINEA = exports.DEFAULT_ESC_POS_WIDTH = exports.DREWTECH_TELEFONO_LABEL = exports.DREWTECH_TELEFONO = void 0;
 exports.resolveEscPosTicketOpts = resolveEscPosTicketOpts;
 exports.applyEscPosFontSize = applyEscPosFontSize;
+exports.conLetraTitulo = conLetraTitulo;
 exports.buildEscPosBeepBuffer = buildEscPosBeepBuffer;
 exports.applyEscPosBeep = applyEscPosBeep;
 exports.applyEscPosTicketStart = applyEscPosTicketStart;
@@ -128,8 +129,14 @@ function fijarFontBPersistente(printer) {
         };
     }
 }
+const TAMANO_CUERPO = Symbol('escposTamanoCuerpo');
+function tamanoCuerpo(printer) {
+    const t = printer[TAMANO_CUERPO];
+    return t ?? 1;
+}
 async function applyEscPosFontSize(printer, tamanoFuente) {
     const t = (0, impresora_papel_ancho_1.normalizarTamanoFuente)(tamanoFuente, 1);
+    printer[TAMANO_CUERPO] = t;
     if (t <= 0) {
         fijarFontBPersistente(printer);
         if (typeof printer.setTextNormal === 'function') {
@@ -156,6 +163,19 @@ async function applyEscPosFontSize(printer, tamanoFuente) {
     }
     if (typeof printer.setTextNormal === 'function') {
         await printer.setTextNormal();
+    }
+}
+async function conLetraTitulo(printer, charWidth, escribir) {
+    const cuerpo = tamanoCuerpo(printer);
+    await printer.setTextSize(1, cuerpo >= 3 ? 2 : 1);
+    await printer.bold(true);
+    try {
+        await escribir(Math.max(8, Math.floor(charWidth / 2)));
+    }
+    finally {
+        await printer.bold(false);
+        await printer.setTextSize(0, 0);
+        await applyEscPosFontSize(printer, cuerpo);
     }
 }
 function beepEscPosHabilitado() {
@@ -194,6 +214,9 @@ async function applyEscPosTicketStart(printer, opts) {
     }
     await applyEscPosFontSize(printer, opts.tamanoFuente);
 }
+const ESC_POS_AVANCE_ANTES_CORTE = Buffer.from([0x1b, 0x4a, 34]);
+const ESC_POS_CORTE = Buffer.from([0x1d, 0x56, 0x00]);
+const ESC_POS_INIT = Buffer.from([0x1b, 0x40]);
 async function applyEscPosTicketEnd(printer, opts) {
     if (typeof printer.setTextNormal === 'function') {
         await printer.setTextNormal();
@@ -201,7 +224,13 @@ async function applyEscPosTicketEnd(printer, opts) {
     for (let i = 0; i < opts.margenFinLineas; i++) {
         await printer.newLine();
     }
-    await printer.cut();
+    if (typeof printer.add !== 'function') {
+        await printer.cut();
+        return;
+    }
+    await printer.add(ESC_POS_AVANCE_ANTES_CORTE);
+    await printer.add(ESC_POS_CORTE);
+    await printer.add(ESC_POS_INIT);
 }
 function ticketNombreLocal() {
     return (0, restaurant_branding_1.restaurantName)();
@@ -421,12 +450,66 @@ function createEscPosPrinter(charWidth) {
         width: charWidth,
         breakLine: BreakLine.NONE,
     });
+    let alineacion = 0;
+    for (const [metodo, valor] of [
+        ['alignLeft', 0],
+        ['alignCenter', 1],
+        ['alignRight', 2],
+    ]) {
+        const original = printer[metodo].bind(printer);
+        printer[metodo] = () => {
+            alineacion = valor;
+            original();
+        };
+    }
+    let ultimoFueSeparador = false;
     const printlnOriginal = printer.println.bind(printer);
-    printer.println = (text) => printlnOriginal(String(text ?? '')
-        .split('\n')
-        .flatMap((seg) => seg.length > charWidth ? wrapEscPos(seg, charWidth) : [seg])
-        .join('\n'));
+    printer.println = (text) => {
+        const s = String(text ?? '');
+        if (/^\s*(-{8,}|={8,})\s*$/.test(s)) {
+            if (ultimoFueSeparador)
+                return;
+            ultimoFueSeparador = true;
+            const puntosPorCol = tamanoCuerpo(printer) <= 0 ? 9 : 12;
+            printer.add(bytesLineaContinua(charWidth * puntosPorCol, alineacion));
+            return;
+        }
+        if (s.trim())
+            ultimoFueSeparador = false;
+        printlnOriginal(s
+            .split('\n')
+            .flatMap((seg) => seg.length > charWidth ? wrapEscPos(seg, charWidth) : [seg])
+            .join('\n'));
+    };
+    const printImageOriginal = printer.printImage.bind(printer);
+    printer.printImage = (image) => {
+        ultimoFueSeparador = false;
+        return printImageOriginal(image);
+    };
+    const printImageBufferOriginal = printer.printImageBuffer.bind(printer);
+    printer.printImageBuffer = (buffer) => {
+        ultimoFueSeparador = false;
+        return printImageBufferOriginal(buffer);
+    };
     return printer;
+}
+const LINEA_CONTINUA_ALTO = 2;
+const LINEA_CONTINUA_AIRE_ARRIBA = 4;
+const LINEA_CONTINUA_AIRE_ABAJO = 8;
+function bytesLineaContinua(anchoPx, alineacion) {
+    const anchoBytes = Math.max(1, Math.floor(Math.min(576, anchoPx) / 8));
+    return Buffer.concat([
+        Buffer.from([0x1b, 0x61, 0x00]),
+        Buffer.from([0x1b, 0x4a, LINEA_CONTINUA_AIRE_ARRIBA]),
+        Buffer.from([
+            0x1d, 0x76, 0x30, 0x00,
+            anchoBytes & 0xff, anchoBytes >> 8,
+            LINEA_CONTINUA_ALTO & 0xff, LINEA_CONTINUA_ALTO >> 8,
+        ]),
+        Buffer.alloc(anchoBytes * LINEA_CONTINUA_ALTO, 0xff),
+        Buffer.from([0x1b, 0x4a, LINEA_CONTINUA_AIRE_ABAJO]),
+        Buffer.from([0x1b, 0x61, alineacion]),
+    ]);
 }
 function grisSobreBlanco(img, i) {
     const a = img.data[i + 3] / 255;
@@ -583,11 +666,11 @@ async function printLogo(printer, logoPath, maxW, maxH) {
     }
 }
 async function printNombreDestacado(printer, nombre, charWidth) {
-    await printer.bold(true);
-    for (const line of wrapEscPos(nombre.toUpperCase(), charWidth)) {
-        await printer.println(line);
-    }
-    await printer.bold(false);
+    await conLetraTitulo(printer, charWidth, async (cols) => {
+        for (const line of wrapEscPos(nombre.toUpperCase(), cols)) {
+            await printer.println(line);
+        }
+    });
 }
 async function printEncabezadoRestaurante(printer, charWidth = exports.DEFAULT_ESC_POS_WIDTH, tienda, papelMm = (0, impresora_papel_ancho_1.papelMmDesdeChars)(charWidth)) {
     await printer.alignCenter();
@@ -636,7 +719,7 @@ async function printEncabezadoRestaurante(printer, charWidth = exports.DEFAULT_E
             await printer.println(line);
         }
     }
-    await printer.newLine();
+    await printer.println('-'.repeat(charWidth));
 }
 exports.printEncabezadoDrewRest = printEncabezadoRestaurante;
 function bufferFromPrinter(printer) {

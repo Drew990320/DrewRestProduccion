@@ -1,0 +1,8 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const comanda_escpos_builder_1 = require("./src/pedidos/comanda-escpos.builder");
+(async () => {
+    const buf = await (0, comanda_escpos_builder_1.buildComandaEscPos)({ id_pedido: 1, mesa_etiqueta: 'Mesa 1', mesero: 'Ana', emitida_en: new Date().toISOString(), lineas: [{ cantidad: 2, nombre_producto: 'Bandeja', personalizaciones: [], nota_cocina: null }], num_comensales: 2 }, { charWidth: 32, margenInicioLineas: 0, margenFinLineas: 0 });
+    console.log('head', [...buf.subarray(0, 40)].map((b) => b.toString(16).padStart(2, '0')).join(' '));
+})();
+//# sourceMappingURL=tmp-start-check.js.map

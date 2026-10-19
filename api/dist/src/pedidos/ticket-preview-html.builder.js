@@ -101,8 +101,8 @@ function segmentsToTicketPreviewHtml(segments, opts) {
     .line.wide:not(.tall) { font-size: 2em; line-height: 1.35; }
     hr.rule {
       border: none;
-      border-top: 1px dashed #999;
-      margin: 6px 0;
+      border-top: 1px solid #333;
+      margin: 4px 0;
     }
     hr.rule.doble {
       border-top: 3px double #555;

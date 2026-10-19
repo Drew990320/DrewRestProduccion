@@ -45,8 +45,6 @@ function buildFacturaEmailText(ticket) {
     lines.push('Cuenta / Factura', '', `${ticket.mesa_etiqueta}`, `Pedido #${ticket.id_pedido}`, ticket.id_factura != null ? `Factura No. ${ticket.numero_factura ?? ticket.id_factura}` : '');
     if (flags.mesero)
         lines.push(`${ticket.tienda ? 'Vendedor' : 'Mesero'}: ${ticket.mesero || '—'}`);
-    if (flags.comensales && !ticket.tienda)
-        lines.push(`Comensales: ${ticket.num_comensales}`);
     lines.push(`Fecha: ${fechaTicket(ticket.emitida_en)}`);
     if (flags.metodoPago) {
         lines.push(`Pago: ${(0, factura_ticket_1.labelMetodoPago)(ticket.metodo_pago)}`);
@@ -223,9 +221,6 @@ function buildFacturaEmailHtml(ticket) {
     <p style="margin:0 0 4px;font-size:14px;color:#555">Pedido #${ticket.id_pedido}${ticket.id_factura != null ? ` · Factura No. ${escapeHtml(ticket.numero_factura ?? String(ticket.id_factura))}` : ''}</p>
     ${flags.mesero
         ? `<p style="margin:0 0 4px;font-size:14px;color:#555">${ticket.tienda ? 'Vendedor' : 'Mesero'}: ${escapeHtml(ticket.mesero || '—')}</p>`
-        : ''}
-    ${flags.comensales && !ticket.tienda
-        ? `<p style="margin:0 0 4px;font-size:14px;color:#555">Comensales: ${ticket.num_comensales}</p>`
         : ''}
     <p style="margin:0 0 4px;font-size:14px;color:#555">Fecha: ${escapeHtml(fechaTicket(ticket.emitida_en))}</p>
     ${flags.metodoPago

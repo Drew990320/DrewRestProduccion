@@ -87,7 +87,7 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
             papelMm: (0, impresora_papel_ancho_1.normalizarAnchoPapelMm)(destino.ancho_papel_mm ?? (0, impresora_papel_ancho_1.papelMmDesdeChars)(this.charWidthLegacy())),
             tamanoFuente: destino.tamano_fuente ?? 1,
             margenInicioLineas: destino.margen_inicio_lineas ?? 0,
-            margenFinLineas: destino.margen_fin_lineas ?? 2,
+            margenFinLineas: destino.margen_fin_lineas ?? 0,
         };
     }
     async layoutOptsParaRol(rol) {
@@ -103,7 +103,7 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
                 papelMm: (0, impresora_papel_ancho_1.normalizarAnchoPapelMm)((0, impresora_papel_ancho_1.papelMmDesdeChars)(charWidth)),
                 tamanoFuente: 1,
                 margenInicioLineas: 0,
-                margenFinLineas: 2,
+                margenFinLineas: 0,
             },
             impresora: null,
         };
@@ -944,7 +944,7 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
                 charWidth,
                 tamanoFuente: layout?.tamano_fuente ?? 1,
                 margenInicioLineas: layout?.margen_inicio_lineas ?? 0,
-                margenFinLineas: layout?.margen_fin_lineas ?? 2,
+                margenFinLineas: layout?.margen_fin_lineas ?? 0,
             }, mm);
         }
         catch (e) {
@@ -962,7 +962,7 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
             papelMm: mm,
             tamanoFuente: layout?.tamano_fuente ?? 1,
             margenInicioLineas: layout?.margen_inicio_lineas ?? 0,
-            margenFinLineas: layout?.margen_fin_lineas ?? 2,
+            margenFinLineas: layout?.margen_fin_lineas ?? 0,
         };
         let impresos = 0;
         const errores = [];
@@ -994,7 +994,7 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
                 charWidth,
                 tamanoFuente: layout?.tamano_fuente ?? 1,
                 margenInicioLineas: layout?.margen_inicio_lineas ?? 0,
-                margenFinLineas: layout?.margen_fin_lineas ?? 2,
+                margenFinLineas: layout?.margen_fin_lineas ?? 0,
             });
         }
         catch (e) {

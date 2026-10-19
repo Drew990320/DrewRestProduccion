@@ -29,8 +29,6 @@ async function buildComandaEscPos(ticket, charWidthOrOpts = escpos_utils_1.DEFAU
         ['Pedido', `#${ticket.id_pedido}`],
         ['Hora', (0, ticket_layout_1.fechaHoraTicket)(ticket.emitida_en)],
         !ticket.origen_autoservicio && ['Mesero', ticket.mesero],
-        (ticket.canal_comanda ?? 'mesa') === 'mesa' &&
-            ticket.modo_servicio !== 'para_llevar' && ['Comensales', ticket.num_comensales],
     ]);
     await printer.println(sep);
     for (const linea of ticket.lineas) {
@@ -51,8 +49,6 @@ async function buildComandaEscPos(ticket, charWidthOrOpts = escpos_utils_1.DEFAU
         await printer.newLine();
     }
     await printer.println(sep);
-    const unidades = ticket.lineas.reduce((s, l) => s + l.cantidad, 0);
-    await (0, ticket_layout_1.bloqueDatos)(printer, opts, [['Total unidades', unidades]]);
     await (0, escpos_utils_1.applyEscPosTicketEnd)(printer, opts);
     return (0, escpos_utils_1.bufferFromPrinter)(printer);
 }

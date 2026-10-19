@@ -5,6 +5,7 @@ exports.fechaDiaTicket = fechaDiaTicket;
 exports.tituloSeccion = tituloSeccion;
 exports.separador = separador;
 exports.separadorDoble = separadorDoble;
+exports.textoTitulo = textoTitulo;
 exports.textoGrande = textoGrande;
 exports.filaMontoGrande = filaMontoGrande;
 exports.encabezadoTicket = encabezadoTicket;
@@ -47,7 +48,13 @@ async function separador(printer, opts) {
     await printer.println('-'.repeat(opts.charWidth));
 }
 async function separadorDoble(printer, opts) {
-    await printer.println('='.repeat(opts.charWidth));
+    await separador(printer, opts);
+}
+async function textoTitulo(printer, opts, texto) {
+    await (0, escpos_utils_1.conLetraTitulo)(printer, opts.charWidth, async (cols) => {
+        for (const line of (0, escpos_utils_1.wrapEscPos)(texto, cols))
+            await printer.println(line);
+    });
 }
 async function textoGrande(printer, opts, texto) {
     await printer.bold(true);
@@ -56,16 +63,21 @@ async function textoGrande(printer, opts, texto) {
     }
     await printer.bold(false);
 }
-async function filaMontoGrande(printer, opts, etiqueta, monto) {
+async function filaMontoGrande(printer, opts, etiqueta, monto, grande = false) {
     await printer.alignLeft();
+    if (grande) {
+        await (0, escpos_utils_1.conLetraTitulo)(printer, opts.charWidth, async (cols) => {
+            await printer.println((0, escpos_utils_1.lineaConPrecio)(etiqueta, monto, cols));
+        });
+        return;
+    }
     await printer.bold(true);
     await printer.println((0, escpos_utils_1.lineaConPrecio)(etiqueta, monto, opts.charWidth));
     await printer.bold(false);
 }
 async function encabezadoTicket(printer, opts, params) {
     await printer.alignCenter();
-    await separadorDoble(printer, opts);
-    await textoGrande(printer, opts, params.titulo);
+    await textoTitulo(printer, opts, params.titulo);
     for (const s of params.subtitulos ?? []) {
         if (!s)
             continue;
@@ -81,17 +93,13 @@ async function encabezadoTicket(printer, opts, params) {
         }
         await printer.bold(false);
     }
-    await separadorDoble(printer, opts);
     await printer.alignLeft();
 }
 function filaDato(etiqueta, valor, width) {
     const v = valor.trim();
     if (!v)
         return etiqueta;
-    if (etiqueta.length + 1 + v.length <= width) {
-        return etiqueta + ' '.repeat(width - etiqueta.length - v.length) + v;
-    }
-    return [etiqueta, ...(0, escpos_utils_1.wrapEscPos)(v, width).map((l) => l.padStart(width))].join('\n');
+    return (0, escpos_utils_1.wrapEscPos)(`${etiqueta} ${v}`, width).join('\n');
 }
 async function bloqueDatos(printer, opts, filas) {
     await printer.alignLeft();

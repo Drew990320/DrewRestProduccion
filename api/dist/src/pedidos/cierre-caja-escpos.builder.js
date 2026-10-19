@@ -253,7 +253,7 @@ async function buildItemsMenuEscPos(ticket, charWidthOrOpts = escpos_utils_1.DEF
         await fila(printer, opts, 'Impoconsumo', (0, escpos_utils_1.formatCopEscPos)(ticket.total_impoconsumo_dia ?? 0));
     }
     await (0, ticket_layout_1.separadorDoble)(printer, opts);
-    await (0, ticket_layout_1.filaMontoGrande)(printer, opts, 'TOTAL', (0, escpos_utils_1.formatCopEscPos)(ticket.total_facturado));
+    await (0, ticket_layout_1.filaMontoGrande)(printer, opts, 'TOTAL', (0, escpos_utils_1.formatCopEscPos)(ticket.total_facturado), true);
     await (0, ticket_layout_1.separadorDoble)(printer, opts);
     const unidades = ticket.items.reduce((s, i) => s + i.cantidad, 0);
     await (0, ticket_layout_1.parrafoCentrado)(printer, opts, `${ticket.items.length} producto(s) · ${unidades} unidad(es)`);

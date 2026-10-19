@@ -68,7 +68,7 @@ async function buildPruebaImpresoraEscPos(destino, charWidthOrOpts = escpos_util
     await printer.println('[OK] Líneas separadoras');
     await printer.println('[  ] Corte de papel');
     await printer.println('Destacado (total):');
-    await (0, ticket_layout_1.filaMontoGrande)(printer, opts, 'TOTAL', (0, escpos_utils_1.formatCopEscPos)(45000));
+    await (0, ticket_layout_1.filaMontoGrande)(printer, opts, 'TOTAL', (0, escpos_utils_1.formatCopEscPos)(45000), true);
     await printer.alignCenter();
     await printer.println('Destacado (turno/mesa):');
     await (0, ticket_layout_1.textoGrande)(printer, opts, 'MESA 12');

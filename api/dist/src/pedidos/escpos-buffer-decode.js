@@ -72,7 +72,8 @@ function decodeEscPosBuffer(buffer, charWidth = escpos_utils_1.DEFAULT_ESC_POS_W
                 i += 3;
                 continue;
             }
-            if ((cmd === 0x74 || cmd === 0x4d || cmd === 0x2d) && i + 2 < buffer.length) {
+            if ((cmd === 0x74 || cmd === 0x4d || cmd === 0x2d || cmd === 0x4a) &&
+                i + 2 < buffer.length) {
                 i += 3;
                 continue;
             }
@@ -110,7 +111,9 @@ function decodeEscPosBuffer(buffer, charWidth = escpos_utils_1.DEFAULT_ESC_POS_W
                 continue;
             }
             if (cmd === 0x56) {
-                i += Math.min(3, buffer.length - i);
+                const m = buffer[i + 2];
+                const largo = m === 0x41 || m === 0x42 ? 4 : 3;
+                i += Math.min(largo, buffer.length - i);
                 continue;
             }
             if (cmd === 0x42 && i + 2 < buffer.length) {
@@ -125,7 +128,9 @@ function decodeEscPosBuffer(buffer, charWidth = escpos_utils_1.DEFAULT_ESC_POS_W
                 const widthBytes = xL + xH * 256;
                 const height = yL + yH * 256;
                 const dataLen = widthBytes * height;
-                segments.push({ kind: 'logo' });
+                if (textBuf.length > 0)
+                    flushLine();
+                segments.push(height <= 4 ? { kind: 'rule' } : { kind: 'logo' });
                 i += 8 + dataLen;
                 continue;
             }
