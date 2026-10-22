@@ -9,14 +9,19 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ServiciosService = exports.CODIGO_PRODUCTO_ANTICIPO = void 0;
+exports.ServiciosService = exports.CODIGO_PRODUCTO_ABONO_APARTADO = exports.CODIGO_PRODUCTO_ANTICIPO = void 0;
 const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../prisma/prisma.service");
 const tenant_constants_1 = require("../tenant/tenant.constants");
 const NOMBRE_CATEGORIA = 'Servicios';
 exports.CODIGO_PRODUCTO_ANTICIPO = 'ANTICIPO';
+exports.CODIGO_PRODUCTO_ABONO_APARTADO = 'ABONO';
+const PRODUCTOS_INTERNOS = {
+    [exports.CODIGO_PRODUCTO_ANTICIPO]: 'Anticipo de reserva',
+    [exports.CODIGO_PRODUCTO_ABONO_APARTADO]: 'Abono de apartado',
+};
 const SIN_PRODUCTO_ANTICIPO = {
-    OR: [{ codigoMenu: null }, { codigoMenu: { not: exports.CODIGO_PRODUCTO_ANTICIPO } }],
+    OR: [{ codigoMenu: null }, { codigoMenu: { notIn: Object.keys(PRODUCTOS_INTERNOS) } }],
 };
 function mapServicio(p) {
     return {
@@ -54,10 +59,16 @@ let ServiciosService = class ServiciosService {
         });
         return created.idCategoria;
     }
-    async idProductoAnticipo(tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
+    idProductoAnticipo(tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
+        return this.idProductoInterno(tenantId, exports.CODIGO_PRODUCTO_ANTICIPO);
+    }
+    idProductoAbonoApartado(tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
+        return this.idProductoInterno(tenantId, exports.CODIGO_PRODUCTO_ABONO_APARTADO);
+    }
+    async idProductoInterno(tenantId, codigo) {
         const existing = await this.prisma.producto.findFirst({
             where: {
-                codigoMenu: exports.CODIGO_PRODUCTO_ANTICIPO,
+                codigoMenu: codigo,
                 categoria: { idRestaurante: tenantId, canal: 'servicio' },
             },
             select: { idProducto: true },
@@ -68,8 +79,8 @@ let ServiciosService = class ServiciosService {
         const created = await this.prisma.producto.create({
             data: {
                 idCategoria,
-                nombre: 'Anticipo de reserva',
-                codigoMenu: exports.CODIGO_PRODUCTO_ANTICIPO,
+                nombre: PRODUCTOS_INTERNOS[codigo],
+                codigoMenu: codigo,
                 precio: 0,
                 activo: false,
                 esPlatoPrincipal: false,

@@ -234,6 +234,7 @@ model Restaurante {
   produccionesPorcion ProduccionPorcion[]
   tiendas             Tienda[]
   reservas            Reserva[]
+  apartados           Apartado[]
 
   @@map("restaurante")
 }
@@ -256,6 +257,7 @@ model Tienda {
   categorias          Categoria[]
   mesas               Mesa[]
   pedidos             Pedido[]
+  apartados           Apartado[]
 
   @@unique([idRestaurante, nombre])
   @@unique([idRestaurante, numeroMesaBoutique])
@@ -554,6 +556,70 @@ model Reserva {
   @@index([idMesa])
   @@index([idLugar])
   @@map("reserva")
+}
+
+enum EstadoApartado {
+  activo
+  entregado
+  cancelado
+
+  @@map("estado_apartado")
+}
+
+/// Apartado de tienda: el stock queda separado y el cliente paga por abonos hasta saldar.
+model Apartado {
+  idApartado      Int            @id @default(autoincrement()) @map("id_apartado")
+  idRestaurante   Int            @default(1) @map("id_restaurante")
+  idTienda        Int            @map("id_tienda")
+  clienteNombre   String         @map("cliente_nombre") @db.VarChar(120)
+  clienteTelefono String?        @map("cliente_telefono") @db.VarChar(40)
+  notas           String?        @db.VarChar(500)
+  total           Decimal        @db.Decimal(12, 2)
+  /// Día límite acordado para terminar de pagar (Bogotá); solo informativo.
+  fechaLimite     DateTime?      @map("fecha_limite") @db.Date
+  estado          EstadoApartado @default(activo)
+  idUsuario       Int            @map("id_usuario")
+  creadoEn        DateTime       @default(now()) @map("creado_en")
+  actualizadoEn   DateTime       @default(now()) @updatedAt @map("actualizado_en")
+  entregadoEn     DateTime?      @map("entregado_en")
+  restaurante     Restaurante    @relation(fields: [idRestaurante], references: [idRestaurante])
+  tienda          Tienda         @relation(fields: [idTienda], references: [idTienda], onDelete: Cascade)
+  items           ApartadoItem[]
+  abonos          ApartadoAbono[]
+
+  @@index([idRestaurante, estado])
+  @@index([idTienda])
+  @@map("apartado")
+}
+
+model ApartadoItem {
+  idItem         Int      @id @default(autoincrement()) @map("id_item")
+  idApartado     Int      @map("id_apartado")
+  idProducto     Int      @map("id_producto")
+  idVariante     Int?     @map("id_variante")
+  /// Nombre al momento de apartar (producto · variante).
+  nombre         String   @db.VarChar(200)
+  cantidad       Int
+  precioUnitario Decimal  @map("precio_unitario") @db.Decimal(12, 2)
+  apartado       Apartado @relation(fields: [idApartado], references: [idApartado], onDelete: Cascade)
+
+  @@index([idApartado])
+  @@map("apartado_item")
+}
+
+/// Cada abono es un ticket de la tienda (línea «Abono de apartado») que se cobra como venta del día.
+model ApartadoAbono {
+  idAbono    Int      @id @default(autoincrement()) @map("id_abono")
+  idApartado Int      @map("id_apartado")
+  monto      Decimal  @db.Decimal(12, 2)
+  idPedido   Int      @map("id_pedido")
+  idUsuario  Int      @map("id_usuario")
+  creadoEn   DateTime @default(now()) @map("creado_en")
+  apartado   Apartado @relation(fields: [idApartado], references: [idApartado], onDelete: Cascade)
+
+  @@index([idApartado])
+  @@index([idPedido])
+  @@map("apartado_abono")
 }
 
 model Mesa {
