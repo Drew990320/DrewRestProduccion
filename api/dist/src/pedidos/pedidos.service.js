@@ -1318,6 +1318,7 @@ let PedidosService = class PedidosService {
             imprimir_cierre_base_caja: row.imprimirCierreBaseCaja !== false,
             cocina_tamano_texto: row.cocinaTamanoTexto ?? 'normal',
             mesero_corregir_comanda_en_cocina: row.meseroCorregirComandaEnCocina,
+            ventas_cruzadas_tienda: Boolean(row.ventasCruzadasTienda),
         };
     }
     async actorPuedeCorregirLineaEnCocina(tenantId, esAdminActor) {
@@ -1400,15 +1401,21 @@ let PedidosService = class PedidosService {
     async getConfigOperativa(tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
         const row = await this.obtenerConfigOperativaRow(tenantId);
         const mapped = this.mapConfigOperativa(row);
-        const tiendasBoutique = await this.prisma.tienda.findMany({
-            where: { idRestaurante: tenantId, activo: true },
-            select: {
-                numeroMesaBoutique: true,
-                etiqueta: true,
-                nombre: true,
-            },
-            orderBy: [{ orden: 'asc' }, { idTienda: 'asc' }],
-        });
+        const [tiendasBoutique, serviciosActivos] = await Promise.all([
+            this.prisma.tienda.findMany({
+                where: { idRestaurante: tenantId, activo: true },
+                select: {
+                    idTienda: true,
+                    numeroMesaBoutique: true,
+                    etiqueta: true,
+                    nombre: true,
+                },
+                orderBy: [{ orden: 'asc' }, { idTienda: 'asc' }],
+            }),
+            this.prisma.producto.count({
+                where: { activo: true, categoria: { idRestaurante: tenantId, canal: 'servicio' } },
+            }),
+        ]);
         let moduloRedondeo = false;
         let moduloEnvioCorreo = false;
         let moduloImpoconsumo = false;
@@ -1441,7 +1448,9 @@ let PedidosService = class PedidosService {
             mesas_boutique: tiendasBoutique.map((t) => ({
                 numero: t.numeroMesaBoutique,
                 etiqueta: t.etiqueta?.trim() || t.nombre,
+                id_tienda: t.idTienda,
             })),
+            servicios_activos: serviciosActivos,
             modulo_redondeo_cobro_activo: moduloRedondeo,
             modulo_envio_correo_activo: moduloEnvioCorreo,
             modulo_impoconsumo_activo: moduloImpoconsumo,
@@ -1626,6 +1635,9 @@ let PedidosService = class PedidosService {
                     ? {
                         meseroCorregirComandaEnCocina: dto.mesero_corregir_comanda_en_cocina,
                     }
+                    : {}),
+                ...(dto.ventas_cruzadas_tienda != null
+                    ? { ventasCruzadasTienda: dto.ventas_cruzadas_tienda }
                     : {}),
                 ...this.prioridadPatchFromDto(dto),
             },
@@ -5088,11 +5100,23 @@ let PedidosService = class PedidosService {
             const esBoutique = mesa?.idTienda != null ||
                 pedido.idTienda != null ||
                 (mesa != null && (0, mesa_label_1.esMesaBoutiqueNumero)(mesa.numero, opRow, extras));
-            if (!mesa || !esBoutique) {
+            const idTiendaPedido = pedido.idTienda ?? mesa?.idTienda ?? null;
+            const idTiendaProducto = producto.categoria.idTienda;
+            if (opRow.ventasCruzadasTienda) {
+                if (idTiendaProducto != null && idTiendaProducto !== idTiendaPedido) {
+                    const tiendaProducto = await this.prisma.tienda.findUnique({
+                        where: { idTienda: idTiendaProducto },
+                        select: { activo: true, idRestaurante: true },
+                    });
+                    if (!tiendaProducto?.activo || tiendaProducto.idRestaurante !== pedido.idRestaurante) {
+                        throw new common_1.BadRequestException('La tienda de este producto no está activa');
+                    }
+                }
+            }
+            else if (!mesa || !esBoutique) {
                 throw new common_1.BadRequestException('Los productos de tienda solo se venden en la mesa Boutique');
             }
-            const idTiendaPedido = pedido.idTienda ?? mesa.idTienda ?? null;
-            if (producto.categoria.idTienda != null) {
+            else if (idTiendaProducto != null) {
                 if (idTiendaPedido == null) {
                     throw new common_1.BadRequestException('Este ticket no está vinculado a una tienda. Abre la venta desde Ventas tienda.');
                 }
@@ -5125,6 +5149,17 @@ let PedidosService = class PedidosService {
                 }
                 precioVenta = producto.precio;
             }
+        }
+        else if (producto.categoria.canal === 'servicio') {
+            if (dto.id_producto_variante != null) {
+                throw new common_1.BadRequestException('Las variantes solo aplican a productos de tienda');
+            }
+            if (actor.rol.nombre !== 'admin' &&
+                actor.rol.nombre !== 'superadmin' &&
+                actor.rol.nombre !== 'mesero') {
+                throw new common_1.ForbiddenException('Solo el administrador o el mesero pueden agregar servicios');
+            }
+            precioVenta = producto.precio;
         }
         else {
             if (dto.id_producto_variante != null) {

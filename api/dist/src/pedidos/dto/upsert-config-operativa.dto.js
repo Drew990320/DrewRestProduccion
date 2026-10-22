@@ -46,6 +46,7 @@ class UpsertConfigOperativaDto {
     imprimir_cierre_base_caja;
     cocina_tamano_texto;
     mesero_corregir_comanda_en_cocina;
+    ventas_cruzadas_tienda;
 }
 exports.UpsertConfigOperativaDto = UpsertConfigOperativaDto;
 __decorate([
@@ -246,4 +247,9 @@ __decorate([
     (0, class_validator_1.IsBoolean)(),
     __metadata("design:type", Boolean)
 ], UpsertConfigOperativaDto.prototype, "mesero_corregir_comanda_en_cocina", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], UpsertConfigOperativaDto.prototype, "ventas_cruzadas_tienda", void 0);
 //# sourceMappingURL=upsert-config-operativa.dto.js.map
