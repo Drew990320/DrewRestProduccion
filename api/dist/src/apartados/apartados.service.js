@@ -13,6 +13,7 @@ exports.ApartadosService = void 0;
 const common_1 = require("@nestjs/common");
 const pedidos_gateway_1 = require("../pedidos/pedidos.gateway");
 const pedidos_service_1 = require("../pedidos/pedidos.service");
+const permisos_service_1 = require("../permisos/permisos.service");
 const prisma_service_1 = require("../prisma/prisma.service");
 const stock_retail_1 = require("../productos/stock-retail");
 const servicios_service_1 = require("../servicios/servicios.service");
@@ -34,28 +35,37 @@ let ApartadosService = class ApartadosService {
     gateway;
     servicios;
     tiendas;
-    constructor(prisma, pedidos, gateway, servicios, tiendas) {
+    permisos;
+    constructor(prisma, pedidos, gateway, servicios, tiendas, permisos) {
         this.prisma = prisma;
         this.pedidos = pedidos;
         this.gateway = gateway;
         this.servicios = servicios;
         this.tiendas = tiendas;
+        this.permisos = permisos;
     }
     async listar(tenantId, q) {
         const estado = q.estado === 'entregado' || q.estado === 'cancelado' || q.estado === 'activo'
             ? q.estado
             : undefined;
-        const rows = await this.prisma.apartado.findMany({
-            where: {
-                idRestaurante: tenantId,
-                ...(estado ? { estado } : {}),
-                ...(q.idTienda != null ? { idTienda: q.idTienda } : {}),
-            },
+        const base = {
+            idRestaurante: tenantId,
+            ...(q.idTienda != null ? { idTienda: q.idTienda } : {}),
+        };
+        const buscar = (where, take) => this.prisma.apartado.findMany({
+            where: { ...base, ...where },
             include: apartadoInclude,
             orderBy: [{ creadoEn: 'desc' }],
-            take: estado === 'activo' ? undefined : 200,
+            take,
         });
-        return this.mapear(rows);
+        if (estado) {
+            return this.mapear(await buscar({ estado }, estado === 'activo' ? undefined : 200));
+        }
+        const [activos, cerrados] = await Promise.all([
+            buscar({ estado: 'activo' }),
+            buscar({ estado: { not: 'activo' } }, 200),
+        ]);
+        return this.mapear([...activos, ...cerrados]);
     }
     async obtener(id, tenantId) {
         return (await this.mapear([await this.obtenerRow(id, tenantId)]))[0];
@@ -251,6 +261,7 @@ let ApartadosService = class ApartadosService {
         return (await this.mapear([row]))[0];
     }
     async cancelar(id, actor) {
+        await this.permisos.assertPermiso(actor, 'cancelar_pedido');
         const tenantId = actor.idRestaurante;
         const r = await this.obtenerRow(id, tenantId);
         if (r.estado !== 'activo') {
@@ -383,6 +394,7 @@ exports.ApartadosService = ApartadosService = __decorate([
         pedidos_service_1.PedidosService,
         pedidos_gateway_1.PedidosGateway,
         servicios_service_1.ServiciosService,
-        tienda_service_1.TiendaService])
+        tienda_service_1.TiendaService,
+        permisos_service_1.PermisosService])
 ], ApartadosService);
 //# sourceMappingURL=apartados.service.js.map

@@ -9,6 +9,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.ApartadosModule = void 0;
 const common_1 = require("@nestjs/common");
 const pedidos_module_1 = require("../pedidos/pedidos.module");
+const permisos_module_1 = require("../permisos/permisos.module");
 const servicios_module_1 = require("../servicios/servicios.module");
 const tenant_module_1 = require("../tenant/tenant.module");
 const tienda_module_1 = require("../tienda/tienda.module");
@@ -19,7 +20,7 @@ let ApartadosModule = class ApartadosModule {
 exports.ApartadosModule = ApartadosModule;
 exports.ApartadosModule = ApartadosModule = __decorate([
     (0, common_1.Module)({
-        imports: [tenant_module_1.TenantModule, pedidos_module_1.PedidosModule, servicios_module_1.ServiciosModule, tienda_module_1.TiendaModule],
+        imports: [tenant_module_1.TenantModule, pedidos_module_1.PedidosModule, permisos_module_1.PermisosModule, servicios_module_1.ServiciosModule, tienda_module_1.TiendaModule],
         controllers: [apartados_controller_1.ApartadosController],
         providers: [apartados_service_1.ApartadosService],
     })
