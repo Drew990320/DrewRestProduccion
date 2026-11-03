@@ -17,6 +17,7 @@ const client_1 = require("@prisma/client");
 const prisma_service_1 = require("../prisma/prisma.service");
 const pedidos_gateway_1 = require("./pedidos.gateway");
 const permisos_service_1 = require("../permisos/permisos.service");
+const roles_1 = require("@drewrest/shared-domain/roles");
 const factura_lineas_group_1 = require("./factura-lineas-group");
 const comanda_lineas_group_1 = require("./comanda-lineas-group");
 const mesa_label_1 = require("@drewrest/shared-domain/mesa-label");
@@ -755,6 +756,7 @@ let PedidosService = class PedidosService {
                 montoArqueoEfectivo: dto.monto_contado_efectivo,
             },
         });
+        (0, tenant_snapshot_cache_1.invalidarSnapshotsTenant)();
         const fechaStr = base.toFormat('yyyy-LL-dd');
         const contado = Number(row.montoArqueoEfectivo ?? 0);
         const efectivoEsperado = resumen.efectivo_esperado_en_caja ?? 0;
@@ -4096,7 +4098,7 @@ let PedidosService = class PedidosService {
         };
     }
     async listarPendientesCobroResumen(actor) {
-        if (actor.rol.nombre !== 'admin') {
+        if (!(0, roles_1.rolCumpleRequeridos)(actor.rol?.nombre, ['admin'])) {
             throw new common_1.ForbiddenException('Solo admin');
         }
         const tenantId = actor.idRestaurante ?? tenant_constants_1.DEFAULT_TENANT_ID;

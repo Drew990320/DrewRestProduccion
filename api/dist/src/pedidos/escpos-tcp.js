@@ -75,7 +75,11 @@ async function sendEscPosTcp(host, port, buffer, timeoutMs = 8_000) {
                     return;
                 }
                 wrote = true;
-                socket.end(() => finish());
+                setTimeout(() => {
+                    if (settled)
+                        return;
+                    socket.end(() => finish());
+                }, 400);
             });
         });
     });

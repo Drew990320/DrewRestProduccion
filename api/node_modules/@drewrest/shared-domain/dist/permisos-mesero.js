@@ -38,11 +38,11 @@ exports.PERMISOS_MESERO_META = {
     },
     editar_cantidades: {
         titulo: 'Editar cantidades',
-        detalle: '+/− en líneas aún no enviadas a cocina (lo ya enviado no se reduce)',
+        detalle: '+/− en el pedido. Lo ya enviado a cocina solo se reduce si «Corregir en cocina» está activo.',
     },
     quitar_lineas: {
-        titulo: 'Quitar ítems (antes de cocina)',
-        detalle: 'Borrar productos del pedido solo si aún no se enviaron a cocina. No anula el ticket completo.',
+        titulo: 'Quitar ítems',
+        detalle: 'Borrar un producto del pedido. Lo ya enviado a cocina solo se quita si «Corregir en cocina» está activo. No anula el ticket completo.',
     },
     enviar_cocina: {
         titulo: 'Enviar a cocina',

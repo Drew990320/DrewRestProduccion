@@ -354,9 +354,7 @@ let ComandaPrinterService = ComandaPrinterService_1 = class ComandaPrinterServic
             const nextTipo = colaTipos[0];
             this.tiposPendientesPorDestino.set(key, colaTipos);
             const remainingAfter = (this.trabajosPorDestino.get(key) ?? 1) - 1;
-            const omitirCooldown = skipCooldownAfter ||
-                nextTipo === 'cajon' ||
-                (0, escpos_tcp_1.parseDestinoTcp)(destino) != null;
+            const omitirCooldown = skipCooldownAfter || nextTipo === 'cajon';
             if (ok &&
                 remainingAfter > 0 &&
                 !omitirCooldown &&
