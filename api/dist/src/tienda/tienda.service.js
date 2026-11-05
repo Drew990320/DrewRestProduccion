@@ -730,6 +730,56 @@ let TiendaService = class TiendaService {
         const mesa = await this.ensureMesaBoutique(tenantId, tid);
         return this.pedidos.crear({ id_mesa: mesa.idMesa, num_comensales: 1 }, actor.idUsuario, tenantId);
     }
+    async eliminarTienda(idTienda, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
+        const tienda = await this.prisma.tienda.findFirst({
+            where: { idTienda, idRestaurante: tenantId },
+        });
+        if (!tienda)
+            throw new common_1.NotFoundException('Tienda no encontrada');
+        const [pedidos, apartados, detalles] = await Promise.all([
+            this.prisma.pedido.count({ where: { idTienda, idRestaurante: tenantId } }),
+            this.prisma.apartado.count({ where: { idTienda, idRestaurante: tenantId } }),
+            this.prisma.detallePedido.count({
+                where: { producto: { categoria: { idTienda, idRestaurante: tenantId } } },
+            }),
+        ]);
+        if (pedidos > 0 || apartados > 0 || detalles > 0) {
+            throw new common_1.ConflictException('Esta tienda tiene historial de ventas o apartados. Desactívala en lugar de eliminarla.');
+        }
+        const productos = await this.prisma.producto.findMany({
+            where: { categoria: { idTienda, idRestaurante: tenantId } },
+            select: { idProducto: true },
+        });
+        const ids = productos.map((p) => p.idProducto);
+        if (ids.length > 0) {
+            const conReceta = await this.prisma.recetaProducto.count({
+                where: { idProducto: { in: ids } },
+            });
+            const conInventario = await this.prisma.inventario.count({
+                where: { idProducto: { in: ids }, idRestaurante: tenantId },
+            });
+            if (conReceta > 0 || conInventario > 0) {
+                throw new common_1.ConflictException('Esta tienda tiene productos ligados a inventario. Desactívala en lugar de eliminarla.');
+            }
+        }
+        await this.prisma.$transaction(async (tx) => {
+            if (ids.length > 0) {
+                await tx.producto.deleteMany({ where: { idProducto: { in: ids } } });
+            }
+            await tx.categoria.deleteMany({ where: { idTienda, idRestaurante: tenantId } });
+            const mesa = await tx.mesa.findFirst({
+                where: { idTienda, idRestaurante: tenantId },
+                include: { _count: { select: { pedidos: true, reservas: true } } },
+            });
+            if (mesa && mesa._count.pedidos === 0 && mesa._count.reservas === 0) {
+                await tx.mesa.delete({ where: { idMesa: mesa.idMesa } });
+            }
+            await tx.tienda.delete({ where: { idTienda } });
+        });
+        (0, tienda_logo_upload_util_1.eliminarArchivoLogoTienda)(tienda.logoArchivo);
+        this.gateway.emitConfigActualizada('mesas', tenantId);
+        return { ok: true, id_tienda: idTienda };
+    }
     async numerosBoutiqueTenant(tenantId) {
         const rows = await this.prisma.tienda.findMany({
             where: { idRestaurante: tenantId },

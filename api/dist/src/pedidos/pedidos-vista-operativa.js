@@ -41,6 +41,7 @@ exports.pedidoVistaOperativaInclude = {
                     tipoProteina: true,
                     prioridadCocinaBaja: true,
                     usaSubitemsRepartibles: true,
+                    cantidadRepartoSubitems: true,
                     categoria: {
                         select: {
                             nombre: true,
@@ -108,6 +109,7 @@ function serializarPedidoVistaOperativa(p, opts) {
             cantidad: d.cantidad,
             nota_cocina: d.notaCocina,
             usa_subitems_repartibles: d.producto.usaSubitemsRepartibles,
+            cantidad_reparto_subitems: Math.max(1, d.producto.cantidadRepartoSubitems ?? 1),
             subitems: d.subitems.map((item) => ({
                 id_subitem: item.subitem.idSubitem,
                 nombre: item.subitem.nombre,
@@ -116,6 +118,7 @@ function serializarPedidoVistaOperativa(p, opts) {
             subitems_pendientes: (0, subitems_pendientes_1.detalleSubitemsPendientes)({
                 usa_subitems_repartibles: d.producto.usaSubitemsRepartibles,
                 cantidad: d.cantidad,
+                cantidad_reparto_subitems: d.producto.cantidadRepartoSubitems,
                 subitems: d.subitems.map((item) => ({ cantidad: item.cantidad })),
             }),
             personalizaciones: d.personalizaciones.map((dp) => ({

@@ -361,6 +361,9 @@ let TiendaController = class TiendaController {
     crearTienda(dto, tenantId) {
         return this.tienda.crearTienda(dto, tenantId);
     }
+    eliminarTienda(id, tenantId) {
+        return this.tienda.eliminarTienda(id, tenantId);
+    }
     actualizarTienda(id, dto, tenantId) {
         return this.tienda.actualizarTienda(id, dto, tenantId);
     }
@@ -428,6 +431,14 @@ __decorate([
     __metadata("design:paramtypes", [CrearTiendaDto, Number]),
     __metadata("design:returntype", void 0)
 ], TiendaController.prototype, "crearTienda", null);
+__decorate([
+    (0, common_1.Delete)('tiendas/:id'),
+    __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
+    __param(1, (0, current_tenant_decorator_1.CurrentTenantId)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number, Number]),
+    __metadata("design:returntype", void 0)
+], TiendaController.prototype, "eliminarTienda", null);
 __decorate([
     (0, common_1.Patch)('tiendas/:id'),
     __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),

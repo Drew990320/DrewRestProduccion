@@ -5196,8 +5196,9 @@ let PedidosService = class PedidosService {
             }
             if (subitemsDto.length > 0) {
                 const sumaSubitems = subitemsDto.reduce((acc, item) => acc + item.cantidad, 0);
-                if (sumaSubitems !== dto.cantidad) {
-                    throw new common_1.BadRequestException('La suma de subítems debe coincidir con la cantidad del producto');
+                const objetivo = (0, subitems_pendientes_1.unidadesRepartoObjetivo)(dto.cantidad, producto.cantidadRepartoSubitems);
+                if (sumaSubitems !== objetivo) {
+                    throw new common_1.BadRequestException('La suma de subítems debe coincidir con las unidades a repartir');
                 }
                 const activos = new Map(producto.subitems.map((s) => [s.idSubitem, s]));
                 const merged = new Map();
@@ -5931,8 +5932,9 @@ let PedidosService = class PedidosService {
             throw new common_1.BadRequestException('Debes asignar la cantidad entre los subítems del producto');
         }
         const suma = subitemsDto.reduce((acc, item) => acc + item.cantidad, 0);
-        if (suma !== det.cantidad) {
-            throw new common_1.BadRequestException('La suma de subítems debe coincidir con la cantidad del producto');
+        const objetivo = (0, subitems_pendientes_1.unidadesRepartoObjetivo)(det.cantidad, det.producto.cantidadRepartoSubitems);
+        if (suma !== objetivo) {
+            throw new common_1.BadRequestException('La suma de subítems debe coincidir con las unidades a repartir');
         }
         const activos = new Map(det.producto.subitems.map((s) => [s.idSubitem, s]));
         const merged = new Map();
@@ -6575,6 +6577,7 @@ let PedidosService = class PedidosService {
         const conSubitemsSinDefinir = nuevos.filter((d) => (0, subitems_pendientes_1.detalleSubitemsPendientes)({
             usa_subitems_repartibles: d.producto.usaSubitemsRepartibles,
             cantidad: d.cantidad,
+            cantidad_reparto_subitems: d.producto.cantidadRepartoSubitems,
             subitems: d.subitems.map((s) => ({ cantidad: s.cantidad })),
         }));
         if (conSubitemsSinDefinir.length > 0) {
@@ -9588,6 +9591,7 @@ let PedidosService = class PedidosService {
                 producto_prioridad_cocina_baja: d.producto.prioridadCocinaBaja,
                 es_cuota_pendiente_reparto: esCuotaPend,
                 usa_subitems_repartibles: d.producto.usaSubitemsRepartibles,
+                cantidad_reparto_subitems: Math.max(1, d.producto.cantidadRepartoSubitems ?? 1),
                 marcar_cocina: d.producto.esCombo ? false : marcar,
                 enviado_cocina: d.enviadoCocina,
                 impreso_cocina: d.impresoCocina,
@@ -9609,6 +9613,7 @@ let PedidosService = class PedidosService {
                 subitems_pendientes: (0, subitems_pendientes_1.detalleSubitemsPendientes)({
                     usa_subitems_repartibles: d.producto.usaSubitemsRepartibles,
                     cantidad: d.cantidad,
+                    cantidad_reparto_subitems: d.producto.cantidadRepartoSubitems,
                     subitems: ('subitems' in d && Array.isArray(d.subitems)
                         ? d.subitems
                         : []).map((item) => ({ cantidad: item.cantidad })),
