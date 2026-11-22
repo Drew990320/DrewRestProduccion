@@ -31,6 +31,25 @@ let CategoriasService = class CategoriasService {
         this.gateway = gateway;
         this.menuActivo = menuActivo;
     }
+    async resolverUnidadCategoria(tenantId, raw) {
+        if (raw === undefined)
+            return undefined;
+        const cfg = await this.prisma.configRestaurante.findUnique({
+            where: { idRestaurante: tenantId },
+            select: { moduloUnidadesOperativasActivo: true },
+        });
+        if (!cfg?.moduloUnidadesOperativasActivo)
+            return undefined;
+        if (raw == null)
+            return null;
+        const unidad = await this.prisma.unidadOperativa.findFirst({
+            where: { idUnidad: raw, idRestaurante: tenantId, activo: true },
+            select: { idUnidad: true },
+        });
+        if (!unidad)
+            throw new common_1.BadRequestException('Unidad operativa no válida');
+        return raw;
+    }
     normalizeIconoMenu(raw, nombreFallback) {
         if (raw == null && !nombreFallback)
             return null;
@@ -66,6 +85,7 @@ let CategoriasService = class CategoriasService {
             tipo_linea_cocina_default: c.tipoLineaCocinaDefault,
             es_plato_principal_default: c.esPlatoPrincipalDefault,
             prioridad_cocina_baja: c.prioridadCocinaBaja,
+            id_unidad: c.idUnidad,
             total_productos: stats?.total_productos ?? 0,
             total_usos_pedido: stats?.total_usos_pedido ?? 0,
         };
@@ -90,7 +110,26 @@ let CategoriasService = class CategoriasService {
         }
         return map;
     }
+    async asignarCodigosFaltantes(tenantId) {
+        const rows = await this.prisma.categoria.findMany({
+            where: { idRestaurante: tenantId, canal: 'restaurante' },
+            select: { idCategoria: true, codigoMenu: true },
+        });
+        const ocupados = rows
+            .map((c) => c.codigoMenu)
+            .filter((c) => !!c && /^\d{2}$/.test(c));
+        const sin = rows.filter((c) => !c.codigoMenu || !/^\d{2}$/.test(c.codigoMenu));
+        for (const c of sin) {
+            const codigo = (0, menu_codigo_1.siguienteCodigoCategoria)(ocupados);
+            await this.prisma.categoria.update({
+                where: { idCategoria: c.idCategoria },
+                data: { codigoMenu: codigo },
+            });
+            ocupados.push(codigo);
+        }
+    }
     async listarTodasAdmin(tenantId) {
+        await this.asignarCodigosFaltantes(tenantId);
         const [rows, stats] = await Promise.all([
             this.prisma.categoria.findMany({
                 where: { idRestaurante: tenantId, canal: 'restaurante' },
@@ -116,9 +155,7 @@ let CategoriasService = class CategoriasService {
             where: { idRestaurante: tenantId, canal: 'restaurante' },
             select: { codigoMenu: true },
         });
-        const codigoMenu = dto.codigo_menu != null && String(dto.codigo_menu).trim() !== ''
-            ? (0, menu_codigo_1.normalizarCodigoCategoriaMenu)(dto.codigo_menu)
-            : (0, menu_codigo_1.siguienteCodigoCategoria)(existentes.map((c) => c.codigoMenu).filter((c) => !!c));
+        const codigoMenu = (0, menu_codigo_1.siguienteCodigoCategoria)(existentes.map((c) => c.codigoMenu).filter((c) => !!c));
         if (!codigoMenu) {
             throw new common_1.BadRequestException('Código de categoría inválido');
         }
@@ -184,25 +221,12 @@ let CategoriasService = class CategoriasService {
             }
         }
         let nuevoCodigo;
-        if (dto.codigo_menu !== undefined) {
-            const norm = (0, menu_codigo_1.normalizarCodigoCategoriaMenu)(dto.codigo_menu);
-            if (!norm) {
-                throw new common_1.BadRequestException('Código de categoría inválido');
-            }
-            if (norm !== existing.codigoMenu) {
-                const dupCode = await this.prisma.categoria.findFirst({
-                    where: {
-                        idRestaurante: tenantId,
-                        canal: 'restaurante',
-                        codigoMenu: norm,
-                        idCategoria: { not: idCategoria },
-                    },
-                });
-                if (dupCode) {
-                    throw new common_1.ConflictException(`Ya existe una categoría con código ${norm}`);
-                }
-                nuevoCodigo = norm;
-            }
+        if (!existing.codigoMenu || !/^\d{2}$/.test(existing.codigoMenu)) {
+            const existentes = await this.prisma.categoria.findMany({
+                where: { idRestaurante: tenantId, canal: 'restaurante' },
+                select: { codigoMenu: true },
+            });
+            nuevoCodigo = (0, menu_codigo_1.siguienteCodigoCategoria)(existentes.map((c) => c.codigoMenu).filter((c) => !!c));
         }
         const updated = await this.prisma.$transaction(async (tx) => {
             const row = await tx.categoria.update({
@@ -266,6 +290,9 @@ let CategoriasService = class CategoriasService {
                         : {}),
                     ...(dto.color_icono !== undefined
                         ? { colorIcono: this.normalizeColorIcono(dto.color_icono) }
+                        : {}),
+                    ...(dto.id_unidad !== undefined
+                        ? { idUnidad: await this.resolverUnidadCategoria(tenantId, dto.id_unidad) }
                         : {}),
                 },
             });

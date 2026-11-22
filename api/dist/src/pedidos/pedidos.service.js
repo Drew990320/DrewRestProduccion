@@ -18,6 +18,7 @@ const prisma_service_1 = require("../prisma/prisma.service");
 const pedidos_gateway_1 = require("./pedidos.gateway");
 const permisos_service_1 = require("../permisos/permisos.service");
 const roles_1 = require("@drewrest/shared-domain/roles");
+const ganancias_periodo_1 = require("@drewrest/shared-domain/ganancias-periodo");
 const factura_lineas_group_1 = require("./factura-lineas-group");
 const comanda_lineas_group_1 = require("./comanda-lineas-group");
 const mesa_label_1 = require("@drewrest/shared-domain/mesa-label");
@@ -26,9 +27,10 @@ const config_operativa_cache_1 = require("../common/config-operativa-cache");
 const prisma_lock_1 = require("../common/prisma-lock");
 const operative_limits_1 = require("../common/operative-limits");
 const tenant_constants_1 = require("../tenant/tenant.constants");
+const tenant_scope_1 = require("../tenant/tenant-scope");
 const tenant_snapshot_cache_1 = require("../common/tenant-snapshot-cache");
 const cliente_credito_1 = require("../creditos/cliente-credito");
-const tenant_scope_1 = require("../tenant/tenant-scope");
+const tenant_scope_2 = require("../tenant/tenant-scope");
 const estado_pedido_transiciones_1 = require("./estado-pedido-transiciones");
 const timezone_1 = require("../common/timezone");
 const categoria_dia_1 = require("../common/categoria-dia");
@@ -415,12 +417,19 @@ let PedidosService = class PedidosService {
         if (dto.mesa_numero == null && dto.id_mesa == null) {
             throw new common_1.BadRequestException('Debes enviar mesa_numero o id_mesa');
         }
+        const piso = await (0, tenant_scope_1.idPisoRestaurante)(this.prisma, tenantId);
+        const duenos = piso === tenantId ? tenantId : { in: [tenantId, piso] };
         const mesa = dto.mesa_numero
             ? await this.prisma.mesa.findFirst({
                 where: { numero: dto.mesa_numero, idRestaurante: tenantId },
-            })
+            }) ??
+                (piso === tenantId
+                    ? null
+                    : await this.prisma.mesa.findFirst({
+                        where: { numero: dto.mesa_numero, idRestaurante: piso },
+                    }))
             : await this.prisma.mesa.findFirst({
-                where: { idMesa: dto.id_mesa, idRestaurante: tenantId },
+                where: { idMesa: dto.id_mesa, idRestaurante: duenos },
             });
         if (!mesa) {
             throw new common_1.NotFoundException('Mesa no encontrada');
@@ -701,7 +710,24 @@ let PedidosService = class PedidosService {
             },
         });
     }
-    async getCajaDiaria(fecha, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
+    async idUnidadCaja(tenantId, raw) {
+        if (raw == null || !Number.isInteger(raw) || raw <= 0)
+            return null;
+        const cfg = await this.prisma.configRestaurante.findUnique({
+            where: { idRestaurante: tenantId },
+            select: { moduloUnidadesOperativasActivo: true },
+        });
+        if (!cfg?.moduloUnidadesOperativasActivo)
+            return null;
+        const unidad = await this.prisma.unidadOperativa.findFirst({
+            where: { idUnidad: raw, idRestaurante: tenantId, activo: true },
+            select: { idUnidad: true },
+        });
+        if (!unidad)
+            throw new common_1.BadRequestException('Unidad operativa no válida');
+        return raw;
+    }
+    async getCajaDiaria(fecha, tenantId = tenant_constants_1.DEFAULT_TENANT_ID, idUnidadRaw) {
         let base = luxon_1.DateTime.now().setZone('America/Bogota');
         if (fecha) {
             const parsed = luxon_1.DateTime.fromISO(fecha, { zone: 'America/Bogota' });
@@ -711,11 +737,16 @@ let PedidosService = class PedidosService {
             base = parsed;
         }
         const fechaOnly = this.fechaCalendarioBogota(base);
-        const row = await this.prisma.cajaDiaria.findUnique({
-            where: {
-                idRestaurante_fecha: { idRestaurante: tenantId, fecha: fechaOnly },
-            },
-        });
+        const idUnidad = await this.idUnidadCaja(tenantId, idUnidadRaw);
+        const row = idUnidad
+            ? await this.prisma.cajaUnidad.findUnique({
+                where: { idUnidad_fecha: { idUnidad, fecha: fechaOnly } },
+            })
+            : await this.prisma.cajaDiaria.findUnique({
+                where: {
+                    idRestaurante_fecha: { idRestaurante: tenantId, fecha: fechaOnly },
+                },
+            });
         return {
             fecha: base.toFormat('yyyy-LL-dd'),
             monto_base_efectivo: row ? Number(row.montoBaseEfectivo) : 0,
@@ -723,16 +754,26 @@ let PedidosService = class PedidosService {
             monto_arqueo_efectivo: row?.montoArqueoEfectivo != null ? Number(row.montoArqueoEfectivo) : null,
         };
     }
-    async baseFinalAnterior(fechaOnly, tenantId) {
-        const prev = await this.prisma.cajaDiaria.findFirst({
-            where: {
-                idRestaurante: tenantId,
-                fecha: { lt: fechaOnly },
-                montoBaseCierreEfectivo: { not: null },
-            },
-            orderBy: { fecha: 'desc' },
-            select: { montoBaseCierreEfectivo: true },
-        });
+    async baseFinalAnterior(fechaOnly, tenantId, idUnidad) {
+        const prev = idUnidad
+            ? await this.prisma.cajaUnidad.findFirst({
+                where: {
+                    idUnidad,
+                    fecha: { lt: fechaOnly },
+                    montoBaseCierreEfectivo: { not: null },
+                },
+                orderBy: { fecha: 'desc' },
+                select: { montoBaseCierreEfectivo: true },
+            })
+            : await this.prisma.cajaDiaria.findFirst({
+                where: {
+                    idRestaurante: tenantId,
+                    fecha: { lt: fechaOnly },
+                    montoBaseCierreEfectivo: { not: null },
+                },
+                orderBy: { fecha: 'desc' },
+                select: { montoBaseCierreEfectivo: true },
+            });
         return prev?.montoBaseCierreEfectivo != null ? Number(prev.montoBaseCierreEfectivo) : null;
     }
     async upsertCajaDiariaArqueo(dto, tenantId = tenant_constants_1.DEFAULT_TENANT_ID, registradoPor = '') {
@@ -741,21 +782,33 @@ let PedidosService = class PedidosService {
             throw new common_1.BadRequestException('fecha inválida, usa formato YYYY-MM-DD');
         }
         const fechaOnly = this.fechaCalendarioBogota(base);
-        const resumen = await this.resumenDiario(dto.fecha, undefined, tenantId);
-        const row = await this.prisma.cajaDiaria.upsert({
-            where: {
-                idRestaurante_fecha: { idRestaurante: tenantId, fecha: fechaOnly },
-            },
-            create: {
-                idRestaurante: tenantId,
-                fecha: fechaOnly,
-                montoBaseEfectivo: resumen.monto_base_efectivo,
-                montoArqueoEfectivo: dto.monto_contado_efectivo,
-            },
-            update: {
-                montoArqueoEfectivo: dto.monto_contado_efectivo,
-            },
-        });
+        const idUnidad = await this.idUnidadCaja(tenantId, dto.id_unidad);
+        const resumen = await this.resumenDiario(dto.fecha, idUnidad ? { id_unidad: idUnidad } : undefined, tenantId);
+        const row = idUnidad
+            ? await this.prisma.cajaUnidad.upsert({
+                where: { idUnidad_fecha: { idUnidad, fecha: fechaOnly } },
+                create: {
+                    idUnidad,
+                    fecha: fechaOnly,
+                    montoBaseEfectivo: resumen.monto_base_efectivo,
+                    montoArqueoEfectivo: dto.monto_contado_efectivo,
+                },
+                update: { montoArqueoEfectivo: dto.monto_contado_efectivo },
+            })
+            : await this.prisma.cajaDiaria.upsert({
+                where: {
+                    idRestaurante_fecha: { idRestaurante: tenantId, fecha: fechaOnly },
+                },
+                create: {
+                    idRestaurante: tenantId,
+                    fecha: fechaOnly,
+                    montoBaseEfectivo: resumen.monto_base_efectivo,
+                    montoArqueoEfectivo: dto.monto_contado_efectivo,
+                },
+                update: {
+                    montoArqueoEfectivo: dto.monto_contado_efectivo,
+                },
+            });
         (0, tenant_snapshot_cache_1.invalidarSnapshotsTenant)();
         const fechaStr = base.toFormat('yyyy-LL-dd');
         const contado = Number(row.montoArqueoEfectivo ?? 0);
@@ -785,19 +838,30 @@ let PedidosService = class PedidosService {
             throw new common_1.BadRequestException('fecha inválida, usa formato YYYY-MM-DD');
         }
         const fechaOnly = this.fechaCalendarioBogota(base);
-        const row = await this.prisma.cajaDiaria.upsert({
-            where: {
-                idRestaurante_fecha: { idRestaurante: tenantId, fecha: fechaOnly },
-            },
-            create: {
-                idRestaurante: tenantId,
-                fecha: fechaOnly,
-                montoBaseEfectivo: dto.monto_base_efectivo,
-            },
-            update: {
-                montoBaseEfectivo: dto.monto_base_efectivo,
-            },
-        });
+        const idUnidad = await this.idUnidadCaja(tenantId, dto.id_unidad);
+        const row = idUnidad
+            ? await this.prisma.cajaUnidad.upsert({
+                where: { idUnidad_fecha: { idUnidad, fecha: fechaOnly } },
+                create: {
+                    idUnidad,
+                    fecha: fechaOnly,
+                    montoBaseEfectivo: dto.monto_base_efectivo,
+                },
+                update: { montoBaseEfectivo: dto.monto_base_efectivo },
+            })
+            : await this.prisma.cajaDiaria.upsert({
+                where: {
+                    idRestaurante_fecha: { idRestaurante: tenantId, fecha: fechaOnly },
+                },
+                create: {
+                    idRestaurante: tenantId,
+                    fecha: fechaOnly,
+                    montoBaseEfectivo: dto.monto_base_efectivo,
+                },
+                update: {
+                    montoBaseEfectivo: dto.monto_base_efectivo,
+                },
+            });
         const fechaStr = base.toFormat('yyyy-LL-dd');
         const monto = Number(row.montoBaseEfectivo);
         const cfgImpresion = await this.obtenerConfigOperativaRow(tenantId);
@@ -822,11 +886,16 @@ let PedidosService = class PedidosService {
             throw new common_1.BadRequestException('fecha inválida, usa formato YYYY-MM-DD');
         }
         const fechaOnly = this.fechaCalendarioBogota(base);
-        const actual = await this.prisma.cajaDiaria.findUnique({
-            where: {
-                idRestaurante_fecha: { idRestaurante: tenantId, fecha: fechaOnly },
-            },
-        });
+        const idUnidad = await this.idUnidadCaja(tenantId, dto.id_unidad);
+        const actual = idUnidad
+            ? await this.prisma.cajaUnidad.findUnique({
+                where: { idUnidad_fecha: { idUnidad, fecha: fechaOnly } },
+            })
+            : await this.prisma.cajaDiaria.findUnique({
+                where: {
+                    idRestaurante_fecha: { idRestaurante: tenantId, fecha: fechaOnly },
+                },
+            });
         if (actual?.montoArqueoEfectivo == null) {
             throw new common_1.BadRequestException('Primero registra el arqueo (efectivo contado) y luego la base final.');
         }
@@ -834,10 +903,15 @@ let PedidosService = class PedidosService {
         if (dto.monto_base_cierre_efectivo > contado) {
             throw new common_1.BadRequestException('La base final no puede ser mayor que el efectivo contado en el arqueo.');
         }
-        const row = await this.prisma.cajaDiaria.update({
-            where: { idCajaDiaria: actual.idCajaDiaria },
-            data: { montoBaseCierreEfectivo: dto.monto_base_cierre_efectivo },
-        });
+        const row = idUnidad
+            ? await this.prisma.cajaUnidad.update({
+                where: { idCajaUnidad: actual.idCajaUnidad },
+                data: { montoBaseCierreEfectivo: dto.monto_base_cierre_efectivo },
+            })
+            : await this.prisma.cajaDiaria.update({
+                where: { idCajaDiaria: actual.idCajaDiaria },
+                data: { montoBaseCierreEfectivo: dto.monto_base_cierre_efectivo },
+            });
         const fechaStr = base.toFormat('yyyy-LL-dd');
         const montoCierre = Number(row.montoBaseCierreEfectivo ?? 0);
         const cfgImpresion = await this.obtenerConfigOperativaRow(tenantId);
@@ -1043,6 +1117,11 @@ let PedidosService = class PedidosService {
             await (0, stock_auditoria_1.exigirPasswordAdmin)(this.prisma, actor, dto.password_admin, 'registrar movimientos de caja en otro día');
         }
         const metodo = dto.metodo === 'transferencia' ? 'transferencia' : 'efectivo';
+        const actorRow = await this.prisma.usuario.findUnique({
+            where: { idUsuario: actor.idUsuario },
+            select: { idRestaurante: true },
+        });
+        const idUnidadMov = await this.idUnidadCaja(actorRow?.idRestaurante ?? tenant_constants_1.DEFAULT_TENANT_ID, dto.id_unidad);
         const row = await this.prisma.$transaction(async (tx) => {
             const created = await tx.movimientoCaja.create({
                 data: {
@@ -1052,6 +1131,7 @@ let PedidosService = class PedidosService {
                     motivo,
                     metodoDevolucion: metodo,
                     idUsuario: actor.idUsuario,
+                    ...(idUnidadMov ? { idUnidad: idUnidadMov } : {}),
                 },
                 include: {
                     usuario: { select: { nombre: true, apellido: true } },
@@ -2253,11 +2333,78 @@ let PedidosService = class PedidosService {
             opts?.periodo ?? null,
             opts?.fecha_desde ?? null,
             opts?.fecha_hasta ?? null,
+            opts?.id_unidad ?? null,
         ])}`;
         return (0, tenant_snapshot_cache_1.snapshotTenant)(clave, SNAPSHOT_RESUMEN_MS, () => this.calcularResumenDiario(fecha, opts, tenantId));
     }
+    async tenantResumenSuperadmin(actorRol, solicitado, tenantSesion) {
+        if (actorRol !== 'superadmin' || solicitado == null || solicitado === tenantSesion) {
+            return tenantSesion;
+        }
+        const flag = await this.prisma.configRestaurante.findFirst({
+            where: { moduloRestaurantesMultiplesActivo: true },
+            select: { idRestaurante: true },
+        });
+        if (!flag)
+            return tenantSesion;
+        const existe = await this.prisma.restaurante.findFirst({
+            where: { idRestaurante: solicitado, activo: true },
+            select: { idRestaurante: true },
+        });
+        return existe ? solicitado : tenantSesion;
+    }
+    async resumenConsolidadoRestaurantes(fecha, opts) {
+        const flag = await this.prisma.configRestaurante.findFirst({
+            where: { moduloRestaurantesMultiplesActivo: true },
+            select: { idRestaurante: true },
+        });
+        if (!flag) {
+            throw new common_1.ForbiddenException('Varios restaurantes no está habilitado');
+        }
+        const restaurantes = await this.prisma.restaurante.findMany({
+            where: { activo: true },
+            orderBy: { idRestaurante: 'asc' },
+            select: { idRestaurante: true, nombre: true },
+        });
+        const partes = [];
+        let ancla = fecha;
+        for (const r of restaurantes) {
+            const res = await this.calcularResumenDiario(fecha, { incluirLineas: false, periodo: opts.periodo, fecha_desde: opts.fecha_desde, fecha_hasta: opts.fecha_hasta }, r.idRestaurante);
+            ancla = res.fecha;
+            partes.push({
+                id_restaurante: r.idRestaurante,
+                nombre: r.nombre,
+                total_facturado: res.total_facturado,
+                total_facturas: res.total_facturas,
+                total_mesas_atendidas: res.total_mesas_atendidas,
+                monto_base_cierre_efectivo: res.monto_base_cierre_efectivo,
+                totales_por_metodo: res.totales_por_metodo,
+            });
+        }
+        const sum = (pick) => partes.reduce((s, p) => s + pick(p), 0);
+        return {
+            fecha: ancla,
+            consolidado_restaurantes: true,
+            usa_caja: false,
+            total_facturado: sum((p) => p.total_facturado),
+            total_facturas: sum((p) => p.total_facturas),
+            total_mesas_atendidas: sum((p) => p.total_mesas_atendidas),
+            mesas: [],
+            pedidos_detalle: [],
+            monto_base_efectivo: 0,
+            monto_base_cierre_efectivo: null,
+            totales_por_metodo: {
+                efectivo: sum((p) => p.totales_por_metodo.efectivo),
+                transferencia: sum((p) => p.totales_por_metodo.transferencia),
+                tarjeta: sum((p) => p.totales_por_metodo.tarjeta),
+                fiado: sum((p) => p.totales_por_metodo.fiado),
+            },
+            restaurantes: partes,
+        };
+    }
     async calcularResumenDiario(fecha, opts, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
         const incluirLineas = opts?.incluirLineas === true;
+        const idUnidad = await this.idUnidadCaja(tenantId, opts?.id_unidad);
         const periodo = (0, resumen_periodo_1.parsePeriodoResumen)(opts?.periodo);
         let base = luxon_1.DateTime.now().setZone('America/Bogota');
         if (fecha) {
@@ -2355,19 +2502,46 @@ let PedidosService = class PedidosService {
             orderBy: { emitidaEn: 'asc' },
         });
         const fechaOnly = this.fechaCalendarioBogota(base);
-        const cajaRow = usaCaja
-            ? await this.prisma.cajaDiaria.findUnique({
-                where: {
-                    idRestaurante_fecha: { idRestaurante: tenantId, fecha: fechaOnly },
-                },
-            })
-            : null;
+        const cajaRow = !usaCaja
+            ? null
+            : idUnidad
+                ? await this.prisma.cajaUnidad.findUnique({
+                    where: { idUnidad_fecha: { idUnidad, fecha: fechaOnly } },
+                })
+                : await this.prisma.cajaDiaria.findUnique({
+                    where: {
+                        idRestaurante_fecha: { idRestaurante: tenantId, fecha: fechaOnly },
+                    },
+                });
         const montoBaseEfectivo = cajaRow ? Number(cajaRow.montoBaseEfectivo) : 0;
         const montoBaseCierreEfectivo = cajaRow?.montoBaseCierreEfectivo != null ? Number(cajaRow.montoBaseCierreEfectivo) : null;
         const montoArqueoEfectivo = cajaRow?.montoArqueoEfectivo != null ? Number(cajaRow.montoArqueoEfectivo) : null;
         const montoBaseSugerido = usaCaja && montoBaseEfectivo <= 0
-            ? await this.baseFinalAnterior(fechaOnly, tenantId)
+            ? await this.baseFinalAnterior(fechaOnly, tenantId, idUnidad)
             : null;
+        if (idUnidad && facturas.length > 0) {
+            const partes = await this.prisma.detallePedido.findMany({
+                where: {
+                    idUnidad,
+                    idFactura: { in: facturas.map((f) => f.idFactura) },
+                },
+                select: { idFactura: true, cantidad: true, precioUnitario: true },
+            });
+            const porFactura = new Map();
+            for (const linea of partes) {
+                if (linea.idFactura == null)
+                    continue;
+                porFactura.set(linea.idFactura, (porFactura.get(linea.idFactura) ?? 0) +
+                    Number(linea.precioUnitario) * linea.cantidad);
+            }
+            for (let i = facturas.length - 1; i >= 0; i -= 1) {
+                const parte = porFactura.get(facturas[i].idFactura) ?? 0;
+                if (parte <= 0)
+                    facturas.splice(i, 1);
+                else
+                    facturas[i].total = parte;
+            }
+        }
         const totalesPorMetodo = {
             efectivo: 0,
             transferencia: 0,
@@ -2439,39 +2613,54 @@ let PedidosService = class PedidosService {
                     .map((d) => this.lineaFacturaDesdePrismaResumen(d))),
             };
         });
-        const detallesFacturados = await this.prisma.detallePedido.findMany({
-            where: {
-                idFactura: { not: null },
-                factura: {
-                    emitidaEn: { gte: start, lt: end },
-                    pedido: { idRestaurante: tenantId },
-                },
-                producto: { esAcompanamientoMazorca: false, esCuotaPendienteReparto: false },
-            },
-            select: {
-                cantidad: true,
-                precioUnitario: true,
-                producto: {
-                    select: {
-                        idProducto: true,
-                        nombre: true,
-                        esPlatoPrincipal: true,
-                        categoria: { select: { nombre: true } },
-                    },
-                },
-            },
-        });
-        const ventas = (0, resumen_diario_ventas_1.agregarVentasResumenDiario)(detallesFacturados.map((d) => {
-            const pu = Number(d.precioUnitario);
-            return {
-                id_producto: d.producto.idProducto,
-                nombre_producto: d.producto.nombre,
-                categoria_nombre: d.producto.categoria.nombre,
-                es_plato_principal: d.producto.esPlatoPrincipal,
-                cantidad: d.cantidad,
-                subtotal_linea: pu * d.cantidad,
-            };
-        }));
+        const ventasAgregadas = idUnidad
+            ? await this.prisma.$queryRaw `
+          SELECT dp.id_producto,
+                 p.nombre AS nombre_producto,
+                 c.nombre AS categoria_nombre,
+                 p.es_plato_principal,
+                 SUM(dp.cantidad)::int AS cantidad,
+                 SUM(dp.precio_unitario * dp.cantidad) AS subtotal_linea
+          FROM detalle_pedido dp
+          JOIN factura f ON f.id_factura = dp.id_factura
+          JOIN pedido ped ON ped.id_pedido = f.id_pedido
+          JOIN producto p ON p.id_producto = dp.id_producto
+          JOIN categoria c ON c.id_categoria = p.id_categoria
+          WHERE f.emitida_en >= ${start}
+            AND f.emitida_en < ${end}
+            AND ped.id_restaurante = ${tenantId}
+            AND dp.id_unidad = ${idUnidad}
+            AND p.es_acompanamiento_mazorca = false
+            AND p.es_cuota_pendiente_reparto = false
+          GROUP BY dp.id_producto, p.nombre, c.nombre, p.es_plato_principal
+        `
+            : await this.prisma.$queryRaw `
+          SELECT dp.id_producto,
+                 p.nombre AS nombre_producto,
+                 c.nombre AS categoria_nombre,
+                 p.es_plato_principal,
+                 SUM(dp.cantidad)::int AS cantidad,
+                 SUM(dp.precio_unitario * dp.cantidad) AS subtotal_linea
+          FROM detalle_pedido dp
+          JOIN factura f ON f.id_factura = dp.id_factura
+          JOIN pedido ped ON ped.id_pedido = f.id_pedido
+          JOIN producto p ON p.id_producto = dp.id_producto
+          JOIN categoria c ON c.id_categoria = p.id_categoria
+          WHERE f.emitida_en >= ${start}
+            AND f.emitida_en < ${end}
+            AND ped.id_restaurante = ${tenantId}
+            AND p.es_acompanamiento_mazorca = false
+            AND p.es_cuota_pendiente_reparto = false
+          GROUP BY dp.id_producto, p.nombre, c.nombre, p.es_plato_principal
+        `;
+        const ventas = (0, resumen_diario_ventas_1.agregarVentasResumenDiario)(ventasAgregadas.map((d) => ({
+            id_producto: Number(d.id_producto),
+            nombre_producto: d.nombre_producto,
+            categoria_nombre: d.categoria_nombre,
+            es_plato_principal: d.es_plato_principal,
+            cantidad: Number(d.cantidad),
+            subtotal_linea: Number(d.subtotal_linea),
+        })));
         const subtotal_ventas_bruto = ventas.items_menu.reduce((s, i) => s + i.subtotal, 0);
         const total_descuentos_dia = facturas.reduce((s, f) => s + Number(f.descuentoSopas) + Number(f.descuentoMuleros) + Number(f.descuentoPromociones), 0);
         const total_impoconsumo_dia = facturas.reduce((s, f) => s + Math.round(Number(f.montoImpoconsumo ?? 0)), 0);
@@ -2499,6 +2688,7 @@ let PedidosService = class PedidosService {
         const devolucionesRows = await this.prisma.movimientoCaja.findMany({
             where: {
                 fecha: { gte: fechaDesdeDb, lte: fechaHastaDb },
+                ...(idUnidad ? { idUnidad } : {}),
                 OR: [
                     { pedido: { idRestaurante: tenantId } },
                     { pedido: null, usuario: { idRestaurante: tenantId } },
@@ -3516,7 +3706,7 @@ let PedidosService = class PedidosService {
         return this.imprimirFacturaPorId(ultima.idFactura);
     }
     async crear(dto, idUsuario, tenantId = tenant_constants_1.DEFAULT_TENANT_ID, actor) {
-        const mesa = await (0, tenant_scope_1.assertMesaDelTenant)(this.prisma, dto.id_mesa, tenantId);
+        const mesa = await (0, tenant_scope_2.assertMesaDelTenant)(this.prisma, dto.id_mesa, tenantId);
         if (!(0, mesa_dia_1.mesaDisponibleHoyBogota)(mesa)) {
             throw new common_1.ConflictException('Esta mesa no está disponible hoy');
         }
@@ -4595,7 +4785,7 @@ let PedidosService = class PedidosService {
         return rows[0] ?? null;
     }
     async pedidosActivosPorMesa(idMesa, tenantId = tenant_constants_1.DEFAULT_TENANT_ID, limite = operative_limits_1.OPERATIVE_PEDIDOS_MAX) {
-        await (0, tenant_scope_1.assertMesaDelTenant)(this.prisma, idMesa, tenantId);
+        await (0, tenant_scope_2.assertMesaDelTenant)(this.prisma, idMesa, tenantId);
         const rows = await this.prisma.pedido.findMany({
             where: {
                 idMesa,
@@ -4969,6 +5159,7 @@ let PedidosService = class PedidosService {
             cliente_nombre: pedido.clienteNombre ?? null,
             cliente_telefono: pedido.clienteTelefono ?? null,
             cliente_direccion: pedido.clienteDireccion ?? null,
+            texto_libre: opts.texto_libre?.trim() ? opts.texto_libre.trim().slice(0, 2000) : null,
             emitida_en: new Date().toISOString(),
         };
         const impresion = this.encolarImpresion(() => this.comandaPrinter.imprimirDomicilio(ticket), 'factura', idPedido);
@@ -7782,10 +7973,11 @@ let PedidosService = class PedidosService {
         if (det.idFactura != null) {
             throw new common_1.ConflictException('Algún ítem ya fue cobrado');
         }
+        const costoCierre = await this.costoAlFacturar(tx, det.idProducto);
         if (cantidadCobrar === det.cantidad) {
             await tx.detallePedido.update({
                 where: { idDetalle: det.idDetalle },
-                data: { idFactura },
+                data: { idFactura, costoUnitarioCierre: costoCierre },
             });
             return;
         }
@@ -7806,6 +7998,7 @@ let PedidosService = class PedidosService {
                 listoParaRecoger: det.listoParaRecoger,
                 idDetallePadre: det.idDetallePadre,
                 idFactura,
+                costoUnitarioCierre: costoCierre,
             },
         });
         const pers = await tx.detPersonalizacion.findMany({
@@ -7819,6 +8012,20 @@ let PedidosService = class PedidosService {
                 })),
             });
         }
+    }
+    async costoAlFacturar(tx, idProducto) {
+        const p = await tx.producto.findUnique({
+            where: { idProducto },
+            select: {
+                precioCosto: true,
+                receta: { select: { costoCalculado: true, activa: true } },
+            },
+        });
+        const precioCosto = p?.precioCosto != null ? Number(p.precioCosto) : null;
+        const costoReceta = p?.receta?.activa && p.receta.costoCalculado != null
+            ? Number(p.receta.costoCalculado)
+            : null;
+        return new client_1.Prisma.Decimal((0, ganancias_periodo_1.costoEfectivoProducto)(precioCosto, costoReceta).costo);
     }
     async facturar(idPedido, dto, actor) {
         await this.exigirPermisoMesero(actor, 'cobrar');

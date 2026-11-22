@@ -1189,6 +1189,7 @@ let GananciasService = GananciasService_1 = class GananciasService {
                         where: detalleWhere,
                         select: {
                             cantidad: true,
+                            costoUnitarioCierre: true,
                             producto: {
                                 select: {
                                     precioCosto: true,
@@ -1212,7 +1213,11 @@ let GananciasService = GananciasService_1 = class GananciasService {
                     total: true,
                     detalles: {
                         where: detalleWhere,
-                        select: { cantidad: true, producto: { select: { precioCosto: true } } },
+                        select: {
+                            cantidad: true,
+                            costoUnitarioCierre: true,
+                            producto: { select: { precioCosto: true } },
+                        },
                     },
                 },
             }));
@@ -1224,11 +1229,12 @@ let GananciasService = GananciasService_1 = class GananciasService {
             acc.ventas += Math.round(Number(f.total));
             acc.facturas += 1;
             for (const d of f.detalles) {
-                const precioCosto = d.producto.precioCosto != null ? Math.round(Number(d.producto.precioCosto)) : null;
-                const costoReceta = d.producto.receta?.activa && d.producto.receta.costoCalculado != null
-                    ? Math.round(Number(d.producto.receta.costoCalculado))
-                    : null;
-                acc.costo += Math.max(0, d.cantidad) * (0, ganancias_periodo_1.costoEfectivoProducto)(precioCosto, costoReceta).costo;
+                const costoLinea = d.costoUnitarioCierre != null
+                    ? Math.round(Number(d.costoUnitarioCierre))
+                    : (0, ganancias_periodo_1.costoEfectivoProducto)(d.producto.precioCosto != null ? Math.round(Number(d.producto.precioCosto)) : null, d.producto.receta?.activa && d.producto.receta.costoCalculado != null
+                        ? Math.round(Number(d.producto.receta.costoCalculado))
+                        : null).costo;
+                acc.costo += Math.max(0, d.cantidad) * costoLinea;
             }
             porDia.set(ymd, acc);
         }
@@ -1404,6 +1410,7 @@ let GananciasService = GananciasService_1 = class GananciasService {
             where: {
                 idRestaurante: tenantId,
                 fecha: { gte: ventana.startDateOnly, lte: ventana.endDateOnly },
+                ...(opts.id_unidad ? { idUnidad: opts.id_unidad } : {}),
             },
             orderBy: [{ fecha: 'desc' }, { idGastoExtra: 'desc' }],
         });
@@ -1462,6 +1469,7 @@ let GananciasService = GananciasService_1 = class GananciasService {
                 usaFondo,
                 pagadoFondo: !usaFondo,
                 periodicidad,
+                ...(dto.id_unidad ? { idUnidad: dto.id_unidad } : {}),
             },
         });
         return this.mapExtra(row);
@@ -1536,6 +1544,7 @@ let GananciasService = GananciasService_1 = class GananciasService {
             select: {
                 cantidad: true,
                 precioUnitario: true,
+                costoUnitarioCierre: true,
                 idProducto: true,
                 producto: {
                     select: {
@@ -1557,6 +1566,7 @@ let GananciasService = GananciasService_1 = class GananciasService {
             select: {
                 cantidad: true,
                 precioUnitario: true,
+                costoUnitarioCierre: true,
                 idProducto: true,
                 producto: {
                     select: {
@@ -1661,13 +1671,11 @@ let GananciasService = GananciasService_1 = class GananciasService {
         for (const f of facturas) {
             for (const d of f.detalles) {
                 const precioUnit = Math.round(Number(d.precioUnitario));
-                const precioCosto = d.producto.precioCosto != null
-                    ? Math.round(Number(d.producto.precioCosto))
-                    : null;
-                const costoReceta = d.producto.receta?.activa && d.producto.receta.costoCalculado != null
-                    ? Math.round(Number(d.producto.receta.costoCalculado))
-                    : null;
-                const ef = (0, ganancias_periodo_1.costoEfectivoProducto)(precioCosto, costoReceta);
+                const ef = d.costoUnitarioCierre != null
+                    ? { costo: Math.round(Number(d.costoUnitarioCierre)), origen: 'cierre' }
+                    : (0, ganancias_periodo_1.costoEfectivoProducto)(d.producto.precioCosto != null ? Math.round(Number(d.producto.precioCosto)) : null, d.producto.receta?.activa && d.producto.receta.costoCalculado != null
+                        ? Math.round(Number(d.producto.receta.costoCalculado))
+                        : null);
                 const cantidad = Math.max(0, d.cantidad);
                 const venta_total = cantidad * precioUnit;
                 const costo_total = cantidad * ef.costo;

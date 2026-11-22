@@ -195,6 +195,10 @@ model Restaurante {
   slug          String   @unique @db.VarChar(80)
   nombre        String   @db.VarChar(120)
   activo        Boolean  @default(true)
+  /// Si está definido, este restaurante usa el salón (lugares y mesas) de ese otro.
+  idRestaurantePiso Int? @map("id_restaurante_piso")
+  piso              Restaurante?  @relation("PisoCompartido", fields: [idRestaurantePiso], references: [idRestaurante], onDelete: SetNull)
+  compartePiso      Restaurante[] @relation("PisoCompartido")
   /// Si está definido y ya pasó, nadie (salvo superadmin) puede iniciar sesión.
   accesoHasta   DateTime? @map("acceso_hasta")
   plan          String   @default("core") @db.VarChar(40)
@@ -235,8 +239,61 @@ model Restaurante {
   tiendas             Tienda[]
   reservas            Reserva[]
   apartados           Apartado[]
+  unidadesOperativas  UnidadOperativa[]
 
   @@map("restaurante")
+}
+
+/// Caja, ventas y cierre propios dentro de un restaurante. Sin filas = una sola operación.
+model UnidadOperativa {
+  idUnidad       Int      @id @default(autoincrement()) @map("id_unidad")
+  idRestaurante  Int      @map("id_restaurante")
+  nombre         String   @db.VarChar(80)
+  activo         Boolean  @default(true)
+  orden          Int      @default(0)
+  creadoEn       DateTime @default(now()) @map("creado_en")
+  restaurante    Restaurante @relation(fields: [idRestaurante], references: [idRestaurante], onDelete: Cascade)
+  detalles       DetallePedido[]
+  movimientosCaja MovimientoCaja[]
+  cajasDiarias   CajaDiaria[]
+  cajasUnidad    CajaUnidad[]
+  inventarios    Inventario[]
+  productos      Producto[]
+  categorias     Categoria[]
+  usuarios       UsuarioUnidad[]
+  gastosFijos    GastoFijoGanancia[]
+  gastosExtras   GastoExtraGanancia[]
+
+  @@unique([idRestaurante, nombre])
+  @@index([idRestaurante, activo, orden])
+  @@map("unidad_operativa")
+}
+
+/// Permiso de un usuario para operar una unidad. El admin ve todas.
+model UsuarioUnidad {
+  idUsuario Int @map("id_usuario")
+  idUnidad  Int @map("id_unidad")
+  usuario   Usuario         @relation(fields: [idUsuario], references: [idUsuario], onDelete: Cascade)
+  unidad    UnidadOperativa @relation(fields: [idUnidad], references: [idUnidad], onDelete: Cascade)
+
+  @@id([idUsuario, idUnidad])
+  @@index([idUnidad])
+  @@map("usuario_unidad")
+}
+
+/// Caja, arqueo y base final de una unidad. No comparte fila con la caja del restaurante.
+model CajaUnidad {
+  idCajaUnidad            Int      @id @default(autoincrement()) @map("id_caja_unidad")
+  idUnidad                Int      @map("id_unidad")
+  fecha                   DateTime @db.Date
+  montoBaseEfectivo       Decimal  @map("monto_base_efectivo") @db.Decimal(12, 2)
+  montoBaseCierreEfectivo Decimal? @map("monto_base_cierre_efectivo") @db.Decimal(12, 2)
+  montoArqueoEfectivo     Decimal? @map("monto_arqueo_efectivo") @db.Decimal(12, 2)
+  actualizadoEn           DateTime @updatedAt @map("actualizado_en")
+  unidad                  UnidadOperativa @relation(fields: [idUnidad], references: [idUnidad], onDelete: Restrict)
+
+  @@unique([idUnidad, fecha])
+  @@map("caja_unidad")
 }
 
 /// Punto de venta retail independiente (catálogo + stock + mesa boutique propios).
@@ -289,7 +346,10 @@ model GastoFijoGanancia {
   diaMes         Int?        @map("dia_mes")
   creadoEn       DateTime    @default(now()) @map("creado_en")
   actualizadoEn  DateTime    @updatedAt @map("actualizado_en")
+  /// Null = gasto del restaurante, visible en el consolidado y no en una caja de unidad.
+  idUnidad       Int?        @map("id_unidad")
   restaurante    Restaurante @relation(fields: [idRestaurante], references: [idRestaurante], onDelete: Cascade)
+  unidad         UnidadOperativa? @relation(fields: [idUnidad], references: [idUnidad], onDelete: Restrict)
   cuotasFondo    CuotaFondoGastoFijo[]
   pagosFondo     PagoFondoGastoFijo[]
 
@@ -351,9 +411,12 @@ model GastoExtraGanancia {
   periodicidad   String      @default("diario") @db.VarChar(16)
   creadoEn       DateTime    @default(now()) @map("creado_en")
   actualizadoEn  DateTime    @updatedAt @map("actualizado_en")
+  idUnidad       Int?        @map("id_unidad")
   restaurante    Restaurante @relation(fields: [idRestaurante], references: [idRestaurante], onDelete: Cascade)
+  unidad         UnidadOperativa? @relation(fields: [idUnidad], references: [idUnidad], onDelete: Restrict)
 
   @@index([idRestaurante, fecha])
+  @@index([idUnidad])
   @@map("gasto_extra_ganancia")
 }
 
@@ -472,6 +535,7 @@ model Usuario {
   asientosContables             AsientoContable[]
   produccionesPorcion           ProduccionPorcion[]
   propinasPersonales            PropinaPersonalMesero[]
+  unidadesAsignadas             UsuarioUnidad[]
 
   @@unique([idRestaurante, email])
   @@index([idRestaurante])
@@ -707,7 +771,10 @@ model Categoria {
   canal                    CanalCatalogo        @default(restaurante)
   /// Obligatorio para canal retail: categoría pertenece a una tienda.
   idTienda                 Int?                 @map("id_tienda")
+  /// Unidad de todos los productos que no eligen otra. Null = operación general.
+  idUnidad                 Int?                 @map("id_unidad")
   restaurante              Restaurante          @relation(fields: [idRestaurante], references: [idRestaurante])
+  unidadOperativa          UnidadOperativa?     @relation(fields: [idUnidad], references: [idUnidad], onDelete: SetNull)
   tienda                   Tienda?              @relation(fields: [idTienda], references: [idTienda], onDelete: Cascade)
   productos                Producto[]
   reglasImpresionCocina    ReglaImpresionCocina[]
@@ -716,6 +783,7 @@ model Categoria {
   @@index([idRestaurante])
   @@index([idRestaurante, canal])
   @@index([idTienda])
+  @@index([idUnidad])
   @@map("categoria")
 }
 
@@ -758,7 +826,12 @@ model Producto {
   porcionesPorEntera Int                     @default(8) @map("porciones_por_entera")
   /// Nombre de archivo en images/ del tenant (ej. producto-12.webp). Null = sin foto.
   imagenArchivo      String?                 @map("imagen_archivo") @db.VarChar(120)
+  /// Unidad propia del producto. Solo aplica si heredaUnidad es false.
+  idUnidad           Int?                    @map("id_unidad")
+  /// True = usa la unidad de la categoría.
+  heredaUnidad       Boolean                 @default(true) @map("hereda_unidad")
   categoria          Categoria               @relation(fields: [idCategoria], references: [idCategoria])
+  unidadOperativa    UnidadOperativa?        @relation(fields: [idUnidad], references: [idUnidad], onDelete: SetNull)
   detalles           DetallePedido[]
   opciones                 PersonalizacionOpcion[]
   subitems           ProductoSubitem[]
@@ -779,6 +852,7 @@ model Producto {
 
   @@index([codigoMenu])
   @@index([idCategoria, codigoMenu])
+  @@index([idUnidad])
   @@map("producto")
 }
 
@@ -975,6 +1049,8 @@ model DetallePedido {
   idDetalleComboPadre  Int?                 @map("id_detalle_combo_padre")
   cantidad             Int                  @default(1)
   precioUnitario       Decimal              @map("precio_unitario") @db.Decimal(10, 2)
+  /// Costo unitario al facturar. Las ventas cerradas no siguen el costo actual del producto.
+  costoUnitarioCierre  Decimal?             @map("costo_unitario_cierre") @db.Decimal(12, 2)
   notaCocina           String?              @map("nota_cocina") @db.Text
   listoCocina          Boolean              @default(false) @map("listo_cocina")
   listoParaRecoger     Boolean              @default(false) @map("listo_para_recoger")
@@ -990,15 +1066,19 @@ model DetallePedido {
   empaquesAsociados    DetallePedido[]      @relation("DetalleEmpaque")
   detalleComboPadre    DetallePedido?       @relation("DetalleCombo", fields: [idDetalleComboPadre], references: [idDetalle], onDelete: Cascade)
   componentesCombo     DetallePedido[]      @relation("DetalleCombo")
+  /// Unidad que prepara y a la que se atribuye la venta. Null = operación única del restaurante.
+  idUnidad             Int?                 @map("id_unidad")
   personalizaciones    DetPersonalizacion[]
   subitems             DetSubitemCantidad[]
   factura              Factura?             @relation(fields: [idFactura], references: [idFactura])
+  unidad               UnidadOperativa?     @relation(fields: [idUnidad], references: [idUnidad], onDelete: Restrict)
 
   @@index([idPedido])
   @@index([idDetallePadre])
   @@index([idDetalleComboPadre])
   @@index([idFactura])
   @@index([idProductoVariante])
+  @@index([idUnidad])
   @@map("detalle_pedido")
 }
 
@@ -1343,6 +1423,12 @@ model ConfigRestaurante {
   moduloConexionMovilActivo Boolean @default(false) @map("modulo_conexion_movil_activo")
   /// Ganancias: costos de menú, gastos fijos/extras y reporte por periodo.
   moduloGananciasActivo      Boolean  @default(false) @map("modulo_ganancias_activo")
+  /// Cajas independientes por unidad operativa. Apagado = una sola caja, como hoy.
+  moduloUnidadesOperativasActivo Boolean @default(false) @map("modulo_unidades_operativas_activo")
+  /// Varios restaurantes, cada uno con su resumen y su caja. Apagado = un solo restaurante.
+  moduloRestaurantesMultiplesActivo Boolean @default(false) @map("modulo_restaurantes_multiples_activo")
+  /// Solo se usa con el módulo de unidades. Compartido = un solo stock.
+  modoInventarioUnidades     ModoInventarioUnidades @default(compartido) @map("modo_inventario_unidades")
   /// Admin: usar PIN en login de pantallas compartidas (requiere módulo + hash).
   loginPinCompartidoActivo   Boolean  @default(false) @map("login_pin_compartido_activo")
   /// bcrypt del PIN de 4 dígitos; nunca se expone.
@@ -1467,11 +1553,15 @@ model MovimientoCaja {
   creadoEn         DateTime                @default(now()) @map("creado_en")
   pedido           Pedido?                 @relation(fields: [idPedido], references: [idPedido], onDelete: Cascade)
   factura          Factura?                @relation(fields: [idFactura], references: [idFactura], onDelete: SetNull)
+  /// Null = caja única del restaurante (módulo de unidades apagado).
+  idUnidad         Int?                    @map("id_unidad")
   usuario          Usuario                 @relation(fields: [idUsuario], references: [idUsuario])
+  unidad           UnidadOperativa?        @relation(fields: [idUnidad], references: [idUnidad], onDelete: Restrict)
   cuotaFondo       CuotaFondoGastoFijo?
 
   @@index([fecha])
   @@index([idPedido])
+  @@index([idUnidad, fecha])
   @@map("movimiento_caja")
 }
 
@@ -1485,7 +1575,10 @@ model CajaDiaria {
   montoBaseCierreEfectivo Decimal? @map("monto_base_cierre_efectivo") @db.Decimal(12, 2)
   /// Efectivo contado en el arqueo, frente al esperado.
   montoArqueoEfectivo     Decimal? @map("monto_arqueo_efectivo") @db.Decimal(12, 2)
+  /// Null mientras el módulo de unidades está apagado: una fila por restaurante y fecha.
+  idUnidad                Int?     @map("id_unidad")
   actualizadoEn           DateTime    @updatedAt @map("actualizado_en")
+  unidad                  UnidadOperativa? @relation(fields: [idUnidad], references: [idUnidad], onDelete: Restrict)
 
   @@unique([idRestaurante, fecha])
   @@index([idRestaurante])
@@ -1509,13 +1602,17 @@ model Inventario {
   unidadCompra   String?         @map("unidad_compra") @db.VarChar(20)
   /// 1 unidad_compra = factorCompra × unidad base del artículo.
   factorCompra   Decimal?        @map("factor_compra") @db.Decimal(14, 6)
+  /// Null = existencias del restaurante (inventario compartido o módulo apagado).
+  idUnidad       Int?            @map("id_unidad")
   restaurante    Restaurante     @relation(fields: [idRestaurante], references: [idRestaurante])
+  unidadOperativa UnidadOperativa? @relation(fields: [idUnidad], references: [idUnidad], onDelete: Restrict)
   producto       Producto?       @relation(fields: [idProducto], references: [idProducto], onDelete: SetNull)
   movimientos    MovInventario[]
   lineasReceta   RecetaLinea[]
 
   @@unique([idRestaurante, ingrediente])
   @@index([idRestaurante, claseInventario])
+  @@index([idUnidad])
   @@index([idProducto])
   @@map("inventario")
 }
@@ -2106,6 +2203,14 @@ model AsientoLinea {
 }
 
 /// Auditoría del ciclo de vida (launcher). No reemplaza _prisma_migrations.
+/// Inventario de las unidades operativas. Solo aplica si el módulo está activo.
+enum ModoInventarioUnidades {
+  /// Un solo registro de existencias; todas las unidades descuentan de ahí.
+  compartido
+  /// Cada unidad tiene sus propios productos y existencias.
+  independiente
+}
+
 enum LifecycleSystemStatus {
   healthy
   updating

@@ -176,23 +176,16 @@ function retiroDeCaja(contado, baseFinal) {
 async function buildBaseCajaCierreEscPos(ticket, charWidthOrOpts = escpos_utils_1.DEFAULT_ESC_POS_WIDTH) {
     const opts = (0, escpos_utils_1.resolveEscPosTicketOpts)(charWidthOrOpts);
     const printer = (0, escpos_utils_1.createEscPosPrinter)(opts.charWidth);
-    const retiro = retiroDeCaja(ticket.monto_contado_efectivo, ticket.monto_base_cierre_efectivo);
     await (0, escpos_utils_1.applyEscPosTicketStart)(printer, opts);
     await encabezadoCaja(printer, opts, 'BASE FINAL', ticket.fecha);
     await (0, ticket_layout_1.bloqueDatos)(printer, opts, [
         ['Registrado', (0, ticket_layout_1.fechaHoraTicket)(ticket.emitida_en)],
         ['Por', ticket.registrado_por],
     ]);
-    await (0, ticket_layout_1.separador)(printer, opts);
-    if (ticket.monto_contado_efectivo != null) {
-        await fila(printer, opts, 'Contado en arqueo', (0, escpos_utils_1.formatCopEscPos)(ticket.monto_contado_efectivo));
-    }
-    if (retiro != null)
-        await fila(printer, opts, 'Retiro de caja', menos(retiro));
     await (0, ticket_layout_1.separadorDoble)(printer, opts);
     await (0, ticket_layout_1.filaMontoGrande)(printer, opts, 'BASE FINAL', (0, escpos_utils_1.formatCopEscPos)(ticket.monto_base_cierre_efectivo));
     await (0, ticket_layout_1.separadorDoble)(printer, opts);
-    await (0, ticket_layout_1.parrafoCentrado)(printer, opts, 'Efectivo que queda en caja para abrir el siguiente día');
+    await (0, ticket_layout_1.parrafoCentrado)(printer, opts, 'Registrada');
     await lineaFirma(printer, opts);
     await (0, escpos_utils_1.applyEscPosTicketEnd)(printer, opts);
     return (0, escpos_utils_1.bufferFromPrinter)(printer);

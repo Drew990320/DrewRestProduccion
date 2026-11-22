@@ -24,10 +24,11 @@ let JwtStrategy = class JwtStrategy extends (0, passport_1.PassportStrategy)(pas
             jwtFromRequest: passport_jwt_1.ExtractJwt.fromAuthHeaderAsBearerToken(),
             ignoreExpiration: false,
             secretOrKey: config.getOrThrow('JWT_SECRET'),
+            passReqToCallback: true,
         });
         this.prisma = prisma;
     }
-    async validate(payload) {
+    async validate(req, payload) {
         const id = Number(payload.sub);
         if (!Number.isFinite(id)) {
             throw new common_1.UnauthorizedException('Token inválido');
@@ -46,7 +47,7 @@ let JwtStrategy = class JwtStrategy extends (0, passport_1.PassportStrategy)(pas
         if (cached?.activo) {
             assertPwdYTenant(cached);
             await (0, tenant_access_1.assertTenantAccessForUser)(this.prisma, cached);
-            return cached;
+            return this.restauranteDeSoporte(req, cached);
         }
         const user = await this.prisma.usuario.findUnique({
             where: { idUsuario: id },
@@ -58,7 +59,43 @@ let JwtStrategy = class JwtStrategy extends (0, passport_1.PassportStrategy)(pas
         assertPwdYTenant(user);
         await (0, tenant_access_1.assertTenantAccessForUser)(this.prisma, user);
         (0, auth_user_cache_1.setCachedAuthUser)(user);
-        return user;
+        return this.restauranteDeSoporte(req, user);
+    }
+    async restauranteDeSoporte(req, user) {
+        const rol = user.rol?.nombre;
+        if (rol !== 'superadmin' && rol !== 'admin' && rol !== 'mesero')
+            return user;
+        const header = req?.headers?.['x-restaurante-id'];
+        const raw = Array.isArray(header) ? header[0] : header;
+        const id = Number(raw);
+        if (!Number.isInteger(id) || id <= 0 || id === user.idRestaurante)
+            return user;
+        const flag = await this.prisma.configRestaurante.findFirst({
+            where: { moduloRestaurantesMultiplesActivo: true },
+            select: { idRestaurante: true },
+        });
+        if (!flag)
+            return user;
+        if (rol === 'superadmin') {
+            const restaurante = await this.prisma.restaurante.findFirst({
+                where: { idRestaurante: id, activo: true },
+                select: { idRestaurante: true },
+            });
+            return restaurante ? { ...user, idRestaurante: id } : user;
+        }
+        const rows = await this.prisma.restaurante.findMany({
+            where: { idRestaurante: { in: [user.idRestaurante, id] } },
+            select: { idRestaurante: true, idRestaurantePiso: true, activo: true },
+        });
+        const casa = rows.find((r) => r.idRestaurante === user.idRestaurante);
+        const destino = rows.find((r) => r.idRestaurante === id);
+        if (!casa || !destino?.activo)
+            return user;
+        const pisoCasa = casa.idRestaurantePiso ?? casa.idRestaurante;
+        const pisoDestino = destino.idRestaurantePiso ?? destino.idRestaurante;
+        if (pisoCasa !== pisoDestino)
+            return user;
+        return { ...user, idRestaurante: id };
     }
 };
 exports.JwtStrategy = JwtStrategy;

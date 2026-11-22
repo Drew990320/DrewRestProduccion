@@ -386,9 +386,11 @@ function consolidarLineasCostoVenta(lineas) {
         const costo_total = prev.costo_total + l.costo_total;
         const origen = prev.origen_costo === 'ninguno' || l.origen_costo === 'ninguno'
             ? 'ninguno'
-            : prev.origen_costo === 'manual' || l.origen_costo === 'manual'
-                ? 'manual'
-                : 'receta';
+            : prev.origen_costo === 'cierre' || l.origen_costo === 'cierre'
+                ? 'cierre'
+                : prev.origen_costo === 'manual' || l.origen_costo === 'manual'
+                    ? 'manual'
+                    : 'receta';
         map.set(l.id_producto, {
             id_producto: l.id_producto,
             nombre: prev.nombre,

@@ -126,10 +126,39 @@ let ConfigRestauranteService = class ConfigRestauranteService {
             modulo_produccion_porciones_activo: row.moduloProduccionPorcionesActivo,
             modulo_conexion_movil_activo: row.moduloConexionMovilActivo,
             modulo_impoconsumo_activo: row.moduloImpoconsumoActivo,
+            modulo_unidades_operativas_activo: row.moduloUnidadesOperativasActivo,
+            modulo_restaurantes_multiples_activo: row.moduloRestaurantesMultiplesActivo,
+            modo_inventario_unidades: row.modoInventarioUnidades,
             login_pin_compartido_activo: row.loginPinCompartidoActivo,
             login_pin_definido: Boolean(row.loginPinHash?.trim()),
             actualizado_en: row.actualizadoEn.toISOString(),
         };
+    }
+    async restaurantesParaVenta(tenantId) {
+        const flag = await this.prisma.configRestaurante.findFirst({
+            where: { moduloRestaurantesMultiplesActivo: true },
+            select: { idRestaurante: true },
+        });
+        if (!flag)
+            return [];
+        const actual = await this.prisma.restaurante.findUnique({
+            where: { idRestaurante: tenantId },
+            select: { idRestaurante: true, idRestaurantePiso: true },
+        });
+        if (!actual)
+            return [];
+        const piso = actual.idRestaurantePiso ?? actual.idRestaurante;
+        const rows = await this.prisma.restaurante.findMany({
+            where: {
+                activo: true,
+                OR: [{ idRestaurante: piso }, { idRestaurantePiso: piso }],
+            },
+            orderBy: { idRestaurante: 'asc' },
+            select: { idRestaurante: true, nombre: true },
+        });
+        if (rows.length < 2)
+            return [];
+        return rows.map((r) => ({ id_restaurante: r.idRestaurante, nombre: r.nombre }));
     }
     loginPinDisponible(row) {
         return (row.moduloLoginPinActivo &&
@@ -419,6 +448,9 @@ let ConfigRestauranteService = class ConfigRestauranteService {
                     : {}),
                 ...(dto.modulo_odoo_activo !== undefined
                     ? { moduloOdooActivo: dto.modulo_odoo_activo }
+                    : {}),
+                ...(dto.modo_inventario_unidades !== undefined
+                    ? { modoInventarioUnidades: dto.modo_inventario_unidades }
                     : {}),
                 ...(dto.login_pin_compartido_activo !== undefined
                     ? { loginPinCompartidoActivo: dto.login_pin_compartido_activo }

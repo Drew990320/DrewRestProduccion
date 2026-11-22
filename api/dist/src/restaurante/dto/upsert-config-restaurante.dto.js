@@ -55,6 +55,7 @@ class UpsertConfigRestauranteDto {
     modulo_ganancias_activo;
     modulo_creditos_activo;
     modulo_odoo_activo;
+    modo_inventario_unidades;
     login_pin_compartido_activo;
     login_pin;
 }
@@ -295,6 +296,11 @@ __decorate([
     (0, class_validator_1.IsBoolean)(),
     __metadata("design:type", Boolean)
 ], UpsertConfigRestauranteDto.prototype, "modulo_odoo_activo", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsIn)(['compartido', 'independiente']),
+    __metadata("design:type", String)
+], UpsertConfigRestauranteDto.prototype, "modo_inventario_unidades", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsBoolean)(),

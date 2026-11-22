@@ -67,7 +67,7 @@ let PlatformProvisionService = class PlatformProvisionService {
             ],
         });
     }
-    async provision(dto) {
+    async provision(dto, opts) {
         const slug = dto.slug.trim().toLowerCase();
         const nombre = dto.nombre.trim();
         const plan = dto.plan?.trim() || 'core';
@@ -86,10 +86,18 @@ let PlatformProvisionService = class PlatformProvisionService {
         const rolAdmin = await this.prisma.rol.findFirstOrThrow({
             where: { nombre: 'admin' },
         });
-        const passwordHash = bcrypt.hashSync(dto.admin_password, 10);
+        const passwordHash = opts?.passwordHash ?? bcrypt.hashSync(dto.admin_password, 10);
         const result = await this.prisma.$transaction(async (tx) => {
             const restaurante = await tx.restaurante.create({
-                data: { slug, nombre, plan, activo: true },
+                data: {
+                    slug,
+                    nombre,
+                    plan,
+                    activo: true,
+                    ...(dto.id_restaurante_piso
+                        ? { idRestaurantePiso: dto.id_restaurante_piso }
+                        : {}),
+                },
             });
             const tenantId = restaurante.idRestaurante;
             await tx.configRestaurante.create({
@@ -123,15 +131,17 @@ let PlatformProvisionService = class PlatformProvisionService {
             await tx.permisosChefConfig.create({
                 data: { idRestaurante: tenantId },
             });
-            for (let n = 1; n <= mesasSalon; n++) {
-                await tx.mesa.create({
-                    data: {
-                        idRestaurante: tenantId,
-                        numero: n,
-                        capacidad: 4,
-                        estado: 'libre',
-                    },
-                });
+            if (!dto.id_restaurante_piso) {
+                for (let n = 1; n <= mesasSalon; n++) {
+                    await tx.mesa.create({
+                        data: {
+                            idRestaurante: tenantId,
+                            numero: n,
+                            capacidad: 4,
+                            estado: 'libre',
+                        },
+                    });
+                }
             }
             await tx.mesa.createMany({
                 data: [
@@ -154,7 +164,7 @@ let PlatformProvisionService = class PlatformProvisionService {
                 data: {
                     idRestaurante: tenantId,
                     idRol: rolAdmin.idRol,
-                    nombre: dto.admin_nombre?.trim() || 'Administrador',
+                    nombre: opts?.adminNombre?.trim() || dto.admin_nombre?.trim() || 'Administrador',
                     apellido: '',
                     email: adminEmail,
                     passwordHash,

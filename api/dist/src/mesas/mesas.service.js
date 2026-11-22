@@ -17,6 +17,7 @@ const pedidos_gateway_1 = require("../pedidos/pedidos.gateway");
 const timezone_1 = require("../common/timezone");
 const tenant_snapshot_cache_1 = require("../common/tenant-snapshot-cache");
 const tenant_constants_1 = require("../tenant/tenant.constants");
+const tenant_scope_1 = require("../tenant/tenant-scope");
 const config_operativa_cache_1 = require("../common/config-operativa-cache");
 const usuario_display_1 = require("../usuarios/usuario-display");
 const mesa_label_1 = require("@drewrest/shared-domain/mesa-label");
@@ -133,6 +134,7 @@ let MesasService = class MesasService {
         return (0, tenant_snapshot_cache_1.snapshotTenant)(`mesas-hoy:${tenantId}:${weekday}`, SNAPSHOT_MESAS_MS, () => this.calcularVisiblesHoy(tenantId, weekday));
     }
     async calcularVisiblesHoy(tenantId, weekday) {
+        tenantId = await (0, tenant_scope_1.idPisoRestaurante)(this.prisma, tenantId);
         const campo = (0, mesa_dia_1.campoDisponibilidadMesaParaWeekday)(weekday);
         if (!campo) {
             return [];
@@ -228,6 +230,7 @@ let MesasService = class MesasService {
         });
     }
     async listarTodasAdmin(tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
+        tenantId = await (0, tenant_scope_1.idPisoRestaurante)(this.prisma, tenantId);
         const [mesas, conteosActivos, conteosTotal] = await Promise.all([
             this.prisma.mesa.findMany({
                 where: { idRestaurante: tenantId },
@@ -250,6 +253,7 @@ let MesasService = class MesasService {
         return mesas.map((m) => this.mapMesaAdmin(m, activosPorMesa.get(m.idMesa) ?? 0, totalPorMesa.get(m.idMesa) ?? 0));
     }
     async crearMesa(dto, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
+        tenantId = await (0, tenant_scope_1.idPisoRestaurante)(this.prisma, tenantId);
         const mv = await this.configMesasVirtuales(tenantId);
         const extras = await this.numerosBoutiqueTenant(tenantId);
         const reservado = (0, mesa_admin_validacion_1.validarNumeroMesaReservado)(dto.numero, mv, extras);
@@ -285,6 +289,7 @@ let MesasService = class MesasService {
         return this.mapMesaAdmin(creada, 0, 0);
     }
     async crearMesasLote(dto, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
+        tenantId = await (0, tenant_scope_1.idPisoRestaurante)(this.prisma, tenantId);
         const desde = dto.numero_desde;
         const hasta = dto.numero_hasta;
         if (desde > hasta) {
@@ -407,6 +412,7 @@ let MesasService = class MesasService {
         return { activos, total };
     }
     async actualizarMesa(idMesa, dto, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
+        tenantId = await (0, tenant_scope_1.idPisoRestaurante)(this.prisma, tenantId);
         const m = await this.prisma.mesa.findFirst({
             where: { idMesa, idRestaurante: tenantId },
             include: { lugar: true },
@@ -488,6 +494,7 @@ let MesasService = class MesasService {
         return this.mapMesaAdmin(actualizada, activos, total);
     }
     async guardarPlano(dto, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
+        tenantId = await (0, tenant_scope_1.idPisoRestaurante)(this.prisma, tenantId);
         const ids = dto.mesas.map((m) => m.id_mesa);
         const existentes = await this.prisma.mesa.findMany({
             where: { idRestaurante: tenantId, idMesa: { in: ids } },
@@ -513,6 +520,7 @@ let MesasService = class MesasService {
         return { ok: true, actualizadas: dto.mesas.length };
     }
     async eliminarMesa(idMesa, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
+        tenantId = await (0, tenant_scope_1.idPisoRestaurante)(this.prisma, tenantId);
         const m = await this.prisma.mesa.findFirst({
             where: { idMesa, idRestaurante: tenantId },
         });
@@ -537,6 +545,7 @@ let MesasService = class MesasService {
         return { ok: true, id_mesa: idMesa };
     }
     async cambiarReserva(idMesa, reservada, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
+        tenantId = await (0, tenant_scope_1.idPisoRestaurante)(this.prisma, tenantId);
         const m = await this.prisma.mesa.findFirst({
             where: { idMesa, idRestaurante: tenantId },
             include: { lugar: true },
@@ -561,6 +570,7 @@ let MesasService = class MesasService {
         return this.mapMesaPublic(actualizada);
     }
     async obtenerPorId(idMesa, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
+        tenantId = await (0, tenant_scope_1.idPisoRestaurante)(this.prisma, tenantId);
         const m = await this.prisma.mesa.findFirst({
             where: { idMesa, idRestaurante: tenantId },
             include: { lugar: true },

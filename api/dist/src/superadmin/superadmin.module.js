@@ -9,6 +9,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.SuperadminModule = void 0;
 const common_1 = require("@nestjs/common");
 const pedidos_module_1 = require("../pedidos/pedidos.module");
+const platform_module_1 = require("../platform/platform.module");
 const superadmin_controller_1 = require("./superadmin.controller");
 const superadmin_service_1 = require("./superadmin.service");
 let SuperadminModule = class SuperadminModule {
@@ -16,7 +17,7 @@ let SuperadminModule = class SuperadminModule {
 exports.SuperadminModule = SuperadminModule;
 exports.SuperadminModule = SuperadminModule = __decorate([
     (0, common_1.Module)({
-        imports: [pedidos_module_1.PedidosModule],
+        imports: [pedidos_module_1.PedidosModule, platform_module_1.PlatformModule],
         controllers: [superadmin_controller_1.SuperadminController],
         providers: [superadmin_service_1.SuperadminService],
     })

@@ -10,6 +10,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CrearMovimientoCajaDto = void 0;
+const class_transformer_1 = require("class-transformer");
 const class_validator_1 = require("class-validator");
 class CrearMovimientoCajaDto {
     tipo;
@@ -18,6 +19,7 @@ class CrearMovimientoCajaDto {
     fecha;
     metodo;
     password_admin;
+    id_unidad;
 }
 exports.CrearMovimientoCajaDto = CrearMovimientoCajaDto;
 __decorate([
@@ -51,4 +53,11 @@ __decorate([
     (0, class_validator_1.MaxLength)(200),
     __metadata("design:type", String)
 ], CrearMovimientoCajaDto.prototype, "password_admin", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsInt)(),
+    (0, class_validator_1.Min)(1),
+    __metadata("design:type", Number)
+], CrearMovimientoCajaDto.prototype, "id_unidad", void 0);
 //# sourceMappingURL=crear-movimiento-caja.dto.js.map

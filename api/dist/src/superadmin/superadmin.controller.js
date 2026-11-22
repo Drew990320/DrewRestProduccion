@@ -21,6 +21,7 @@ const current_tenant_decorator_1 = require("../tenant/current-tenant.decorator")
 const crear_usuario_dto_1 = require("./dto/crear-usuario.dto");
 const patch_acceso_dto_1 = require("./dto/patch-acceso.dto");
 const patch_modulos_dto_1 = require("./dto/patch-modulos.dto");
+const crear_restaurante_dto_1 = require("./dto/crear-restaurante.dto");
 const patch_distribucion_enlaces_dto_1 = require("./dto/patch-distribucion-enlaces.dto");
 const purgar_dto_1 = require("./dto/purgar.dto");
 const superadmin_service_1 = require("./superadmin.service");
@@ -28,6 +29,15 @@ let SuperadminController = class SuperadminController {
     superadmin;
     constructor(superadmin) {
         this.superadmin = superadmin;
+    }
+    listarRestaurantes() {
+        return this.superadmin.listarRestaurantes();
+    }
+    desactivarRestaurante(id, req) {
+        return this.superadmin.desactivarRestaurante(id, req.user.idUsuario);
+    }
+    crearRestaurante(dto, tenantId) {
+        return this.superadmin.crearRestaurante(dto, tenantId ?? 1);
     }
     estado(tenantId) {
         return this.superadmin.estado(tenantId ?? 1);
@@ -73,6 +83,28 @@ let SuperadminController = class SuperadminController {
     }
 };
 exports.SuperadminController = SuperadminController;
+__decorate([
+    (0, common_1.Get)('restaurantes'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], SuperadminController.prototype, "listarRestaurantes", null);
+__decorate([
+    (0, common_1.Delete)('restaurantes/:id'),
+    __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
+    __param(1, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number, Object]),
+    __metadata("design:returntype", void 0)
+], SuperadminController.prototype, "desactivarRestaurante", null);
+__decorate([
+    (0, common_1.Post)('restaurantes'),
+    __param(0, (0, common_1.Body)()),
+    __param(1, (0, current_tenant_decorator_1.CurrentTenantId)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [crear_restaurante_dto_1.CrearRestauranteSuperadminDto, Object]),
+    __metadata("design:returntype", void 0)
+], SuperadminController.prototype, "crearRestaurante", null);
 __decorate([
     (0, common_1.Get)('estado'),
     __param(0, (0, current_tenant_decorator_1.CurrentTenantId)()),

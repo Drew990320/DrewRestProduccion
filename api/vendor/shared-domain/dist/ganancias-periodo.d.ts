@@ -2,7 +2,7 @@
  * Cálculo de ganancias operativas por periodo (ventas − costo − gastos).
  */
 import { type VigenciaGasto } from './gastos-vigencia';
-export type OrigenCostoProducto = 'manual' | 'receta' | 'ninguno';
+export type OrigenCostoProducto = 'manual' | 'receta' | 'cierre' | 'ninguno';
 export declare function costoEfectivoProducto(precioCosto: number | null | undefined, costoReceta: number | null | undefined): {
     costo: number;
     origen: OrigenCostoProducto;

@@ -31,6 +31,9 @@ let RestauranteController = class RestauranteController {
         this.config = config;
         this.tenant = tenant;
     }
+    paraVenta(tenantId) {
+        return this.config.restaurantesParaVenta(tenantId ?? tenant_constants_1.DEFAULT_TENANT_ID);
+    }
     obtenerConfig(tenantId) {
         return this.config.obtener(tenantId);
     }
@@ -61,6 +64,15 @@ let RestauranteController = class RestauranteController {
     }
 };
 exports.RestauranteController = RestauranteController;
+__decorate([
+    (0, common_1.Get)('para-venta'),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)('admin', 'mesero', 'superadmin'),
+    __param(0, (0, current_tenant_decorator_1.CurrentTenantId)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number]),
+    __metadata("design:returntype", void 0)
+], RestauranteController.prototype, "paraVenta", null);
 __decorate([
     (0, common_1.Get)('config'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),

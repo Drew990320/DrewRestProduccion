@@ -13,6 +13,7 @@ exports.LugaresMesaService = void 0;
 const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../prisma/prisma.service");
 const tenant_constants_1 = require("../tenant/tenant.constants");
+const tenant_scope_1 = require("../tenant/tenant-scope");
 let LugaresMesaService = class LugaresMesaService {
     prisma;
     constructor(prisma) {
@@ -42,6 +43,7 @@ let LugaresMesaService = class LugaresMesaService {
         }
     }
     async listar(todos = true, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
+        tenantId = await (0, tenant_scope_1.idPisoRestaurante)(this.prisma, tenantId);
         const rows = await this.prisma.lugarMesa.findMany({
             where: {
                 idRestaurante: tenantId,
@@ -53,6 +55,7 @@ let LugaresMesaService = class LugaresMesaService {
         return rows.map((row) => this.map(row));
     }
     async crear(dto, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
+        tenantId = await (0, tenant_scope_1.idPisoRestaurante)(this.prisma, tenantId);
         const nombre = dto.nombre.trim();
         await this.ensureNombreDisponible(tenantId, nombre);
         const row = await this.prisma.lugarMesa.create({
@@ -67,6 +70,7 @@ let LugaresMesaService = class LugaresMesaService {
         return this.map(row);
     }
     async actualizar(id, dto, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
+        tenantId = await (0, tenant_scope_1.idPisoRestaurante)(this.prisma, tenantId);
         const actual = await this.prisma.lugarMesa.findFirst({
             where: { idLugar: id, idRestaurante: tenantId },
             include: { _count: { select: { mesas: true } } },
@@ -90,6 +94,7 @@ let LugaresMesaService = class LugaresMesaService {
         return this.map(row);
     }
     async eliminar(id, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
+        tenantId = await (0, tenant_scope_1.idPisoRestaurante)(this.prisma, tenantId);
         const actual = await this.prisma.lugarMesa.findFirst({
             where: { idLugar: id, idRestaurante: tenantId },
         });

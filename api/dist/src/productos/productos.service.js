@@ -97,6 +97,8 @@ function mapProducto(p) {
         usa_produccion_porciones: Boolean(p.usaProduccionPorciones),
         porciones_por_entera: Math.max(1, p.porcionesPorEntera ?? 8),
         imagen_archivo: p.imagenArchivo ?? null,
+        id_unidad: p.idUnidad ?? null,
+        hereda_unidad: p.heredaUnidad !== false,
         imagen_url: (0, producto_imagen_upload_util_1.productoImagenPublicUrl)(p.idProducto, p.imagenArchivo),
         es_bebida: p.categoria.esBebida ?? false,
         total_usos_pedido: p._count?.detalles ?? 0,
@@ -121,6 +123,25 @@ let ProductosService = class ProductosService {
         this.menuActivo = menuActivo;
         this.recursos = recursos;
         this.pedidos = pedidos;
+    }
+    async resolverUnidadProducto(tenantId, raw) {
+        if (raw === undefined)
+            return undefined;
+        const cfg = await this.prisma.configRestaurante.findUnique({
+            where: { idRestaurante: tenantId },
+            select: { moduloUnidadesOperativasActivo: true },
+        });
+        if (!cfg?.moduloUnidadesOperativasActivo)
+            return undefined;
+        if (raw == null)
+            return null;
+        const unidad = await this.prisma.unidadOperativa.findFirst({
+            where: { idUnidad: raw, idRestaurante: tenantId, activo: true },
+            select: { idUnidad: true },
+        });
+        if (!unidad)
+            throw new common_1.BadRequestException('Unidad operativa no válida');
+        return raw;
     }
     async asegurarUnicoMazorca(idProducto, esMazorca, tenantId) {
         if (!esMazorca)
@@ -154,7 +175,68 @@ let ProductosService = class ProductosService {
             nombre: c.nombre,
         }));
     }
+    async asignarCodigosProductoFaltantes(tenantId) {
+        const categorias = await this.prisma.categoria.findMany({
+            where: { idRestaurante: tenantId, canal: 'restaurante' },
+            select: { idCategoria: true, codigoMenu: true },
+        });
+        const ocupadosCat = categorias
+            .map((c) => c.codigoMenu)
+            .filter((c) => !!c && /^\d{2}$/.test(c));
+        for (const c of categorias) {
+            if (c.codigoMenu && /^\d{2}$/.test(c.codigoMenu))
+                continue;
+            const codigo = (0, menu_codigo_1.siguienteCodigoCategoria)(ocupadosCat);
+            await this.prisma.categoria.update({
+                where: { idCategoria: c.idCategoria },
+                data: { codigoMenu: codigo },
+            });
+            c.codigoMenu = codigo;
+            ocupadosCat.push(codigo);
+        }
+        const productos = await this.prisma.producto.findMany({
+            where: {
+                codigoMenu: null,
+                categoria: { idRestaurante: tenantId, canal: 'restaurante' },
+            },
+            select: {
+                idProducto: true,
+                idCategoria: true,
+                categoria: { select: { codigoMenu: true } },
+            },
+            orderBy: { idProducto: 'asc' },
+        });
+        const porCategoria = new Map();
+        for (const p of productos) {
+            const codigo = p.categoria.codigoMenu;
+            if (!codigo || !/^\d{2}$/.test(codigo))
+                continue;
+            const grupo = porCategoria.get(p.idCategoria) ?? { codigo, ids: [] };
+            grupo.ids.push(p.idProducto);
+            porCategoria.set(p.idCategoria, grupo);
+        }
+        for (const [idCategoria, grupo] of porCategoria) {
+            const ocupados = await this.prisma.producto.findMany({
+                where: { idCategoria, codigoMenu: { not: null } },
+                select: { codigoMenu: true },
+            });
+            const usados = ocupados
+                .map((p) => p.codigoMenu)
+                .filter((c) => !!c);
+            for (const idProducto of grupo.ids) {
+                const codigoMenu = (0, menu_codigo_1.siguienteCodigoProducto)(grupo.codigo, usados);
+                await this.prisma.producto.update({
+                    where: { idProducto },
+                    data: { codigoMenu },
+                });
+                usados.push(codigoMenu);
+            }
+        }
+    }
     async listarProductos(incluirInactivos, tenantId = tenant_constants_1.DEFAULT_TENANT_ID) {
+        if (incluirInactivos) {
+            await this.asignarCodigosProductoFaltantes(tenantId);
+        }
         const rows = await this.prisma.producto.findMany({
             where: {
                 categoria: { idRestaurante: tenantId, canal: 'restaurante' },
@@ -214,9 +296,7 @@ let ProductosService = class ProductosService {
             where: { idCategoria: dto.id_categoria },
             select: { codigoMenu: true },
         });
-        const codigoMenu = dto.codigo_menu != null && String(dto.codigo_menu).trim() !== ''
-            ? (0, menu_codigo_1.normalizarCodigoProductoMenu)(dto.codigo_menu, codigoCategoria)
-            : (0, menu_codigo_1.siguienteCodigoProducto)(codigoCategoria, ocupados.map((p) => p.codigoMenu).filter((c) => !!c));
+        const codigoMenu = (0, menu_codigo_1.siguienteCodigoProducto)(codigoCategoria, ocupados.map((p) => p.codigoMenu).filter((c) => !!c));
         if (!codigoMenu) {
             throw new common_1.BadRequestException('Código de producto inválido');
         }
@@ -229,9 +309,11 @@ let ProductosService = class ProductosService {
         if (dupCode) {
             throw new common_1.ConflictException(`Ya existe un producto con código ${codigoMenu} en esta categoría`);
         }
+        const idUnidad = await this.resolverUnidadProducto(tenantId, dto.id_unidad);
         const created = await this.prisma.producto.create({
             data: {
                 idCategoria: dto.id_categoria,
+                ...(idUnidad != null ? { idUnidad, heredaUnidad: false } : {}),
                 codigoMenu,
                 nombre: dto.nombre.trim(),
                 descripcion: dto.descripcion?.trim() || null,
@@ -360,7 +442,7 @@ let ProductosService = class ProductosService {
         }
         const categoriaCambio = dto.id_categoria != null && dto.id_categoria !== existing.idCategoria;
         let codigoMenuUpdate;
-        if (dto.codigo_menu !== undefined || categoriaCambio || !existing.codigoMenu) {
+        if (categoriaCambio || !existing.codigoMenu) {
             const ocupados = await this.prisma.producto.findMany({
                 where: {
                     idCategoria: cat.idCategoria,
@@ -371,14 +453,7 @@ let ProductosService = class ProductosService {
             const ocupadosStr = ocupados
                 .map((p) => p.codigoMenu)
                 .filter((c) => !!c);
-            if (dto.codigo_menu != null && String(dto.codigo_menu).trim() !== '') {
-                const norm = (0, menu_codigo_1.normalizarCodigoProductoMenu)(dto.codigo_menu, codigoCategoria);
-                if (!norm) {
-                    throw new common_1.BadRequestException('Código de producto inválido');
-                }
-                codigoMenuUpdate = norm;
-            }
-            else if (categoriaCambio || !existing.codigoMenu) {
+            if (categoriaCambio || !existing.codigoMenu) {
                 codigoMenuUpdate = (0, menu_codigo_1.siguienteCodigoProducto)(codigoCategoria, ocupadosStr);
             }
             if (codigoMenuUpdate) {
@@ -398,6 +473,14 @@ let ProductosService = class ProductosService {
             where: { idProducto },
             data: {
                 ...(dto.id_categoria != null ? { idCategoria: dto.id_categoria } : {}),
+                ...(dto.hereda_unidad === true
+                    ? { heredaUnidad: true }
+                    : dto.id_unidad !== undefined || dto.hereda_unidad === false
+                        ? {
+                            heredaUnidad: false,
+                            idUnidad: await this.resolverUnidadProducto(tenantId, dto.id_unidad ?? null),
+                        }
+                        : {}),
                 ...(codigoMenuUpdate != null ? { codigoMenu: codigoMenuUpdate } : {}),
                 ...(dto.nombre != null ? { nombre: dto.nombre.trim() } : {}),
                 ...(dto.descripcion !== undefined

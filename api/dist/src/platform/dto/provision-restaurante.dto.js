@@ -20,6 +20,7 @@ class ProvisionRestauranteDto {
     admin_nombre;
     dominio_email_interno;
     mesas_salon;
+    id_restaurante_piso;
 }
 exports.ProvisionRestauranteDto = ProvisionRestauranteDto;
 __decorate([
@@ -73,4 +74,10 @@ __decorate([
     (0, class_validator_1.Max)(60),
     __metadata("design:type", Number)
 ], ProvisionRestauranteDto.prototype, "mesas_salon", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsInt)(),
+    (0, class_validator_1.Min)(1),
+    __metadata("design:type", Number)
+], ProvisionRestauranteDto.prototype, "id_restaurante_piso", void 0);
 //# sourceMappingURL=provision-restaurante.dto.js.map

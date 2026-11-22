@@ -21,6 +21,9 @@ class PatchModulosSuperadminDto {
     modulo_conexion_movil_activo;
     modulo_envio_correo_activo;
     modulo_impoconsumo_activo;
+    modulo_unidades_operativas_activo;
+    modulo_restaurantes_multiples_activo;
+    modo_inventario_unidades;
 }
 exports.PatchModulosSuperadminDto = PatchModulosSuperadminDto;
 __decorate([
@@ -68,4 +71,19 @@ __decorate([
     (0, class_validator_1.IsBoolean)(),
     __metadata("design:type", Boolean)
 ], PatchModulosSuperadminDto.prototype, "modulo_impoconsumo_activo", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], PatchModulosSuperadminDto.prototype, "modulo_unidades_operativas_activo", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], PatchModulosSuperadminDto.prototype, "modulo_restaurantes_multiples_activo", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsIn)(['compartido', 'independiente']),
+    __metadata("design:type", String)
+], PatchModulosSuperadminDto.prototype, "modo_inventario_unidades", void 0);
 //# sourceMappingURL=patch-modulos.dto.js.map

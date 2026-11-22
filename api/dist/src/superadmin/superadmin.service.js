@@ -60,6 +60,7 @@ const config_inventario_cache_1 = require("../inventario/config-inventario-cache
 const restaurant_branding_1 = require("../common/restaurant-branding");
 const distribucion_enlaces_1 = require("../sistema/distribucion-enlaces");
 const instalacion_on_prem_1 = require("../sistema/instalacion-on-prem");
+const platform_provision_service_1 = require("../platform/platform-provision.service");
 const config_restaurante_cache_1 = require("../restaurante/config-restaurante-cache");
 const menu_hoy_cache_1 = require("../common/menu-hoy-cache");
 const PEDIDOS_ABIERTOS = ['abierto', 'en_cocina'];
@@ -93,9 +94,11 @@ let SuperadminService = class SuperadminService {
     static { SuperadminService_1 = this; }
     prisma;
     gateway;
-    constructor(prisma, gateway) {
+    provision;
+    constructor(prisma, gateway, provision) {
         this.prisma = prisma;
         this.gateway = gateway;
+        this.provision = provision;
     }
     async estado(tenantId) {
         const restaurante = await this.prisma.restaurante.findUnique({
@@ -168,6 +171,9 @@ let SuperadminService = class SuperadminService {
                     moduloConexionMovilActivo: true,
                     moduloEnvioCorreoActivo: true,
                     moduloImpoconsumoActivo: true,
+                    moduloUnidadesOperativasActivo: true,
+                    moduloRestaurantesMultiplesActivo: true,
+                    modoInventarioUnidades: true,
                 },
             }),
         ]);
@@ -190,6 +196,9 @@ let SuperadminService = class SuperadminService {
                 modulo_conexion_movil_activo: cfg?.moduloConexionMovilActivo ?? false,
                 modulo_envio_correo_activo: cfg?.moduloEnvioCorreoActivo ?? false,
                 modulo_impoconsumo_activo: cfg?.moduloImpoconsumoActivo ?? false,
+                modulo_unidades_operativas_activo: cfg?.moduloUnidadesOperativasActivo ?? false,
+                modulo_restaurantes_multiples_activo: cfg?.moduloRestaurantesMultiplesActivo ?? false,
+                modo_inventario_unidades: cfg?.modoInventarioUnidades ?? 'compartido',
             },
             admin_registrado: adminCount > 0,
             totales: {
@@ -438,7 +447,10 @@ let SuperadminService = class SuperadminService {
             dto.modulo_produccion_porciones_activo === undefined &&
             dto.modulo_conexion_movil_activo === undefined &&
             dto.modulo_envio_correo_activo === undefined &&
-            dto.modulo_impoconsumo_activo === undefined) {
+            dto.modulo_impoconsumo_activo === undefined &&
+            dto.modulo_unidades_operativas_activo === undefined &&
+            dto.modulo_restaurantes_multiples_activo === undefined &&
+            dto.modo_inventario_unidades === undefined) {
             throw new common_1.BadRequestException('Nada que actualizar');
         }
         await this.prisma.restaurante.upsert({
@@ -483,6 +495,19 @@ let SuperadminService = class SuperadminService {
                 ...(dto.modulo_impoconsumo_activo !== undefined
                     ? { moduloImpoconsumoActivo: dto.modulo_impoconsumo_activo }
                     : {}),
+                ...(dto.modulo_unidades_operativas_activo !== undefined
+                    ? {
+                        moduloUnidadesOperativasActivo: dto.modulo_unidades_operativas_activo,
+                    }
+                    : {}),
+                ...(dto.modulo_restaurantes_multiples_activo !== undefined
+                    ? {
+                        moduloRestaurantesMultiplesActivo: dto.modulo_restaurantes_multiples_activo,
+                    }
+                    : {}),
+                ...(dto.modo_inventario_unidades !== undefined
+                    ? { modoInventarioUnidades: dto.modo_inventario_unidades }
+                    : {}),
             },
             update: {
                 ...(dto.modulo_retail_activo !== undefined
@@ -514,6 +539,19 @@ let SuperadminService = class SuperadminService {
                 ...(dto.modulo_impoconsumo_activo !== undefined
                     ? { moduloImpoconsumoActivo: dto.modulo_impoconsumo_activo }
                     : {}),
+                ...(dto.modulo_unidades_operativas_activo !== undefined
+                    ? {
+                        moduloUnidadesOperativasActivo: dto.modulo_unidades_operativas_activo,
+                    }
+                    : {}),
+                ...(dto.modulo_restaurantes_multiples_activo !== undefined
+                    ? {
+                        moduloRestaurantesMultiplesActivo: dto.modulo_restaurantes_multiples_activo,
+                    }
+                    : {}),
+                ...(dto.modo_inventario_unidades !== undefined
+                    ? { modoInventarioUnidades: dto.modo_inventario_unidades }
+                    : {}),
             },
         });
         (0, config_restaurante_cache_1.invalidateConfigRestauranteCache)(tenantId);
@@ -532,7 +570,108 @@ let SuperadminService = class SuperadminService {
             modulo_conexion_movil_activo: row.moduloConexionMovilActivo,
             modulo_envio_correo_activo: row.moduloEnvioCorreoActivo,
             modulo_impoconsumo_activo: row.moduloImpoconsumoActivo,
+            modulo_unidades_operativas_activo: row.moduloUnidadesOperativasActivo,
+            modulo_restaurantes_multiples_activo: row.moduloRestaurantesMultiplesActivo,
+            modo_inventario_unidades: row.modoInventarioUnidades,
         };
+    }
+    async moduloRestaurantesMultiplesActivo() {
+        const row = await this.prisma.configRestaurante.findFirst({
+            where: { moduloRestaurantesMultiplesActivo: true },
+            select: { idRestaurante: true },
+        });
+        return row != null;
+    }
+    async listarRestaurantes() {
+        if (!(await this.moduloRestaurantesMultiplesActivo()))
+            return [];
+        const rows = await this.prisma.restaurante.findMany({
+            where: { activo: true },
+            orderBy: { idRestaurante: 'asc' },
+            select: { idRestaurante: true, nombre: true, slug: true },
+        });
+        return rows.map((r) => ({
+            id_restaurante: r.idRestaurante,
+            nombre: r.nombre,
+            slug: r.slug,
+        }));
+    }
+    async crearRestaurante(input, tenantPiso) {
+        if (!(await this.moduloRestaurantesMultiplesActivo())) {
+            throw new common_1.ForbiddenException('Varios restaurantes no está habilitado');
+        }
+        const nombre = input.nombre.trim();
+        const base = nombre
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-+|-+$/g, '')
+            .slice(0, 48);
+        let slug = base || 'restaurante';
+        const taken = await this.prisma.restaurante.findUnique({ where: { slug } });
+        if (taken)
+            slug = `${slug}-${Date.now().toString().slice(-4)}`;
+        const compartir = input.compartir_espacio !== false;
+        const email = input.admin_email?.trim().toLowerCase();
+        const adminPrincipal = email
+            ? await this.prisma.usuario.findFirst({
+                where: {
+                    idRestaurante: tenantPiso,
+                    email,
+                    activo: true,
+                    rol: { nombre: 'admin' },
+                },
+                select: { passwordHash: true, nombre: true },
+            })
+            : null;
+        const clave = input.admin_password?.trim() ?? '';
+        if (!adminPrincipal && clave.length < 8) {
+            throw new common_1.BadRequestException('Indica una clave de al menos 8 caracteres, o usa el correo del administrador del restaurante principal.');
+        }
+        return this.provision.provision({
+            slug,
+            nombre,
+            admin_password: clave || 'reutilizada',
+            admin_email: email,
+            mesas_salon: 8,
+            ...(compartir ? { id_restaurante_piso: tenantPiso } : {}),
+        }, adminPrincipal
+            ? { passwordHash: adminPrincipal.passwordHash, adminNombre: adminPrincipal.nombre }
+            : undefined);
+    }
+    async desactivarRestaurante(id, idUsuarioActor) {
+        const actor = await this.prisma.usuario.findUnique({
+            where: { idUsuario: idUsuarioActor },
+            select: { idRestaurante: true },
+        });
+        if (actor?.idRestaurante === id) {
+            throw new common_1.BadRequestException('No puedes eliminar el restaurante de tu usuario');
+        }
+        const restaurante = await this.prisma.restaurante.findUnique({
+            where: { idRestaurante: id },
+            select: { idRestaurante: true, nombre: true, activo: true },
+        });
+        if (!restaurante || !restaurante.activo) {
+            throw new common_1.NotFoundException('Restaurante no encontrado');
+        }
+        const usanSuSalon = await this.prisma.restaurante.count({
+            where: { idRestaurantePiso: id, activo: true },
+        });
+        if (usanSuSalon > 0) {
+            throw new common_1.BadRequestException('Otros restaurantes usan el salón de este local. Elimina esos primero.');
+        }
+        const abiertos = await this.prisma.pedido.count({
+            where: { idRestaurante: id, estado: { in: ['abierto', 'en_cocina'] } },
+        });
+        if (abiertos > 0) {
+            throw new common_1.BadRequestException('Tiene pedidos abiertos. Ciérralos o cóbralos antes de eliminarlo.');
+        }
+        await this.prisma.restaurante.update({
+            where: { idRestaurante: id },
+            data: { activo: false },
+        });
+        return { ok: true, id_restaurante: id, nombre: restaurante.nombre };
     }
     async asegurarMesaBoutique(tenantId) {
         const op = await this.prisma.configOperativa.findUnique({
@@ -1026,6 +1165,7 @@ exports.SuperadminService = SuperadminService;
 exports.SuperadminService = SuperadminService = SuperadminService_1 = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [prisma_service_1.PrismaService,
-        pedidos_gateway_1.PedidosGateway])
+        pedidos_gateway_1.PedidosGateway,
+        platform_provision_service_1.PlatformProvisionService])
 ], SuperadminService);
 //# sourceMappingURL=superadmin.service.js.map

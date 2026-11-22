@@ -10,6 +10,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.UpdateCategoriaDto = void 0;
+const class_transformer_1 = require("class-transformer");
 const class_validator_1 = require("class-validator");
 const categoria_menu_icon_1 = require("@drewrest/shared-domain/categoria-menu-icon");
 class UpdateCategoriaDto {
@@ -34,6 +35,7 @@ class UpdateCategoriaDto {
     icono_menu;
     color_icono;
     codigo_menu;
+    id_unidad;
 }
 exports.UpdateCategoriaDto = UpdateCategoriaDto;
 __decorate([
@@ -146,4 +148,10 @@ __decorate([
     (0, class_validator_1.MaxLength)(2),
     __metadata("design:type", String)
 ], UpdateCategoriaDto.prototype, "codigo_menu", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsInt)(),
+    __metadata("design:type", Object)
+], UpdateCategoriaDto.prototype, "id_unidad", void 0);
 //# sourceMappingURL=update-categoria.dto.js.map

@@ -29,6 +29,7 @@ async function buildDomicilioEscPos(ticket, charWidthOrOpts = escpos_utils_1.DEF
     const nombre = usarBlanco ? '' : (ticket.cliente_nombre ?? '').trim();
     const tel = usarBlanco ? '' : (ticket.cliente_telefono ?? '').trim();
     const dir = usarBlanco ? '' : (ticket.cliente_direccion ?? '').trim();
+    const textoLibre = usarBlanco ? '' : (ticket.texto_libre ?? '').trim();
     await (0, escpos_utils_1.applyEscPosTicketStart)(printer, opts);
     await (0, ticket_layout_1.encabezadoTicket)(printer, opts, {
         titulo: 'DOMICILIO',
@@ -41,9 +42,24 @@ async function buildDomicilioEscPos(ticket, charWidthOrOpts = escpos_utils_1.DEF
     ]);
     await printer.println('-'.repeat(w));
     await printer.newLine();
-    await printCampo(printer, w, 'CLIENTE', nombre, blank);
-    await printCampo(printer, w, 'TELÉFONO', tel, blank);
-    await printCampo(printer, w, 'DIRECCIÓN', dir, blank, dir ? 0 : 1);
+    if (textoLibre) {
+        for (const raw of textoLibre.split(/\r?\n/)) {
+            const line = raw.trimEnd();
+            if (!line.trim()) {
+                await printer.newLine();
+                continue;
+            }
+            for (const wrapped of (0, escpos_utils_1.wrapEscPos)(line, w)) {
+                await printer.println(wrapped);
+            }
+        }
+        await printer.newLine();
+    }
+    else {
+        await printCampo(printer, w, 'CLIENTE', nombre, blank);
+        await printCampo(printer, w, 'TELÉFONO', tel, blank);
+        await printCampo(printer, w, 'DIRECCIÓN', dir, blank, dir ? 0 : 1);
+    }
     await printer.alignCenter();
     await (0, ticket_layout_1.separadorDoble)(printer, opts);
     await printer.println('* * *');

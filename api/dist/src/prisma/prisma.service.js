@@ -50,6 +50,47 @@ let PrismaService = class PrismaService extends client_1.PrismaClient {
     }
     async onModuleInit() {
         await this.$connect();
+        this.$use(async (params, next) => {
+            if (params.model === 'DetallePedido' && params.action === 'create') {
+                const data = params.args?.data;
+                if (data && data.idUnidad == null && data.idProducto) {
+                    const prod = await this.producto.findUnique({
+                        where: { idProducto: data.idProducto },
+                        select: {
+                            idUnidad: true,
+                            heredaUnidad: true,
+                            categoria: { select: { idRestaurante: true, idUnidad: true } },
+                        },
+                    });
+                    const unidadLinea = prod?.heredaUnidad
+                        ? prod.categoria.idUnidad
+                        : prod?.idUnidad;
+                    if (unidadLinea) {
+                        const cfg = await this.configRestaurante.findUnique({
+                            where: { idRestaurante: prod.categoria.idRestaurante },
+                            select: { moduloUnidadesOperativasActivo: true },
+                        });
+                        if (cfg?.moduloUnidadesOperativasActivo)
+                            data.idUnidad = unidadLinea;
+                    }
+                }
+            }
+            if (params.model === 'MovimientoCaja' && params.action === 'create') {
+                const data = params.args?.data;
+                if (data && data.idUnidad == null && data.idPedido) {
+                    const lineas = await this.detallePedido.findMany({
+                        where: { idPedido: data.idPedido },
+                        select: { idUnidad: true },
+                    });
+                    const ids = [
+                        ...new Set(lineas.map((l) => l.idUnidad).filter((id) => id != null)),
+                    ];
+                    if (ids.length === 1)
+                        data.idUnidad = ids[0];
+                }
+            }
+            return next(params);
+        });
     }
     async onModuleDestroy() {
         await this.$disconnect();

@@ -87,8 +87,13 @@ let GananciasController = class GananciasController {
     deletePagoFondo(id, tenantId) {
         return this.ganancias.eliminarPagoFondo(id, tenantId);
     }
-    listarExtras(fecha_desde, fecha_hasta, tenantId) {
-        return this.ganancias.listarGastosExtras({ fecha_desde, fecha_hasta }, tenantId);
+    listarExtras(fecha_desde, fecha_hasta, idUnidad, tenantId) {
+        const id = Number(idUnidad);
+        return this.ganancias.listarGastosExtras({
+            fecha_desde,
+            fecha_hasta,
+            id_unidad: Number.isInteger(id) && id > 0 ? id : undefined,
+        }, tenantId);
     }
     crearExtra(dto, tenantId) {
         return this.ganancias.crearGastoExtra(dto, tenantId);
@@ -275,9 +280,10 @@ __decorate([
     (0, common_1.Get)('gastos-extras'),
     __param(0, (0, common_1.Query)('fecha_desde')),
     __param(1, (0, common_1.Query)('fecha_hasta')),
-    __param(2, (0, current_tenant_decorator_1.CurrentTenantId)()),
+    __param(2, (0, common_1.Query)('id_unidad')),
+    __param(3, (0, current_tenant_decorator_1.CurrentTenantId)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, Object, Number]),
+    __metadata("design:paramtypes", [Object, Object, Object, Number]),
     __metadata("design:returntype", void 0)
 ], GananciasController.prototype, "listarExtras", null);
 __decorate([

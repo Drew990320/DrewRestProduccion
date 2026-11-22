@@ -13,6 +13,7 @@ exports.ImprimirDomicilioDto = void 0;
 const class_validator_1 = require("class-validator");
 class ImprimirDomicilioDto {
     forzar_blanco;
+    texto_libre;
 }
 exports.ImprimirDomicilioDto = ImprimirDomicilioDto;
 __decorate([
@@ -20,4 +21,10 @@ __decorate([
     (0, class_validator_1.IsBoolean)(),
     __metadata("design:type", Boolean)
 ], ImprimirDomicilioDto.prototype, "forzar_blanco", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(2000),
+    __metadata("design:type", String)
+], ImprimirDomicilioDto.prototype, "texto_libre", void 0);
 //# sourceMappingURL=imprimir-domicilio.dto.js.map

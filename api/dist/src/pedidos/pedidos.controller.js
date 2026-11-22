@@ -130,12 +130,31 @@ let PedidosController = class PedidosController {
     resumenDiarioLineasFactura(idFactura) {
         return this.pedidos.resumenDiarioLineasFactura(idFactura);
     }
-    resumenDiario(fecha, periodo, fechaDesde, fechaHasta, tenantId) {
-        return this.pedidos.resumenDiario(fecha, {
+    resumenDiario(fecha, periodo, fechaDesde, fechaHasta, idUnidad, idRestaurante, consolidado, tenantId, req) {
+        const rol = req?.user?.rol?.nombre ?? '';
+        const sesion = tenantId ?? 1;
+        if (consolidado === '1') {
+            if (rol !== 'superadmin') {
+                return this.pedidos.resumenDiario(fecha, {
+                    periodo,
+                    fecha_desde: fechaDesde,
+                    fecha_hasta: fechaHasta,
+                }, sesion);
+            }
+            return this.pedidos.resumenConsolidadoRestaurantes(fecha, {
+                periodo,
+                fecha_desde: fechaDesde,
+                fecha_hasta: fechaHasta,
+            });
+        }
+        const pedidoId = Number(idRestaurante);
+        const id = Number(idUnidad);
+        return this.pedidos.tenantResumenSuperadmin(rol, Number.isInteger(pedidoId) && pedidoId > 0 ? pedidoId : undefined, sesion).then((tenant) => this.pedidos.resumenDiario(fecha, {
             periodo,
             fecha_desde: fechaDesde,
             fecha_hasta: fechaHasta,
-        }, tenantId);
+            id_unidad: Number.isInteger(id) && id > 0 ? id : undefined,
+        }, tenant));
     }
     vaciarResumenDiario(dto, fecha, req) {
         return this.pedidos.vaciarResumenDiario(req.user, dto, fecha);
@@ -166,8 +185,9 @@ let PedidosController = class PedidosController {
     moverFacturasFecha(dto, fecha) {
         return this.pedidos.moverFacturasAFecha(dto, fecha);
     }
-    cajaDiaria(fecha, tenantId) {
-        return this.pedidos.getCajaDiaria(fecha, tenantId);
+    cajaDiaria(fecha, idUnidad, tenantId) {
+        const id = Number(idUnidad);
+        return this.pedidos.getCajaDiaria(fecha, tenantId, Number.isInteger(id) && id > 0 ? id : null);
     }
     upsertCajaDiaria(dto, tenantId, req) {
         return this.pedidos.upsertCajaDiaria(dto, tenantId, nombreUsuarioTicket(req.user));
@@ -270,6 +290,7 @@ let PedidosController = class PedidosController {
     imprimirDomicilio(id, dto) {
         return this.pedidos.imprimirDomicilio(id, {
             forzar_blanco: dto.forzar_blanco === true,
+            texto_libre: dto.texto_libre,
         });
     }
     enviarFacturaCorreo(id, dto, req) {
@@ -513,9 +534,13 @@ __decorate([
     __param(1, (0, common_1.Query)('periodo')),
     __param(2, (0, common_1.Query)('fecha_desde')),
     __param(3, (0, common_1.Query)('fecha_hasta')),
-    __param(4, (0, current_tenant_decorator_1.CurrentTenantId)()),
+    __param(4, (0, common_1.Query)('id_unidad')),
+    __param(5, (0, common_1.Query)('id_restaurante')),
+    __param(6, (0, common_1.Query)('consolidado')),
+    __param(7, (0, current_tenant_decorator_1.CurrentTenantId)()),
+    __param(8, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String, String, String, Number]),
+    __metadata("design:paramtypes", [String, String, String, String, String, String, String, Number, Object]),
     __metadata("design:returntype", void 0)
 ], PedidosController.prototype, "resumenDiario", null);
 __decorate([
@@ -599,9 +624,10 @@ __decorate([
     (0, common_1.UseGuards)(pedido_tenant_guard_1.PedidoTenantGuard, roles_guard_1.RolesGuard),
     (0, roles_decorator_1.Roles)('admin'),
     __param(0, (0, common_1.Query)('fecha')),
-    __param(1, (0, current_tenant_decorator_1.CurrentTenantId)()),
+    __param(1, (0, common_1.Query)('id_unidad')),
+    __param(2, (0, current_tenant_decorator_1.CurrentTenantId)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Number]),
+    __metadata("design:paramtypes", [String, String, Number]),
     __metadata("design:returntype", void 0)
 ], PedidosController.prototype, "cajaDiaria", null);
 __decorate([
