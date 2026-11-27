@@ -92,6 +92,7 @@ function mapProducto(p) {
         stock_disponible: p.stockDisponible,
         ocultar_sin_stock: p.ocultarSinStock,
         es_combo: p.esCombo,
+        venta_por_valor: Boolean(p.ventaPorValor),
         combo_min: Math.max(1, p.comboMin ?? 1),
         combo_max: Math.max(1, p.comboMax ?? 1),
         usa_produccion_porciones: Boolean(p.usaProduccionPorciones),
@@ -278,6 +279,10 @@ let ProductosService = class ProductosService {
             throw new common_1.BadRequestException('Este producto no admite subítems repartibles');
         }
         const esCombo = Boolean(dto.es_combo);
+        const ventaPorValor = Boolean(dto.venta_por_valor);
+        if (ventaPorValor && (esCombo || dto.usa_subitems_repartibles || esMazorca)) {
+            throw new common_1.BadRequestException('Un producto por valor no puede ser combo, mazorca ni usar subítems');
+        }
         if (esCombo && (flags.esEmpacable || esMazorca || dto.usa_subitems_repartibles)) {
             throw new common_1.BadRequestException('Un combo no puede ser empacable, mazorca ni usar subítems repartibles');
         }
@@ -333,6 +338,7 @@ let ProductosService = class ProductosService {
                 tipoProteina: dto.tipo_proteina ?? 'ninguno',
                 prioridadCocinaBaja: dto.prioridad_cocina_baja ?? null,
                 esCombo,
+                ventaPorValor,
                 comboMin,
                 comboMax,
                 activo: true,
@@ -424,6 +430,13 @@ let ProductosService = class ProductosService {
             throw new common_1.BadRequestException('Este producto no admite subítems repartibles');
         }
         const esCombo = dto.es_combo != null ? dto.es_combo : existing.esCombo;
+        const ventaPorValor = dto.venta_por_valor != null ? dto.venta_por_valor : existing.ventaPorValor;
+        const usaSubitems = dto.usa_subitems_repartibles != null
+            ? dto.usa_subitems_repartibles
+            : existing.usaSubitemsRepartibles;
+        if (ventaPorValor && (esCombo || usaSubitems || esMazorca)) {
+            throw new common_1.BadRequestException('Un producto por valor no puede ser combo, mazorca ni usar subítems');
+        }
         if (esCombo && (flags.esEmpacable || esMazorca || dto.usa_subitems_repartibles)) {
             throw new common_1.BadRequestException('Un combo no puede ser empacable, mazorca ni usar subítems repartibles');
         }
@@ -510,6 +523,7 @@ let ProductosService = class ProductosService {
                     : {}),
                 esAcompanamientoMazorca: esMazorca,
                 esCombo,
+                ventaPorValor,
                 comboMin,
                 comboMax,
                 ...(dto.tipo_proteina != null ? { tipoProteina: dto.tipo_proteina } : {}),

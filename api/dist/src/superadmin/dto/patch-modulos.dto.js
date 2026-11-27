@@ -23,6 +23,7 @@ class PatchModulosSuperadminDto {
     modulo_impoconsumo_activo;
     modulo_unidades_operativas_activo;
     modulo_restaurantes_multiples_activo;
+    modulo_parqueadero_activo;
     modo_inventario_unidades;
 }
 exports.PatchModulosSuperadminDto = PatchModulosSuperadminDto;
@@ -81,6 +82,11 @@ __decorate([
     (0, class_validator_1.IsBoolean)(),
     __metadata("design:type", Boolean)
 ], PatchModulosSuperadminDto.prototype, "modulo_restaurantes_multiples_activo", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], PatchModulosSuperadminDto.prototype, "modulo_parqueadero_activo", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsIn)(['compartido', 'independiente']),

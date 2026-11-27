@@ -27,6 +27,7 @@ const ganancias_module_1 = require("./ganancias/ganancias.module");
 const impresoras_pos_module_1 = require("./impresoras-pos/impresoras-pos.module");
 const tienda_module_1 = require("./tienda/tienda.module");
 const unidades_module_1 = require("./unidades/unidades.module");
+const parking_module_1 = require("./parking/parking.module");
 const servicios_module_1 = require("./servicios/servicios.module");
 const reservas_module_1 = require("./reservas/reservas.module");
 const apartados_module_1 = require("./apartados/apartados.module");
@@ -85,6 +86,7 @@ exports.AppModule = AppModule = __decorate([
             categorias_module_1.CategoriasModule,
             tienda_module_1.TiendaModule,
             unidades_module_1.UnidadesModule,
+            parking_module_1.ParkingModule,
             servicios_module_1.ServiciosModule,
             reservas_module_1.ReservasModule,
             apartados_module_1.ApartadosModule,

@@ -128,6 +128,7 @@ let ConfigRestauranteService = class ConfigRestauranteService {
             modulo_impoconsumo_activo: row.moduloImpoconsumoActivo,
             modulo_unidades_operativas_activo: row.moduloUnidadesOperativasActivo,
             modulo_restaurantes_multiples_activo: row.moduloRestaurantesMultiplesActivo,
+            modulo_parqueadero_activo: row.moduloParqueaderoActivo,
             modo_inventario_unidades: row.modoInventarioUnidades,
             login_pin_compartido_activo: row.loginPinCompartidoActivo,
             login_pin_definido: Boolean(row.loginPinHash?.trim()),

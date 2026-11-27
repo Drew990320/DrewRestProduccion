@@ -36,6 +36,7 @@ class UpdateProductoDto {
     password_admin;
     motivo_ajuste_stock;
     ocultar_sin_stock;
+    venta_por_valor;
     es_combo;
     combo_min;
     combo_max;
@@ -169,6 +170,11 @@ __decorate([
     (0, class_validator_1.IsBoolean)(),
     __metadata("design:type", Boolean)
 ], UpdateProductoDto.prototype, "ocultar_sin_stock", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], UpdateProductoDto.prototype, "venta_por_valor", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsBoolean)(),

@@ -30,6 +30,7 @@ __decorate([
 class AddDetalleDto {
     id_producto;
     cantidad;
+    valor;
     nota_cocina;
     opcion_ids;
     subitems;
@@ -47,6 +48,13 @@ __decorate([
     (0, class_validator_1.Min)(1),
     __metadata("design:type", Number)
 ], AddDetalleDto.prototype, "cantidad", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.Min)(1),
+    __metadata("design:type", Number)
+], AddDetalleDto.prototype, "valor", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),

@@ -32,6 +32,7 @@ class CreateProductoDto {
     control_stock;
     stock_disponible;
     ocultar_sin_stock;
+    venta_por_valor;
     es_combo;
     combo_min;
     combo_max;
@@ -138,6 +139,11 @@ __decorate([
     (0, class_validator_1.IsBoolean)(),
     __metadata("design:type", Boolean)
 ], CreateProductoDto.prototype, "ocultar_sin_stock", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], CreateProductoDto.prototype, "venta_por_valor", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsBoolean)(),

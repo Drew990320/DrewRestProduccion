@@ -173,6 +173,7 @@ let SuperadminService = class SuperadminService {
                     moduloImpoconsumoActivo: true,
                     moduloUnidadesOperativasActivo: true,
                     moduloRestaurantesMultiplesActivo: true,
+                    moduloParqueaderoActivo: true,
                     modoInventarioUnidades: true,
                 },
             }),
@@ -198,6 +199,7 @@ let SuperadminService = class SuperadminService {
                 modulo_impoconsumo_activo: cfg?.moduloImpoconsumoActivo ?? false,
                 modulo_unidades_operativas_activo: cfg?.moduloUnidadesOperativasActivo ?? false,
                 modulo_restaurantes_multiples_activo: cfg?.moduloRestaurantesMultiplesActivo ?? false,
+                modulo_parqueadero_activo: cfg?.moduloParqueaderoActivo ?? false,
                 modo_inventario_unidades: cfg?.modoInventarioUnidades ?? 'compartido',
             },
             admin_registrado: adminCount > 0,
@@ -450,6 +452,7 @@ let SuperadminService = class SuperadminService {
             dto.modulo_impoconsumo_activo === undefined &&
             dto.modulo_unidades_operativas_activo === undefined &&
             dto.modulo_restaurantes_multiples_activo === undefined &&
+            dto.modulo_parqueadero_activo === undefined &&
             dto.modo_inventario_unidades === undefined) {
             throw new common_1.BadRequestException('Nada que actualizar');
         }
@@ -505,6 +508,9 @@ let SuperadminService = class SuperadminService {
                         moduloRestaurantesMultiplesActivo: dto.modulo_restaurantes_multiples_activo,
                     }
                     : {}),
+                ...(dto.modulo_parqueadero_activo !== undefined
+                    ? { moduloParqueaderoActivo: dto.modulo_parqueadero_activo }
+                    : {}),
                 ...(dto.modo_inventario_unidades !== undefined
                     ? { modoInventarioUnidades: dto.modo_inventario_unidades }
                     : {}),
@@ -549,6 +555,9 @@ let SuperadminService = class SuperadminService {
                         moduloRestaurantesMultiplesActivo: dto.modulo_restaurantes_multiples_activo,
                     }
                     : {}),
+                ...(dto.modulo_parqueadero_activo !== undefined
+                    ? { moduloParqueaderoActivo: dto.modulo_parqueadero_activo }
+                    : {}),
                 ...(dto.modo_inventario_unidades !== undefined
                     ? { modoInventarioUnidades: dto.modo_inventario_unidades }
                     : {}),
@@ -572,6 +581,7 @@ let SuperadminService = class SuperadminService {
             modulo_impoconsumo_activo: row.moduloImpoconsumoActivo,
             modulo_unidades_operativas_activo: row.moduloUnidadesOperativasActivo,
             modulo_restaurantes_multiples_activo: row.moduloRestaurantesMultiplesActivo,
+            modulo_parqueadero_activo: row.moduloParqueaderoActivo,
             modo_inventario_unidades: row.modoInventarioUnidades,
         };
     }

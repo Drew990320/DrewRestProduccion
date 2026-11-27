@@ -141,6 +141,9 @@ function conteoLlamaMesero(detalles) {
     }
     return { platos, entradas };
 }
+function esVentaPorValor(producto) {
+    return producto.ventaPorValor === true;
+}
 function tipoListoCocinaLlama(platos, entradas) {
     if (platos > 0 && entradas > 0)
         return 'mixto';
@@ -5364,6 +5367,41 @@ let PedidosService = class PedidosService {
             }
             precioVenta = await this.menuActivo.precioVentaProducto(producto.idProducto, pedido.idRestaurante, producto.precio);
         }
+        if (esVentaPorValor(producto)) {
+            const valor = Math.round(Number(dto.valor));
+            if (!Number.isFinite(valor) || valor < 1) {
+                throw new common_1.BadRequestException('Indica el valor a cobrar');
+            }
+            await this.prisma.$transaction(async (tx) => {
+                const d = await tx.detallePedido.create({
+                    data: {
+                        idPedido,
+                        idProducto: dto.id_producto,
+                        cantidad: 1,
+                        precioUnitario: valor,
+                        notaCocina: dto.nota_cocina?.trim() || null,
+                    },
+                });
+                await tx.pedidoHistorial.create({
+                    data: {
+                        idPedido,
+                        idUsuario,
+                        tipo: 'detalle_agregado',
+                        detalleJson: {
+                            lineas: [
+                                {
+                                    id_detalle: d.idDetalle,
+                                    nombre_producto: producto.nombre,
+                                    cantidad: 1,
+                                    valor,
+                                },
+                            ],
+                        },
+                    },
+                });
+            });
+            return this.obtenerPorIdTrasEscritura(idPedido);
+        }
         if (producto.esCombo) {
             return this.agregarDetalleCombo(idPedido, dto, actor, pedido, producto, precioVenta);
         }
@@ -6247,6 +6285,9 @@ let PedidosService = class PedidosService {
         }
         if ((0, mazorca_linea_pedido_1.esDetalleMazorcaAcompanamiento)(det.producto)) {
             throw new common_1.BadRequestException('La cantidad de mazorcas se ajusta con el número de comensales');
+        }
+        if (esVentaPorValor(det.producto)) {
+            throw new common_1.BadRequestException('Este producto se cobra por valor. Quita la línea y vuelve a agregarla con el monto.');
         }
         const cantidad = dto.cantidad;
         if (det.cantidad === cantidad) {
@@ -9794,6 +9835,7 @@ let PedidosService = class PedidosService {
                 es_plato_principal: d.producto.esPlatoPrincipal,
                 es_acompanamiento_mazorca: d.producto.esAcompanamientoMazorca,
                 es_combo: d.producto.esCombo,
+                venta_por_valor: esVentaPorValor(d.producto),
                 categoria_prioridad_cocina_baja: d.producto.categoria.prioridadCocinaBaja,
                 producto_prioridad_cocina_baja: d.producto.prioridadCocinaBaja,
                 es_cuota_pendiente_reparto: esCuotaPend,

@@ -149,6 +149,7 @@ let MenuService = class MenuService {
                 usa_subitems_repartibles: p.usaSubitemsRepartibles,
                 cantidad_reparto_subitems: Math.max(1, p.cantidadRepartoSubitems ?? 1),
                 es_combo: p.esCombo,
+                venta_por_valor: p.ventaPorValor,
                 combo_min: Math.max(1, p.comboMin ?? 1),
                 combo_max: Math.max(1, p.comboMax ?? 1),
                 imagen_url: (0, producto_imagen_upload_util_1.productoImagenPublicUrl)(p.idProducto, p.imagenArchivo),
